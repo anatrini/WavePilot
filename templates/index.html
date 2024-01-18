@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Preset Render Visualizer</title>
+    <!-- Include three.js library -->    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.125.2/build/three.module.js",
+                "three/examples/jsm/controls/": "https://unpkg.com/three@0.125.2/examples/jsm/controls/",
+                "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.0/build/index.module.js"
+            }
+        }
+        </script>
+    <!-- Include Socket.IO library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        h1 {
+           text-align: left;
+           font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+           font-size: 24px;
+           color: #fff;
+           text-transform: capitalize;
+        }
+    </style> 
+</head>
+
+<body>
+    <h1>Preset Renderer</h1>
+    <!-- Include js script -->
+    <script type="module" src="/static/graph.js"></script>
+</body>
+</html>

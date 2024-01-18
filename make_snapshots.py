@@ -3,10 +3,11 @@ import numpy as np
 import sounddevice as sd
 import threading
 
+from logger import setup_logger
 from pythonosc import dispatcher, osc_server
 from scipy.io.wavfile import write
 
-
+logging = setup_logger('Recorder')
 
 def get_arguments():
     parser = argparse.ArgumentParser()
@@ -54,7 +55,7 @@ class Recorder:
         self.timer = None
 
     def handle_timeout(self, signum, frame):
-        print('Timeout, exiting...')
+        logging.warning('Timeout, exiting...')
         exit(0)
 
     def reset_timer(self):
@@ -68,7 +69,7 @@ class Recorder:
 
     def start_recording(self, unused_addr):
         self.reset_timer()
-        print('Record starts...')
+        logging.info('Record starts...')
         self.stream = sd.InputStream(callback=self.callback, 
                                       channels=1, 
                                       samplerate=self.fs, 
@@ -85,13 +86,13 @@ class Recorder:
 
             energy = np.sum(self.recording**2)
             if energy > self.silence_thresh:
-                print(f'Writing audio at {self.filepath}')
+                logging.info(f'Writing audio at {self.filepath}')
                 write(self.filepath, self.fs, self.recording)
             else:
-                print(f'No incoming audio!')
+                logging.error(f'No incoming audio!!!')
             self.recording = np.array([])
         else:
-            print("No active stream to stop.")
+            logging.warning("No active stream to stop.")
 
         if self.timer is not None:
             self.timer.cancel()
@@ -100,7 +101,7 @@ class Recorder:
     def set_filepath(self, unused_addr, path):
         self.reset_timer()
         self.filepath = path
-        print(f'Set filepath to {self.filepath}')
+        logging.info(f'Set filepath to {self.filepath}')
 
 
 def main():
@@ -134,7 +135,7 @@ def main():
     dispatcher_.map('/stop', recorder.stop_recording)
 
     server = osc_server.ThreadingOSCUDPServer((IP_ADDRESS, PORT), dispatcher_)
-    print(f'Serving on {server.server_address}')
+    logging.info(f'Serving on {server.server_address}')
     server.serve_forever()
 
 

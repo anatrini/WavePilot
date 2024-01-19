@@ -7,6 +7,11 @@ from logger import setup_logger
 from pythonosc import dispatcher, osc_server
 from scipy.io.wavfile import write
 
+
+IP_ADDRESS = '127.0.0.1'
+IN_PORT = 5005
+
+
 logging = setup_logger('Recorder')
 
 def get_arguments():
@@ -105,10 +110,6 @@ class Recorder:
 
 
 def main():
-
-    IP_ADDRESS = '127.0.0.1'
-    PORT = 5005
-
     args = get_arguments()
 
     device_id = args.device_id
@@ -134,7 +135,7 @@ def main():
     dispatcher_.map('/start', recorder.start_recording)
     dispatcher_.map('/stop', recorder.stop_recording)
 
-    server = osc_server.ThreadingOSCUDPServer((IP_ADDRESS, PORT), dispatcher_)
+    server = osc_server.ThreadingOSCUDPServer((IP_ADDRESS, IN_PORT), dispatcher_)
     logging.info(f'Serving on {server.server_address}')
     server.serve_forever()
 

@@ -28,6 +28,12 @@ class Visualize():
     def get_cursor_position(self):
         return np.array(self.cursor[:])
     
+    def get_data_min_max(self):
+        self.data = self.data[:, 1:] # drop first column because it contains IDs
+        min_xyz = np.min(self.data, axis=0).tolist()
+        max_xyz = np.max(self.data, axis=0).tolist()
+        return min_xyz + max_xyz
+    
     def start_osc_server(self, ip, port):
         try:
             server = osc_server.ThreadingOSCUDPServer((ip, port), self.dispatcher)
@@ -43,6 +49,8 @@ class Visualize():
         self.interpolator = interpolator
         self.osc_client = osc_client
         loop = asyncio.get_event_loop()
+
+        self.osc_client.send_message("/min_max", self.get_data_min_max())
 
         with ThreadPoolExecutor() as executor:
             loop.run_in_executor(executor, self.start_osc_server, ip, port)

@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 
-from autoencoder import VectorsReducer
+from autoencoder import VectorReducer
 from data import DataLoader
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
@@ -87,20 +87,21 @@ async def main():
     df = loader.load_presets()
     original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
 
-    reducer = VectorsReducer(df, learning_rate, weight_decay)
+    reducer = VectorReducer(df, learning_rate, weight_decay)
     reducer.train_autoencoder(num_epochs)
     reduced_data = reducer.autoencoder()
+    print(f'Reduced data {reduced_data}')
 
     interpolator = RBFInterpolation(reduced_data, original_data, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)
     
-
     # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
     flask_thread.start()
 
     # Run asyncio event loop
     await visualizer.run(IP_ADDRESS, IN_PORT, interpolator, osc_client)
+
 
 if __name__ == '__main__':
     asyncio.run(main())

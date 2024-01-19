@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from torch import nn
+from torch import nn, optim
 
 
 torch.manual_seed(42)
@@ -33,13 +33,13 @@ class Autoencoder(nn.Module):
         return x
     
 
-class VectorsReducer:
+class VectorReducer:
     def __init__(self, df, learning_rate, weight_decay):
         self.ids = df['ID'].values
         self.df = df.drop(columns=['ID', 'PRESET_NAME'])
         self.model = Autoencoder(self.df.shape[1])
         self.criterion = nn.MSELoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     def train_autoencoder(self, epochs):
         self.df = torch.tensor(self.df.values).float()

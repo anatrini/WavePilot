@@ -17,7 +17,9 @@ class RBFInterpolation:
     def interpolate(self, cursor_position):
         # Get cursor's position from visualizer
         cursor_position = np.array(cursor_position).reshape(1, -1)
-        return self.interpolator(cursor_position)
+        interpolated_data = self.interpolator(cursor_position)
+        interpolated_data = np.clip(interpolated_data, 0, 1)
+        return interpolated_data
     
     def send_data(self, osc_client, cursor_position):
         interpolated_data = self.interpolate(cursor_position)

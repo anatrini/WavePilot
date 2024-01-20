@@ -14,7 +14,7 @@ def setup_logger(name, level=logging.INFO, file=False):
     if file:
         now = time.time()
         timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now))
-        file_handler = logging.FileHandler(f'logs/model_info_{timestamp}.log')
+        file_handler = logging.FileHandler(f'logs/reduction_info_{timestamp}.log')
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
         logger.addHandler(file_handler)
 

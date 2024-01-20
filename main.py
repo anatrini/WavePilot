@@ -90,7 +90,8 @@ async def main():
     reducer = VectorReducer(df, learning_rate, weight_decay)
     reducer.train_autoencoder(num_epochs)
     reduced_data = reducer.autoencoder()
-    print(f'Reduced data {reduced_data}')
+    print(f'Reduced data {reduced_data[:, 1:]}') # togli l'ID
+    print(f'Original data {original_data.values}') # trasformalo da dataframe e numpy e togli l'ID
 
     interpolator = RBFInterpolation(reduced_data, original_data, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)

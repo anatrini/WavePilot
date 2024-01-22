@@ -16,6 +16,7 @@ class Visualize():
         self.cursor = np.mean(self.data, axis=0)
         self.dispatcher = dispatcher.Dispatcher()
         self.dispatcher.map('/cursor', self.update_cursor)
+        #print(f'Reduced data {data}')
 
     def update_cursor(self, _, x, y, z):
         logging.info(f"Received cursor data: {x}, {y}, {z}")
@@ -29,7 +30,7 @@ class Visualize():
         return np.array(self.cursor[:])
     
     def get_data_min_max(self):
-        self.data = self.data[:, 1:] # drop first column because it contains IDs
+        #self.data = self.data[:, 1:] # drop first column because it contains IDs
         min_xyz = np.min(self.data, axis=0).tolist()
         max_xyz = np.max(self.data, axis=0).tolist()
         return min_xyz + max_xyz

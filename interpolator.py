@@ -7,12 +7,13 @@ logging = setup_logger('Radial Basis Function Interpolator')
 
 
 class RBFInterpolation:
-    def __init__(self, reduced_data, original_data, kernel, epsilon):
+    def __init__(self, reduced_data, original_data, smoothing, kernel, epsilon):
         self.reduced_data = reduced_data
         self.original_data = original_data
+        self.smoothing = smoothing
         self.kernel = kernel
         self.epsilon = epsilon
-        self.interpolator = RBFInterpolator(self.reduced_data, self.original_data, kernel=self.kernel, epsilon=self.epsilon)
+        self.interpolator = RBFInterpolator(self.reduced_data, self.original_data, smoothing=self.smoothing, kernel=self.kernel, epsilon=self.epsilon)
 
     def interpolate(self, cursor_position):
         # Get cursor's position from visualizer

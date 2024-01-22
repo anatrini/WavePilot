@@ -149,21 +149,22 @@ function setupMouseInteraction() {
 fetch('/data')
     .then(response => response.json())
     .then(data => {
+        console.log(data)
         // Min Max data calculation for grid normalization and color coding
-        var minX = Math.min(...data.map(d => d[1]));
-        var maxX = Math.max(...data.map(d => d[1]));
-        var minY = Math.min(...data.map(d => d[2]));
-        var maxY = Math.max(...data.map(d => d[2]));
-        var minZ = Math.min(...data.map(d => d[3]));
-        var maxZ = Math.max(...data.map(d => d[3]));
-        //console.log(data)
+        var minX = Math.min(...data.map(d => d[0]));
+        var maxX = Math.max(...data.map(d => d[0]));
+        var minY = Math.min(...data.map(d => d[1]));
+        var maxY = Math.max(...data.map(d => d[1]));
+        var minZ = Math.min(...data.map(d => d[2]));
+        var maxZ = Math.max(...data.map(d => d[2]));
 
         // Normalize in ±1 range
         var normalizedData = data.map(d => [
-            2 * (d[1] - minX) / (maxX - minX) - 1,
-            2 * (d[2] - minY) / (maxY - minY) - 1,
-            2 * (d[3] - minZ) / (maxZ - minZ) - 1
+            2 * (d[0] - minX) / (maxX - minX) - 1,
+            2 * (d[1] - minY) / (maxY - minY) - 1,
+            2 * (d[2] - minZ) / (maxZ - minZ) - 1
         ]);
+        console.log(normalizedData)
 
         for (var i = 0; i < normalizedData.length; i++) {
             var geometry = new THREE.SphereBufferGeometry(0.03, 32 ,32);

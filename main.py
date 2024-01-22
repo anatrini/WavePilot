@@ -83,6 +83,7 @@ def get_arguments():
     return parser.parse_args()
 
 
+
 def run_flask(app, socketio, reduced_data):
     @app.route('/')
     def index():
@@ -90,7 +91,6 @@ def run_flask(app, socketio, reduced_data):
     
     @app.route('/data')
     def get_data():
-        print(reduced_data.tolist())
         return jsonify(reduced_data.tolist())
     
     socketio.run(app)
@@ -128,19 +128,16 @@ async def main():
     loader = DataLoader(filepath)
     df = loader.load_presets()
     original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
-    #print(f'Original data {original_data.shape}')
 
     reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation)
     reducer.train_autoencoder(n_epochs)
     reduced_data = reducer.autoencoder()
     reduced_data = reduced_data[:, 1:] # get rid of ID
     original_data = original_data.values # to np array
-    #print(f'Reduced data {reduced_data}')
-    #print(f'Original data {original_data.shape}')
+    print(reduced_data)
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)
-    #print(f'Reduced data {reduced_data}')
     
     # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))

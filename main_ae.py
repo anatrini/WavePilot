@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import time
 
 from autoencoder import VectorReducer
 from data import DataLoader
@@ -35,7 +36,7 @@ def get_arguments():
     parser.add_argument('-n', '--n_layers',
                       dest='n_layers',
                       type=int,
-                      default=1,
+                      default=2,
                       help='Set the number of hidden layers used by the model.')
     
     parser.add_argument('-a', '--activation_function',
@@ -47,18 +48,18 @@ def get_arguments():
     parser.add_argument('-E', '--n_epochs',
                       dest='n_epochs',
                       type=int,
-                      default=200)
+                      default=300)
     
     parser.add_argument('-l', '--learning_rate',
                       dest='learning_rate',
                       type=float,
-                      default=1e-3)
+                      default=1e-2)
     
     # L1/L2 regularization (search space [1e-5, 1e-3])
     parser.add_argument('-w', '--weight_decay',
                       dest='weight_decay',
                       type=float,
-                      default=1e-3)
+                      default=1e-4)
     
     parser.add_argument('-s', '--smoothing',
                       dest='smoothing',
@@ -71,13 +72,13 @@ def get_arguments():
                       type=str,
                       choices=['multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian'],
                       #choices=['linear', 'thin_plate_spline', 'cubic', 'quintic', 'multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian'],
-                      default='inverse_multiquadric',
+                      default='gaussian',
                       help='The type of kernel to use for the RBF interpolation.')
     
     parser.add_argument('-e', '--epsilon',
                         dest='epsilon',
                         type=float,
-                        default=2.0,
+                        default=1.0,
                         help='Epsilon value if kernel is one of: multiquadric, inverse_multiquadric, inverse_quadratic, gaussian.')
         
     return parser.parse_args()
@@ -97,6 +98,8 @@ def run_flask(app, socketio, reduced_data):
 
 
 async def main():
+
+    start_time = time.time()
 
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins='*')
@@ -131,13 +134,20 @@ async def main():
 
     reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation)
     reducer.train_autoencoder(n_epochs)
-    reduced_data = reducer.autoencoder()
+    reduced_data, reconstructed_data = reducer.autoencoder()
+
     reduced_data = reduced_data[:, 1:] # get rid of ID
-    original_data = original_data.values # to np array
     print(reduced_data)
+
+    plot_euclidean_distance(original_data, reconstructed_data)
+    end_time = time.time()
+
+    original_data = original_data.values # to np array
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)
+    elapsed_time = end_time - start_time
+    print(f"Computation time: {elapsed_time} sec.")
     
     # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))

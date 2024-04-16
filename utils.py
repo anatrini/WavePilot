@@ -1,5 +1,11 @@
+import numpy as np
+import pandas as pd
+
+#import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from scipy.spatial import distance
+from sklearn.preprocessing import MinMaxScaler
 
 import torch
 from torch import nn
@@ -66,3 +72,38 @@ def plot_losses(model_trials, interpolator_trials):
     fig.update_xaxes(title_text='Trials', row=1, col=2)
     fig.update_yaxes(title_text='Target', row=1, col=2)
     fig.show()
+
+
+def plot_euclidean_distance(df_original, data_reduced):
+    # df_original is a Dataset, data_reduced is np array
+    dist_original = distance.pdist(df_original.values, 'euclidean')
+    # data_reduced is not normalized like the original data so we have to scale it
+    scaler = MinMaxScaler()
+    data_reduced_norm = scaler.fit_transform(data_reduced)
+    dist_reduced = distance.pdist(data_reduced_norm, 'euclidean')
+    distances = np.array([distance.euclidean(a, b) for a, b in zip(df_original.values, data_reduced_norm)])
+
+    fig = go.Figure(data=go.Scatter(x=dist_original, y=dist_reduced, mode='markers',
+                                    marker=dict(color=distances, colorscale='Viridis', size=8,
+                                    colorbar=dict(title='Euclidean distances between original and reconstructed vectors'))))
+    
+    fig.update_layout(title=f'Correlation between orginal and reconstructed vectors\'s distances.',
+                      xaxis_title='Original distances',
+                      yaxis_title='Reconstructed distances'
+                      )
+    fig.show()
+
+
+def plot_dispersion_matrix(original_data, reconstructed_data):
+    df_original = pd.DataFrame(original_data)
+    df_reconstructed = pd.DataFrame(reconstructed_data)
+
+    # Crea una matrice di dispersione per i dati originali
+    fig1 = go.Figure(data=go.Splom(dimensions=[dict(label=col, values=df_original[col]) for col in df_original.columns]))
+    fig1.update_layout(title='Scatter Matrix of Original Data')
+    fig1.show()
+
+    # Crea una matrice di dispersione per i dati ricostruiti
+    fig2 = go.Figure(data=go.Splom(dimensions=[dict(label=col, values=df_reconstructed[col]) for col in df_reconstructed.columns]))
+    fig2.update_layout(title='Scatter Matrix of Reconstructed Data')
+    fig2.show()

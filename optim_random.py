@@ -12,21 +12,20 @@ from torch import nn
 from utils import *
 
 
-logging = setup_logger('Opmization session', file=True)
+logging = setup_logger('Random Opmization session', file=True)
 torch.manual_seed(42)
 
 N_TRIALS = 100
 
-
 # Load data
-filepath = './data/240120_test.json'
+filepath = './data/240207_5presets.json'
 loader = DataLoader(filepath)
 df = loader.load_presets()
 # Train test split data
 train_data, val_data = train_test_split(df, test_size=0.2)
 
 # Set fold number for cross validation
-n_splits = 5
+n_splits = 2
 kf = KFold(n_splits=n_splits)
 
 # Set loss function
@@ -86,7 +85,7 @@ def objective_interpolator(trial):
     original_data = original_data.values
     reducer = VectorReducer(train_data, learning_rate, weight_decay, n_layers, activation)
     reducer.train_autoencoder(n_epochs)
-    reduced_data = reducer.autoencoder()
+    reduced_data, _ = reducer.autoencoder()
     reduced_data = reduced_data[:, 1:]
 
     # Train interpolator
@@ -100,7 +99,6 @@ def objective_interpolator(trial):
         distances.append(distance)
 
     # Create val errors attribute for plotting and estimate avg error 
-    #trial.set_user_attr('distances', distances)
     validation_distance = np.mean(distances)
 
     return validation_distance
@@ -112,8 +110,3 @@ study_interpolator.optimize(objective_interpolator, n_trials=N_TRIALS)
 # Print best params and validation error
 best_trial = study_interpolator.best_trial
 logging.info(f'Best interpolator params {study_interpolator.best_params} with a validation error of {best_trial.value}')
-
-# Plot metrics
-plot_losses(study_autoencoder.trials, study_interpolator.trials)
-
-

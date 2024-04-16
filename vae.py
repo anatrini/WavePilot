@@ -6,9 +6,9 @@ from torch import nn, optim
 
 torch.manual_seed(42)
 
-class Autoencoder(nn.Module):
+class VAE(nn.Module):
     def __init__(self, input_dim, n_layers=1, activation=nn.ReLU()):
-        super(Autoencoder, self).__init__()
+        super(VAE, self).__init__()
         encoder_layers = []
         layer_dims = [input_dim]
         layer_dim = 128
@@ -21,7 +21,8 @@ class Autoencoder(nn.Module):
         self.encoder = nn.Sequential(*encoder_layers)
 
         self.output_dim = 3
-        self.bottleneck = nn.Linear(layer_dims[-1], self.output_dim)
+        self.fc_mu = nn.Linear(layer_dims[-1], self.output_dim)
+        self.fc_var = nn.Linear(layer_dims[-1], self.output_dim)
 
         # Similar for the decoder, but in reverse
         decoder_layers = []
@@ -34,34 +35,47 @@ class Autoencoder(nn.Module):
         decoder_layers.append(nn.Sigmoid()) # nn.Sigmoid()
         self.decoder = nn.Sequential(*decoder_layers)
 
+    def reparametrize(self, mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
     def forward(self, x):
         encoded = self.encoder(x)
-        bottleneck = self.bottleneck(encoded)
-        decoded = self.decoder(bottleneck)
-        return bottleneck, decoded
+        mu = self.fc_mu(encoded)
+        logvar = self.fc_var(encoded)
+        z = self.reparametrize(mu, logvar)
+        decoded = self.decoder(z)
+        return mu, logvar, decoded
 
 
 class VectorReducer:
-    def __init__(self, df, learning_rate, weight_decay, n_layers, activation):
+    def __init__(self, df, learning_rate, weight_decay, n_layers, activation, beta):
         self.ids = df['ID'].values
         self.df = df.drop(columns=['ID', 'PRESET_NAME'])
-        self.model = Autoencoder(self.df.shape[1], n_layers, activation)
+        self.model = VAE(self.df.shape[1], n_layers, activation)
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        self.beta = beta
 
-    def train_autoencoder(self, epochs):
+    def kl_divergence(self, mu, logvar):
+        return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+    def train_vae(self, epochs):
         self.df = torch.tensor(self.df.values).float()
         for _ in range(epochs):
-            _, output = self.model(self.df)
-            loss = self.criterion(output, self.df)
+            mu, logvar, output = self.model(self.df)
+            recon_loss = self.criterion(output, self.df)
+            kl_loss = self.kl_divergence(mu, logvar)
+            loss = recon_loss + kl_loss * self.beta
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-    def autoencoder(self):
+    def vae(self):
         with torch.no_grad(): # no need to calculate gradients during evaluation
-            bottleneck, decoded = self.model(self.df)
-        reduced_data = bottleneck.detach().numpy()
+            mu, logvar, decoded = self.model(self.df)
+        reduced_data = mu.detach().numpy()
         reconstructed_data = decoded.detach().numpy()
         # Add back ID as the first element of each sublist
         reduced_data_with_ids = np.column_stack((self.ids, reduced_data))

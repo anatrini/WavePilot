@@ -199,7 +199,6 @@ fetch('/data')
         }
     });
 
-
 // Create a cursor
 var cursorGeometry = new THREE.ConeGeometry(0.03, 0.1, 32);
 var cursorMaterial = new THREE.MeshBasicMaterial({color: COLORS.LABEL});

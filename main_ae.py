@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import time
 
-from autoencoder import VectorReducer
+from model_ae import VectorReducer
 from data import DataLoader
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO

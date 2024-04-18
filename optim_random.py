@@ -2,7 +2,7 @@ import numpy as np
 import optuna
 import torch
 
-from autoencoder import VectorReducer
+from model_ae import VectorReducer
 from data import DataLoader
 from logger import setup_logger
 from scipy.interpolate import RBFInterpolator

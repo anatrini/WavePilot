@@ -18,14 +18,16 @@ def get_hyperparams_from_log(log_file):
 
     params = {}
     for line in lines:
-        if "Best autoencoder hyperparams" in line:
+        if "Best VAE hyperparams" in line:
             # Get autoencoder's best hyperp fomr log
-            params_str = line.split("Best autoencoder hyperparams: ")[1].split(" with")[0]
-            params['autoencoder'] = eval(params_str)
-        elif "Best interpolator params" in line:
+            params_str = line.split("Best VAE hyperparams: ")[1].split(" with")[0]
+            params_tuple = eval(params_str)
+            params['vae'] = {'n_epochs': params_tuple[0], 'learning_rate': params_tuple[1], 'weight_decay': params_tuple[2], 'n_layers': params_tuple[3], 'activation': params_tuple[4], 'beta': params_tuple[5]}
+        elif "Best RBF params" in line:
             # Get interpolator's best hyperp fomr log
-            params_str = line.split("Best interpolator params ")[1].split(" with")[0]
-            params['interpolator'] = eval(params_str)
+            params_str = line.split("Best RBF params: ")[1].split(" with")[0]
+            params_tuple = eval(params_str)
+            params['rbf'] = {'smoothing': params_tuple[0], 'kernel': params_tuple[1], 'epsilon': params_tuple[2]}
 
     return params
 

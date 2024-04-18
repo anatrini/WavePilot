@@ -50,10 +50,13 @@ class VAE(nn.Module):
 
 
 class VectorReducer:
-    def __init__(self, df, learning_rate, weight_decay, n_layers, activation, beta):
+    def __init__(self, df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=None):
         self.ids = df['ID'].values
         self.df = df.drop(columns=['ID', 'PRESET_NAME'])
-        self.model = VAE(self.df.shape[1], n_layers, activation)
+        if pretrained_model is None:
+            self.model = VAE(self.df.shape[1], n_layers, activation)
+        else:
+            self.model = pretrained_model
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
         self.beta = beta
@@ -74,7 +77,7 @@ class VectorReducer:
 
     def vae(self):
         with torch.no_grad(): # no need to calculate gradients during evaluation
-            mu, logvar, decoded = self.model(self.df)
+            mu, _, decoded = self.model(self.df)
         reduced_data = mu.detach().numpy()
         reconstructed_data = decoded.detach().numpy()
         # Add back ID as the first element of each sublist

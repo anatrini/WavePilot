@@ -22,8 +22,15 @@ OUT_PORT = 5106
 def get_arguments():
     parser = argparse.ArgumentParser()
 
+    # Small dataset of the presets to be reduced (Compulsory)
     parser.add_argument('-f', '--filepath',
                       dest='filepath',
+                      type=str,
+                      default=None)
+    
+    # Large dataset of presets to pretrain the model (Optional)
+    parser.add_argument('-F', '--filepath_pretrain',
+                      dest='filepath_pretrain',
                       type=str,
                       default=None)
     
@@ -112,6 +119,8 @@ async def main():
     
     args = get_arguments()
     filepath = args.filepath
+    filepath_pretrain = args.filepath_pretrain
+
     if args.optimizer_session:
         params = get_hyperparams_from_log(args.optimizer_session)
         if params:
@@ -121,9 +130,9 @@ async def main():
             learning_rate = params['vae']['learning_rate']
             weight_decay = params['vae']['weight_decay']
             beta = params['vae']['beta']
-            smoothing = params['interpolator']['smoothing']
-            kernel = params['interpolator']['kernel']
-            epsilon = params['interpolator']['epsilon']
+            smoothing = params['rbf']['smoothing']
+            kernel = params['rbf']['kernel']
+            epsilon = params['rbf']['epsilon']
     else:
         n_layers = args.n_layers
         activation = args.activation_function
@@ -135,16 +144,31 @@ async def main():
         kernel = args.kernel
         epsilon = args.epsilon
 
-    loader = DataLoader(filepath)
-    df = loader.load_presets()
-    original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
+    try:
+        pretrained_model = None
+        # pretrain session if a larger context dataset is provided
+        if filepath_pretrain is not None:
+            loader_pretrain = DataLoader(filepath_pretrain)
+            df_pretrain = loader_pretrain.load_presets()
+            reducer_pretrain = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer_pretrain.train_vae(n_epochs)
+            pretrained_model = reducer_pretrain
+        
+        # training session on the data that have to be represented in the 3D virtual space
+        loader = DataLoader(filepath)
+        df = loader.load_presets()
+        original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
 
-    reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
-    reducer.train_vae(n_epochs)
-    reduced_data, reconstructed_data = reducer.vae()
+        reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pretrained_model)
+        reducer.train_vae(n_epochs)
+        reduced_data, reconstructed_data = reducer.vae()
 
-    reduced_data = reduced_data[:, 1:] # get rid of ID
-    print(reduced_data)
+        reduced_data = reduced_data[:, 1:] # get rid of ID
+        #print(reduced_data)
+    
+    except FileNotFoundError:
+        print('You must provide at least a dataset!')
+        exit(1)
 
     plot_euclidean_distance(original_data, reconstructed_data)
     end_time = time.time()

@@ -4,11 +4,9 @@ import torch
 
 from model_vae import VectorReducer
 from data import DataLoader
-#from joblib import Parallel, delayed
 from logger import setup_logger
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
-#from tqdm import tqdm
 from utils import *
 
 
@@ -70,26 +68,6 @@ for i, params in enumerate(param_combinations):
         best_validation_error = validation_error
         best_params = params
 
-# Parallel optimization (not consistent)
-# def train_and_validate(params):
-#     # unpack params
-#     n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = params
-#     activation = get_activation_function(activation_name)
-
-#     # train the model
-#     reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
-#     reducer.train_vae(n_epochs)
-
-#     # compute validation error
-#     validation_error = compute_validation_error(reducer.model, reducer.criterion, df, beta)
-#     #print(f'Trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
-#     return validation_error, params
-
-# results = Parallel(n_jobs=-1)(delayed(train_and_validate)(params) for params in tqdm(param_combinations, desc='Optmizing VAE'))
-
-# validation_errors, param_sets = zip(*results)
-# best_validation_error = min(validation_errors)
-# best_params = param_sets[validation_errors.index(best_validation_error)]
 
 # # Save best VAE params and log the best hyperparameters and validation error
 best_vae_params = best_params
@@ -150,4 +128,4 @@ for i, params in enumerate(param_combinations):
 
 # Save best VAE params and log the best hyperparameters and validation error
 best_rbf_params = best_params
-logging.info(f'Best RBF parameters: {best_rbf_params} with a validation error of {best_validation_distance}')
+logging.info(f'Best RBF params: {best_rbf_params} with a validation error of {best_validation_distance}')

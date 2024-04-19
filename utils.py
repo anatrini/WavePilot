@@ -109,3 +109,19 @@ def plot_dispersion_matrix(original_data, reconstructed_data):
     fig2 = go.Figure(data=go.Splom(dimensions=[dict(label=col, values=df_reconstructed[col]) for col in df_reconstructed.columns]))
     fig2.update_layout(title='Scatter Matrix of Reconstructed Data')
     fig2.show()
+
+def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
+    reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
+
+    # Estrai le coordinate x, y, z dai dati ridotti
+    x, y, z = reduced_data.T
+
+    # Crea un grafico a dispersione 3D dell'errore di ricostruzione
+    fig = go.Figure(data=[go.Scatter3d(x=x, y=y, z=z, mode='markers',
+                                   marker=dict(size=5, color=reconstruction_error, colorscale='Viridis'))])
+
+    fig.update_layout(title='3D Scatter Plot of Reconstruction Error',
+                  scene=dict(xaxis_title='X',
+                             yaxis_title='Y',
+                             zaxis_title='Reconstruction Error'))
+    fig.show()

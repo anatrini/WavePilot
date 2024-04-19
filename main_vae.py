@@ -164,13 +164,14 @@ async def main():
         reduced_data, reconstructed_data = reducer.vae()
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
-        #print(reduced_data)
+        
     
     except FileNotFoundError:
         print('You must provide at least a dataset!')
         exit(1)
 
-    plot_euclidean_distance(original_data, reconstructed_data)
+    #plot_euclidean_distance(original_data, reconstructed_data)
+    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
     end_time = time.time()
 
     original_data = original_data.values # to np array

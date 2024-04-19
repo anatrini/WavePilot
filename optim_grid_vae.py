@@ -43,7 +43,8 @@ def compute_validation_error(model, criterion, data, beta):
         mu, logvar, output = model(data)
         recon_loss = criterion(output, data)
         kl_loss = kl_divergence(mu, logvar)
-        loss = recon_loss + kl_loss * beta
+        mse_loss = (output - data).pow(2).mean()
+        loss = (recon_loss + (kl_loss * beta)) + mse_loss
     return loss.item()
 
 best_validation_error = float('inf')

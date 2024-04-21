@@ -4,3 +4,7 @@ __pycache__/*
 logs/*
 snapshots/*
 *.txt
+data/*
+audio/*
+make_snapshots.py
+params_renderer.maxpat

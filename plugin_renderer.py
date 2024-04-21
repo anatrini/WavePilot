@@ -46,6 +46,12 @@ def get_arguments():
                         default='device',
                         help="Name of the subfolder to store rendered presets. Default: 'device'")
     
+    parser.add_argument('-n', '--dataset_filename',
+                        dest='dataset_filename',
+                        type=str,
+                        default='dataset',
+                        help="Set the name of .csv, containing the values of rendered presets. Default: 'dataset'.")
+    
     parser.add_argument('-s', '--samplerate',
                         dest='samplerate',
                         type=int,
@@ -106,7 +112,7 @@ class Recorder:
 
     def start_recording(self):
         logging.info('Recording starts...')
-        self.recording = np.empty((0, 2), np.float32)
+        self.recording = np.empty((0, 2), dtype=np.float32)
         self.stream = sd.InputStream(callback=self.callback,
                                      channels=2,
                                      samplerate=self.samplerate,
@@ -138,25 +144,26 @@ class Recorder:
             logging.info('No active stream to stop.')
 
 
-def save_to_csv(df):
+def save_to_csv(df, name):
     # create data folder if it does not exist
     if not os.path.exists('data'):
         os.makedirs('data')
     
     # generate a timestamp for file name
-    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
-    filename = f'pretrain_session_{timestamp}.csv'
+    filepath = f'rendered_presets_{name}.csv'
 
     # check if file already exists
-    file_exists = os.path.isfile(os.path.join('data', filename))
+    file_exists = os.path.isfile(os.path.join('data', filepath))
 
     # append dataframe to csv file
-    df.to_csv(os.path.join('data', filename), mode='a', header=not file_exists, index=False)
+    df.to_csv(os.path.join('data', filepath), mode='a', header=not file_exists, index=False)
 
 def signal_handler(sig, frame):
     logging.info(f'Abort process and save dataframe...')
     global df
-    save_to_csv(df)
+    args = get_arguments()
+    dataset_filename = args.dataset_filename
+    save_to_csv(df, dataset_filename)
     exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -168,6 +175,7 @@ def main():
     no_iterations = args.no_iterations
     device_id = args.device_id
     folder = args.folder
+    dataset_filename = args.dataset_filename
     samplerate = args.samplerate
     blocksize = args.blocksize
     silence_thresh = args.silence_thresh
@@ -184,13 +192,17 @@ def main():
     global df
     recorder = Recorder(device_id, samplerate, blocksize, silence_thresh, folder)
 
-    # preset mode: to be used if factory presets are available
+    # preset mode: use if factory presets are available
     if mode == 'preset':
-        # Get preset no. 
+        # Get preset no. and set it to 0 to start from there
         num_presets = plugin.n_presets
+        plugin.preset = 0
+        # init an empty dataframe to store the values at each iteration
+        df = pd.DataFrame()
         for i in range(num_presets):
-            name = plugin.preset
             plugin.preset = i
+            name = plugin.preset
+            print(f'Preset number: {i}')
             # init a dict to store parameters values
             param_values = {'name': name}
             logging.info(f'Preset: {name}')
@@ -201,7 +213,6 @@ def main():
                 param_value = RPR.TrackFX_GetParam(track.id, plugin.index, j, 0.0, 1.0)
                 param_values[param.name] = param_value[0]
                 logging.info(f'Parameter {j}: {param.name}, Value: {param_value[0]}') # get only current value
-
 
             project.cursor_position = 0
 
@@ -217,11 +228,12 @@ def main():
             df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
 
             if (i+1) % 5 == 0:
-                save_to_csv(df)
+                save_to_csv(df, dataset_filename)
+                # init an empty dataframe to store a new batch of values once you saved it to a disk
+                df = pd.DataFrame()
 
 
-    # random mode: to be used to generate random preset values if factory presets are not available
-    # TODO: add counter as for 'preset'
+    # random mode: use to generate random preset values if factory presets are not available
     elif mode == 'random':
         for _ in range(no_iterations):
             param_values = {}
@@ -249,10 +261,13 @@ def main():
                 param_values['name'] = 'name_' + filename.replace('.wav', '')
                 param_values['file'] = filename
                 df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
-
-
-    save_to_csv(df)
+                # autosave each 5 rendered presets
+                if (i+1) % 5 == 0:
+                    save_to_csv(df, dataset_filename) 
 
 
 if __name__ == '__main__':
     main()
+
+# i file audio non corrispondono ai preset
+# aggiungi un contatore a random

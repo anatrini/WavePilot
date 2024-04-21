@@ -7,6 +7,7 @@ from data import DataLoader
 from logger import setup_logger
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
+from sklearn.model_selection import train_test_split
 from utils import *
 
 
@@ -17,6 +18,8 @@ torch.manual_seed(42)
 filepath = './data/rendered_presets_dataset.csv'
 loader = DataLoader(filepath)
 df = loader.load_presets()
+
+df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 
 
 # VAE's params' grid
@@ -59,11 +62,11 @@ for i, params in enumerate(param_combinations):
     activation = get_activation_function(activation_name)
 
     # train the model
-    reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
+    reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
     reducer.train_vae(n_epochs)
 
     # compute validation error
-    validation_error = compute_validation_error(reducer.model, reducer.criterion, df, beta)
+    validation_error = compute_validation_error(reducer.model, reducer.criterion, df_test, beta)
     print(f'Trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
 
     # update best parameters if current model is better

@@ -50,6 +50,14 @@ def compute_validation_error(model, criterion, val_data):
         loss = criterion(output, val_data)
     return loss.item()
 
+def select_random_entries(input_csv, ouput_csv, n):
+    df = pd.read_csv(input_csv)
+    df['ID'] = range(1, len(df) + 1)
+    df.to_csv(input_csv, index=False)
+
+    df_sample = df.sample(n)
+    df_sample.to_csv(ouput_csv, index=False)
+
 
 # Plot autoencoder e interpolator performances during optimization
 def plot_losses(model_trials, interpolator_trials):

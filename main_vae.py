@@ -7,6 +7,7 @@ from data import DataLoader
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from interpolator import RBFInterpolation
+from logger import setup_logger
 from pythonosc import udp_client
 from torch import nn
 from threading import Thread
@@ -17,6 +18,8 @@ from visualizer import Visualize
 IP_ADDRESS = '127.0.0.1'
 IN_PORT = 5105
 OUT_PORT = 5106
+
+logging = setup_logger('Main VAE')
 
 
 def get_arguments():
@@ -167,7 +170,7 @@ async def main():
         
     
     except FileNotFoundError:
-        print('You must provide at least a dataset!')
+        logging.error('You must provide at least a dataset!')
         exit(1)
 
     #plot_euclidean_distance(original_data, reconstructed_data)
@@ -179,7 +182,7 @@ async def main():
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)
     elapsed_time = end_time - start_time
-    print(f"Computation time: {elapsed_time} sec.")
+    logging.info(f"Computation time: {elapsed_time} sec.")
     
     # Start Flask in a separate thread
     flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
@@ -191,3 +194,5 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+#TODO: controlla dove togli ID, file e name dal csv e fallo meglio

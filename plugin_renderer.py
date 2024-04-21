@@ -14,6 +14,7 @@ from reapy import reascript_api as RPR
 from scipy.io.wavfile import write
 
 
+AUTOSAVE_INTERVAL = 5
 
 logging = setup_logger('Plugin renderer')
 df = pd.DataFrame()
@@ -232,10 +233,13 @@ def main():
             param_values['file'] = filename
             df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
 
-            if (i+1) % 5 == 0:
+            if (i+1) % AUTOSAVE_INTERVAL == 0:
                 save_to_csv(df, dataset_filename)
                 # init an empty dataframe to store a new batch of values once you saved it to a disk
                 df = pd.DataFrame()
+
+        # call save_to_csv to save data if n_iterations is not a multiple of AUTOSAVE_INTERVAL
+        save_to_csv(df, dataset_filename)
 
 
     # random mode: use to generate random preset values if factory presets are not available
@@ -271,11 +275,16 @@ def main():
                 df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
 
                 # autosave each 5 rendered presets
-                if (i+1) % 5 == 0:
+                if (i+1) % AUTOSAVE_INTERVAL == 0:
                     save_to_csv(df, dataset_filename)
                     # init an empty dataframe to store a new batch of values once you saved it to a disk
-                    df = pd.DataFrame() 
+                    df = pd.DataFrame()
+
+        # call save_to_csv to save data if n_iterations is not a multiple of AUTOSAVE_INTERVAL
+        save_to_csv(df, dataset_filename)
 
 
 if __name__ == '__main__':
     main()
+
+### TODO: 

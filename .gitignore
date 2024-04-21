@@ -6,5 +6,4 @@ snapshots/*
 *.txt
 data/*
 audio/*
-make_snapshots.py
-params_renderer.maxpat
+random_selection.py

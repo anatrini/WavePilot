@@ -14,7 +14,7 @@ logging = setup_logger('Grid Opmization session', file=True)
 torch.manual_seed(42)
 
 # Load data
-filepath = './data/240207_10presets.json'
+filepath = './data/rendered_presets_dataset.csv'
 loader = DataLoader(filepath)
 df = loader.load_presets()
 
@@ -37,7 +37,9 @@ def kl_divergence(mu, logvar):
     return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
 def compute_validation_error(model, criterion, data, beta):
-    data = data.drop(columns=['ID', 'PRESET_NAME'])
+    #data = data.drop(columns=['ID', 'PRESET_NAME'])
+    data = data.drop(columns=['ID', 'name', 'file'])
+
     data = torch.tensor(data.values).float()
     with torch.no_grad():
         mu, logvar, output = model(data)
@@ -105,7 +107,8 @@ for i, params in enumerate(param_combinations):
     smoothing, kernel, epsilon = params
 
     # train the model
-    original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
+    #original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
+    original_data = df.drop(['ID', 'name', 'file'], axis=1)
     original_data = original_data.values
     reduced_data, _ = reducer.vae()
     reduced_data = reduced_data[:, 1:]

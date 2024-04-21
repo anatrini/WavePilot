@@ -159,10 +159,12 @@ def save_to_csv(df, name):
     df.to_csv(os.path.join('data', filepath), mode='a', header=not file_exists, index=False)
 
 def signal_handler(sig, frame):
-    logging.info(f'Abort process and save dataframe...')
     global df
     args = get_arguments()
+
+    logging.info(f'Abort process and save dataframe...')
     dataset_filename = args.dataset_filename
+
     save_to_csv(df, dataset_filename)
     exit(0)
 
@@ -197,12 +199,14 @@ def main():
         # Get preset no. and set it to 0 to start from there
         num_presets = plugin.n_presets
         plugin.preset = 0
+
         # init an empty dataframe to store the values at each iteration
         df = pd.DataFrame()
+
         for i in range(num_presets):
             plugin.preset = i
             name = plugin.preset
-            print(f'Preset number: {i}')
+
             # init a dict to store parameters values
             param_values = {'name': name}
             logging.info(f'Preset: {name}')
@@ -213,6 +217,7 @@ def main():
                 param_value = RPR.TrackFX_GetParam(track.id, plugin.index, j, 0.0, 1.0)
                 param_values[param.name] = param_value[0]
                 logging.info(f'Parameter {j}: {param.name}, Value: {param_value[0]}') # get only current value
+
 
             project.cursor_position = 0
 
@@ -235,6 +240,9 @@ def main():
 
     # random mode: use to generate random preset values if factory presets are not available
     elif mode == 'random':
+        # init an empty dataframe to store the values at each iteration
+        df = pd.DataFrame()
+
         for _ in range(no_iterations):
             param_values = {}
 
@@ -261,13 +269,13 @@ def main():
                 param_values['name'] = 'name_' + filename.replace('.wav', '')
                 param_values['file'] = filename
                 df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
+
                 # autosave each 5 rendered presets
                 if (i+1) % 5 == 0:
-                    save_to_csv(df, dataset_filename) 
+                    save_to_csv(df, dataset_filename)
+                    # init an empty dataframe to store a new batch of values once you saved it to a disk
+                    df = pd.DataFrame() 
 
 
 if __name__ == '__main__':
     main()
-
-# i file audio non corrispondono ai preset
-# aggiungi un contatore a random

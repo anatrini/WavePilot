@@ -155,12 +155,12 @@ async def main():
             df_pretrain = loader_pretrain.load_presets()
             reducer_pretrain = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
             reducer_pretrain.train_vae(n_epochs)
-            pretrained_model = reducer_pretrain
+            pretrained_model = reducer_pretrain.model
         
         # training session on the data that have to be represented in the 3D virtual space
         loader = DataLoader(filepath)
         df = loader.load_presets()
-        original_data = df.drop(['ID', 'PRESET_NAME'], axis=1)
+        original_data = df.drop(['ID', 'name', 'file'], axis=1)
 
         reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pretrained_model)
         reducer.train_vae(n_epochs)

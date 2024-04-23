@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+//import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 
 
 // Constants definitions
@@ -12,6 +13,9 @@ const COLORS = {
     LABEL: '#FFE000',
     SPIKES: '#FFFFFF'
 }
+
+// Patch THREE's raycast method
+//THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 
 // Create a scene a camera and a renderer
@@ -102,6 +106,7 @@ function setupMouseInteraction() {
         }
         // get intersecting objects
         var spheres = scene.children.filter(object => object.geometry && object.geometry.type === 'SphereGeometry');
+        //spheres.forEach(object => object.geometry.computeBoundsTree())
         var intersects = raycaster.intersectObjects(spheres);
         if (intersects.length > 0) {
             var object = intersects[0].object;

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-//import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+
 
 // Constants definitions
 const NO_DIMS = 3;
@@ -13,8 +13,6 @@ const COLORS = {
     SPIKES: '#FFFFFF'
 }
 
-// Patch THREE's raycast method
-//THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // Create a scene a camera and a renderer
 var scene = new THREE.Scene();
@@ -29,16 +27,16 @@ document.body.appendChild(renderer.domElement);
 function createPseudoCube() {
     var grids = [];
     for (var i = 0; i < NO_DIMS; i++) {
-        grids[i] = new THREE.GridHelper((HALF_GRID_SIZE*2), SPACING);
+        grids[i] = new THREE.GridHelper((HALF_GRID_SIZE*5), SPACING);
         scene.add(grids[i]);
     }
     grids[0].rotation.x = -Math.PI * 0.5; // Back 
-    grids[0].position.z = -HALF_GRID_SIZE;
+    grids[0].position.z = 0;
 
     grids[1].rotation.z = -Math.PI * 0.5; // Left
-    grids[1].position.x = -HALF_GRID_SIZE;
+    grids[1].position.x = 0;
 
-    grids[2].position.y = -HALF_GRID_SIZE; // Bottom
+    grids[2].position.y = 0; // Bottom
 }
 
 // Function to assign labels to the 3 axes
@@ -104,7 +102,6 @@ function setupMouseInteraction() {
         }
         // get intersecting objects
         var spheres = scene.children.filter(object => object.geometry && object.geometry.type === 'SphereGeometry');
-        //spheres.forEach(object => object.geometry.computeBoundsTree())
         var intersects = raycaster.intersectObjects(spheres);
         if (intersects.length > 0) {
             var object = intersects[0].object;
@@ -174,6 +171,8 @@ fetch('/data')
             var y = normalizedData[i][1];
             var z = normalizedData[i][2];
 
+            //console.log(x, y, z)
+
             // Points color coding
             var r = (normalizedData[i][0]);
             var g = (normalizedData[i][1]);
@@ -186,15 +185,15 @@ fetch('/data')
             scene.add(sphere);
         }
         createPseudoCube();
-        for (var i = -1; i <= 1; i += 0.1) {
-            var position = new THREE.Vector3(i, 0, -HALF_GRID_SIZE); // x axes
-            position.y = HALF_GRID_SIZE;
+        for (var i = 0; i <= 1; i += 0.1) {
+            var position = new THREE.Vector3(i, 0, -1.0); // x axes
+            position.y = 1.0;
             createAxisLabel(i.toFixed(1), position, COLORS.LABEL);
-            position = new THREE.Vector3(-HALF_GRID_SIZE, i, 0); // y axes
-            position.z = HALF_GRID_SIZE;
+            position = new THREE.Vector3(-1.0, i, 0); // y axes
+            position.z = 1.0;
             createAxisLabel(i.toFixed(1), position, COLORS.LABEL);
-            position = new THREE.Vector3(0, -HALF_GRID_SIZE, i); // z axes
-            position.x = HALF_GRID_SIZE;
+            position = new THREE.Vector3(0, -1.0, i); // z axes
+            position.x = 1.0;
             createAxisLabel(i.toFixed(1), position, COLORS.LABEL);
         }
     });

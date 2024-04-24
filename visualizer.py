@@ -49,7 +49,7 @@ class Visualize():
         self.osc_client = osc_client
         loop = asyncio.get_event_loop()
 
-        self.osc_client.send_message("/min_max", self.get_data_min_max())
+        #self.osc_client.send_message("/min_max", self.get_data_min_max())
 
         with ThreadPoolExecutor() as executor:
             loop.run_in_executor(executor, self.start_osc_server, ip, port)

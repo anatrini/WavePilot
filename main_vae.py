@@ -167,13 +167,13 @@ async def main():
         reduced_data, reconstructed_data = reducer.vae()
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
+        logging.info(f'Reduced data: {reduced_data}')
         
     
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    #plot_euclidean_distance(original_data, reconstructed_data)
     plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
     end_time = time.time()
 
@@ -195,4 +195,5 @@ async def main():
 if __name__ == '__main__':
     asyncio.run(main())
 
-#TODO: controlla dove togli ID, file e name dal csv e fallo meglio
+#TODO:
+# 1. check how you drop ID, file and name from csv file

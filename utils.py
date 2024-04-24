@@ -133,3 +133,6 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
                              yaxis_title='Y',
                              zaxis_title='Reconstruction Error'))
     fig.show()
+
+#TODO:
+# 1. polish utils (get rid of unused defs)

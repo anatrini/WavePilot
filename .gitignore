@@ -6,4 +6,6 @@ snapshots/*
 *.txt
 data/*
 audio/*
+static/graph_01.js
 random_selection.py
+*.RPP

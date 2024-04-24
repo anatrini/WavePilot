@@ -286,3 +286,8 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# TODO:
+# 1. use reapy.inside_reaper()
+# 2. make multithread (queue + threading)
+# 3. set time.sleep(1)

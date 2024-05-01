@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
+
 // Constants definitions
 const NO_DIMS = 3;
 const HALF_GRID_SIZE = 1; // because we are normalizing in the range ± 1;
 const SPACING = 10;
 // Color Scheme
 const COLORS = {
-    BKG: '#000240',
-    LABEL: '#FFE000',
-    SPIKES: '#FFFFFF'
+    BKG: '#8D8A8A',
+    LABEL: '#F4370E',
+    GRID: '#FFFFFF',
+    SPIKES: '#000000'
 }
 
 
@@ -26,7 +28,7 @@ document.body.appendChild(renderer.domElement);
 function createPseudoCube() {
     var grids = [];
     for (var i = 0; i < NO_DIMS; i++) {
-        grids[i] = new THREE.GridHelper((HALF_GRID_SIZE*2), SPACING);
+        grids[i] = new THREE.GridHelper((HALF_GRID_SIZE*2), SPACING, COLORS.LABEL, COLORS.GRID);
         scene.add(grids[i]);
     }
     grids[0].rotation.x = -Math.PI * 0.5; // Back 
@@ -65,7 +67,7 @@ function setupMouseInteraction() {
     scene.add(light)
     
     // Create lines for the spikes
-    var lineMaterial = new THREE.LineBasicMaterial({color: COLORS.SPIKES});
+    var lineMaterial = new THREE.LineBasicMaterial({color: COLORS.LABEL});
     var lines = [];
     for (var i = 0; i < NO_DIMS; i++) {
         var geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
@@ -160,8 +162,10 @@ fetch('/data')
             2 * (d[1] - minY) / (maxY - minY) - 1,
             2 * (d[2] - minZ) / (maxZ - minZ) - 1
         ]);
-        console.log(normalizedData)
+        //console.log(normalizedData)
 
+        // var previousSphere = null;
+        
         for (var i = 0; i < normalizedData.length; i++) {
             var geometry = new THREE.SphereBufferGeometry(0.03, 32 ,32);
             var id = data.shift(); // Remove the id as the first element of the array
@@ -180,6 +184,14 @@ fetch('/data')
             sphere.position.set(x, y, z);
             sphere.userData.id = id;
             scene.add(sphere);
+
+            // if (previousSphere) {
+            //     var lineGeometry = new THREE.BufferGeometry().setFromPoints([previousSphere.position, sphere.position]);
+            //     var lineMaterial = new THREE.LineBasicMaterial({color: '#000000'});
+            //     var line = new THREE.Line(lineGeometry, lineMaterial);
+            //     scene.add(line);
+            // }
+            // previousSphere = sphere;
         }
         createPseudoCube();
         for (var i = -1; i <= 1; i += 0.1) {

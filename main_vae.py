@@ -157,7 +157,7 @@ async def main():
             reducer_pretrain.train_vae(n_epochs)
             pretrained_model = reducer_pretrain.model
         
-        # training session on the data that have to be represented in the 3D virtual space
+        # training session on the data that are represented in the 3D virtual space
         loader = DataLoader(filepath)
         df = loader.load_presets()
         original_data = df.drop(['ID', 'name', 'file'], axis=1)
@@ -167,14 +167,14 @@ async def main():
         reduced_data, reconstructed_data = reducer.vae()
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
-        logging.info(f'Reduced data: {reduced_data}')
+        #logging.info(f'Reduced data: {reduced_data}')
         
     
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
+    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
     end_time = time.time()
 
     original_data = original_data.values # to np array

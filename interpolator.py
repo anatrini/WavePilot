@@ -41,5 +41,5 @@ class RBFInterpolation:
     
     def send_data(self, osc_client, cursor_position):
         interpolated_data = self.interpolate(cursor_position)
-        logging.info(f'Interpolated Data: {interpolated_data}')
+        #logging.info(f'Interpolated Data: {interpolated_data}')
         osc_client.send_message("/interpolated_data", interpolated_data.flatten().tolist())

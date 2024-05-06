@@ -120,6 +120,8 @@ def plot_dispersion_matrix(original_data, reconstructed_data):
 
 def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
+    average_error = np.mean(reconstruction_error)
+    print(average_error)
 
     # Estrai le coordinate x, y, z dai dati ridotti
     x, y, z = reduced_data.T
@@ -132,6 +134,24 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
                   scene=dict(xaxis_title='X',
                              yaxis_title='Y',
                              zaxis_title='Reconstruction Error'))
+    fig.show()
+
+
+def plot_average_reconstruction_error(datasets):
+    # Calcola l'errore di ricostruzione medio per ciascun dataset
+    average_errors = []
+    for original_data, reduced_data, reconstructed_data in datasets:
+        reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
+        average_error = np.mean(reconstruction_error)
+        average_errors.append(average_error)
+
+    # Crea un grafico a barre dell'errore di ricostruzione medio
+    fig = go.Figure(data=[go.Bar(x=['2', '5', '10', '20', '30', '50', '100'],  # Aggiungi le dimensioni dei tuoi dataset qui
+                           y=average_errors)])
+
+    fig.update_layout(title='Average Reconstruction Error for Different Datasets',
+                      xaxis_title='Dataset',
+                      yaxis_title='Average Reconstruction Error')
     fig.show()
 
 #TODO:

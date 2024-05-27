@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 import torch
 
-from model_vae import VectorReducer
+from vae_model import VectorReducer
 from data import DataLoader
 from logger import setup_logger
 from scipy.interpolate import RBFInterpolator
@@ -136,3 +136,5 @@ for i, params in enumerate(param_combinations):
 # Save best VAE params and log the best hyperparameters and validation error
 best_rbf_params = best_params
 logging.info(f'Best RBF params: {best_rbf_params} with a validation error of {best_validation_distance}')
+
+#TODO: add a flag to select optim routine: vae, rbf, both

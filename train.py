@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import time
 
-from model_vae import VectorReducer
+from vae_model import VectorReducer
 from data import DataLoader
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
@@ -25,7 +25,7 @@ logging = setup_logger('Main VAE')
 def get_arguments():
     parser = argparse.ArgumentParser()
 
-    # Small dataset of the presets to be reduced (Compulsory)
+    # Small dataset of the presets to be reduced (Mandatory)
     parser.add_argument('-f', '--filepath',
                       dest='filepath',
                       type=str,
@@ -165,6 +165,10 @@ async def main():
         reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pretrained_model)
         reducer.train_vae(n_epochs)
         reduced_data, reconstructed_data = reducer.vae()
+
+        dot = reducer.visualize_model()
+        dot.format = 'png'
+        dot.render('Variational Autoencoder Architecture')
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
         #logging.info(f'Reduced data: {reduced_data}')

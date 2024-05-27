@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from torch import nn, optim
+from torchviz import make_dot
 
 
 torch.manual_seed(42)
@@ -84,3 +85,8 @@ class VectorReducer:
         # Add back ID as the first element of each sublist
         reduced_data_with_ids = np.column_stack((self.ids, reduced_data))
         return reduced_data_with_ids, reconstructed_data
+    
+    def visualize_model(self):
+        x = torch.randn(1, self.df.shape[1])
+        mu, _, _ = self.model(x)
+        return make_dot(mu, params=dict(self.model.named_parameters()))

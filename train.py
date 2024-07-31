@@ -166,9 +166,9 @@ async def main():
         reducer.train_vae(n_epochs)
         reduced_data, reconstructed_data = reducer.vae()
 
-        dot = reducer.visualize_model()
-        dot.format = 'png'
-        dot.render('Variational Autoencoder Architecture')
+        #dot = reducer.visualize_model()
+        #dot.format = 'png'
+        #dot.render('Variational Autoencoder Architecture')
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
         #logging.info(f'Reduced data: {reduced_data}')
@@ -178,7 +178,7 @@ async def main():
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
+    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
     end_time = time.time()
 
     original_data = original_data.values # to np array

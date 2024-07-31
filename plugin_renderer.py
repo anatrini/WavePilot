@@ -45,7 +45,7 @@ def get_arguments():
                         dest='folder',
                         type=str,
                         default='device',
-                        help="Name of the subfolder to store rendered presets. Default: 'device'")
+                        help="Name of the subfolder to store rendered presets. Default: 'data'")
     
     parser.add_argument('-n', '--dataset_filename',
                         dest='dataset_filename',

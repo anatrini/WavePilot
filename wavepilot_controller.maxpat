@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 1611.0, 343.0, 383.0, 831.0 ],
+		"rect" : [ 1611.0, 371.0, 345.0, 757.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -49,7 +49,7 @@
 					"numoutlets" : 0,
 					"patching_rect" : [ 577.272706627845764, 732.727246522903442, 404.0, 46.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 3.636363506317139, 48.181816458702087, 335.772722721099854, 46.0 ],
+					"presentation_rect" : [ 4.0, 3.0, 335.772722721099854, 46.0 ],
 					"saved_attribute_attributes" : 					{
 						"textcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -125,7 +125,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 429.090893745422363, 851.799999833106995, 80.800001204013824, 22.400000333786011 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 268.181808590888977, 97.272723793983459, 70.909088373184204, 50.909089088439941 ],
+					"presentation_rect" : [ 268.0, 52.0, 70.909088373184204, 50.909089088439941 ],
 					"saved_attribute_attributes" : 					{
 						"activebgoncolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -174,7 +174,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 54.400000810623169, 681.0, 28.399994671344757, 27.200000405311584 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 213.636355996131897, 705.454520225524902, 28.399994671344757, 27.200000405311584 ],
+					"presentation_rect" : [ 214.0, 660.0, 28.399994671344757, 27.200000405311584 ],
 					"rounded" : 18.0,
 					"saved_attribute_attributes" : 					{
 						"activebgcolor" : 						{
@@ -225,7 +225,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1056.0, 16.5, 47.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 279.999989986419678, 693.636338829994202, 47.0, 51.0 ],
+					"presentation_rect" : [ 280.0, 649.0, 47.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -266,7 +266,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 915.0, 14.0, 42.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 282.727262616157532, 608.181796431541443, 42.0, 51.0 ],
+					"presentation_rect" : [ 283.0, 563.0, 42.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -307,7 +307,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 523.5, 21.0, 43.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 159.999994277954102, 693.636338829994202, 43.0, 51.0 ],
+					"presentation_rect" : [ 160.0, 649.0, 43.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -386,6 +386,7 @@
 						"style" : "",
 						"subpatcher_template" : "dark_template",
 						"assistshowspatchername" : 0,
+						"visible" : 1,
 						"boxes" : [ 							{
 								"box" : 								{
 									"comment" : "",
@@ -439,15 +440,15 @@
 								"box" : 								{
 									"fontface" : 0,
 									"id" : "obj-40",
-									"linecount" : 4,
+									"linecount" : 5,
 									"maxclass" : "o.compose",
 									"numinlets" : 2,
 									"numoutlets" : 1,
 									"outlettype" : [ "" ],
-									"patching_rect" : [ 122.0, 169.0, 194.0, 62.0 ],
-									"saved_bundle_data" : [ 35, 98, 117, 110, 100, 108, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 47, 115, 99, 97, 108, 105, 110, 103, 70, 97, 99, 116, 111, 114, 0, 0, 44, 100, 0, 0, 63, -16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 47, 99, 111, 109, 112, 97, 115, 115, 73, 110, 102, 108, 117, 101, 110, 99, 101, 0, 0, 0, 44, 100, 0, 0, 63, -55, -103, -103, -103, -103, -103, -102, 0, 0, 0, 28, 47, 116, 111, 117, 99, 104, 48, 0, 44, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 47, 116, 111, 117, 99, 104, 102, 111, 114, 99, 101, 48, 0, 0, 0, 0, 44, 100, 0, 0, 63, -12, 0, 0, 0, 0, 0, 0 ],
-									"saved_bundle_length" : 148,
-									"text" : "/scalingFactor : 1.,\n/compassInfluence : 0.2,\n/touch0 : [0., 0.],\n/touchforce0 : 1.25"
+									"patching_rect" : [ 122.0, 169.0, 182.0, 75.0 ],
+									"saved_bundle_data" : [ 35, 98, 117, 110, 100, 108, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 47, 116, 121, 112, 101, 0, 0, 0, 44, 105, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 47, 115, 99, 97, 108, 105, 110, 103, 70, 97, 99, 116, 111, 114, 0, 0, 44, 100, 0, 0, 63, -16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 47, 99, 111, 109, 112, 97, 115, 115, 73, 110, 102, 108, 117, 101, 110, 99, 101, 0, 0, 0, 44, 100, 0, 0, 63, -55, -103, -103, -103, -103, -103, -102, 0, 0, 0, 28, 47, 116, 111, 117, 99, 104, 48, 0, 44, 100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 47, 116, 111, 117, 99, 104, 102, 111, 114, 99, 101, 48, 0, 0, 0, 0, 44, 100, 0, 0, 63, -12, 0, 0, 0, 0, 0, 0 ],
+									"saved_bundle_length" : 168,
+									"text" : "/type : 0,\n/scalingFactor : 1.,\n/compassInfluence : 0.2,\n/touch0 : [0., 0.],\n/touchforce0 : 1.25"
 								}
 
 							}
@@ -540,7 +541,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 1243.0, 12.5, 83.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 274.54544472694397, 517.272708773612976, 58.181816101074219, 71.818179249763489 ],
+					"presentation_rect" : [ 275.0, 472.0, 58.181816101074219, 71.818179249763489 ],
 					"saved_attribute_attributes" : 					{
 						"activebgoncolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -649,7 +650,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 523.0, 480.0, 107.20000159740448, 51.200000762939453 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 4.545454382896423, 97.272723793983459, 260.9090815782547, 50.909089088439941 ],
+					"presentation_rect" : [ 5.0, 52.0, 260.9090815782547, 50.909089088439941 ],
 					"saved_attribute_attributes" : 					{
 						"activebgoncolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -682,7 +683,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 695.200010359287262, 852.0, 436.0, 33.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 3.636363506317139, 760.909063696861267, 335.454533457756042, 33.0 ],
+					"presentation_rect" : [ 4.0, 716.0, 335.454533457756042, 33.0 ],
 					"saved_attribute_attributes" : 					{
 						"flash_color" : 						{
 							"expression" : "themecolor.live_alert"
@@ -694,7 +695,6 @@
 
 					}
 ,
-					"text" : "/cursor : [-0.0849588, -0.103333, 0.00590615]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 
@@ -749,7 +749,6 @@
 			}
 , 			{
 				"box" : 				{
-					"bgcolor" : [ 0.2, 0.2, 0.2, 1.0 ],
 					"candicane2" : [ 0.093121, 0.536852, 0.511438, 1.0 ],
 					"candicane3" : [ 1.0, 0.490196, 0.262745, 1.0 ],
 					"candycane" : 5,
@@ -815,8 +814,8 @@
 					"numinlets" : 2,
 					"numoutlets" : 1,
 					"outlettype" : [ "bang" ],
-					"patching_rect" : [ 533.0, 77.0, 96.0, 22.0 ],
-					"text" : "metro @active 1"
+					"patching_rect" : [ 533.0, 77.0, 119.0, 22.0 ],
+					"text" : "metro 500 @active 1"
 				}
 
 			}
@@ -838,7 +837,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 118.0, 480.0, 150.0, 75.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 4.545454382896423, 503.636345624923706, 150.400002241134644, 80.800001204013824 ],
+					"presentation_rect" : [ 5.0, 459.0, 150.400002241134644, 80.800001204013824 ],
 					"viewvisibility" : 1
 				}
 
@@ -861,7 +860,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 118.0, 635.0, 150.400002241134644, 83.200001239776611 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 4.545454382896423, 587.272706270217896, 150.400002241134644, 80.800001204013824 ],
+					"presentation_rect" : [ 5.0, 542.0, 150.400002241134644, 80.800001204013824 ],
 					"viewvisibility" : 1
 				}
 
@@ -884,7 +883,7 @@
 					"outlettype" : [ "" ],
 					"patching_rect" : [ 118.0, 556.0, 150.400002241134644, 76.80000114440918 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 3.636363506317139, 671.81815779209137, 151.600002259016037, 80.800001204013824 ],
+					"presentation_rect" : [ 4.0, 627.0, 151.600002259016037, 80.800001204013824 ],
 					"viewvisibility" : 1
 				}
 
@@ -915,7 +914,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 10.0, 16.5, 235.0, 132.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 4.545454382896423, 149.090903759002686, 334.545442581176758, 350.909078359603882 ],
+					"presentation_rect" : [ 5.0, 104.0, 334.545442581176758, 350.909078359603882 ],
 					"saved_attribute_attributes" : 					{
 						"activebgoncolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -962,7 +961,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 467.0, 21.0, 42.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 207.272719860076904, 608.181796431541443, 42.0, 51.0 ],
+					"presentation_rect" : [ 207.0, 563.0, 42.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -1014,7 +1013,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 399.0, 21.0, 42.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 159.999994277954102, 608.181796431541443, 42.0, 51.0 ],
+					"presentation_rect" : [ 160.0, 563.0, 42.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -1078,7 +1077,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 255.0, 21.0, 46.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 158.181812524795532, 523.636344909667969, 46.0, 51.0 ],
+					"presentation_rect" : [ 158.0, 479.0, 46.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -1119,7 +1118,7 @@
 					"parameter_enable" : 1,
 					"patching_rect" : [ 325.0, 21.0, 42.0, 51.0 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 207.272719860076904, 523.636344909667969, 42.0, 51.0 ],
+					"presentation_rect" : [ 207.0, 479.0, 42.0, 51.0 ],
 					"saved_attribute_attributes" : 					{
 						"activedialcolor" : 						{
 							"expression" : "themecolor.live_alert"
@@ -1194,7 +1193,7 @@
 					"numoutlets" : 0,
 					"patching_rect" : [ 318.939391999999998, 385.0, 196.121216000000004, 65.888824 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 268.181808590888977, 503.636345624923706, 71.218179240822792, 249.090900182723999 ],
+					"presentation_rect" : [ 268.0, 459.0, 71.218179240822792, 249.090900182723999 ],
 					"proportion" : 0.39,
 					"rounded" : 18
 				}
@@ -1213,7 +1212,7 @@
 					"numoutlets" : 0,
 					"patching_rect" : [ 303.939391999999998, 370.0, 196.121216000000004, 65.888824 ],
 					"presentation" : 1,
-					"presentation_rect" : [ 158.181812524795532, 503.636345624923706, 107.272723436355591, 248.981813371181488 ],
+					"presentation_rect" : [ 158.0, 459.0, 107.272723436355591, 248.981813371181488 ],
 					"proportion" : 0.39,
 					"rounded" : 18
 				}
@@ -1433,7 +1432,7 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-29", 1 ],
-					"midpoints" : [ 533.0, 72.5, 619.5, 72.5 ],
+					"midpoints" : [ 533.0, 72.5, 642.5, 72.5 ],
 					"source" : [ "obj-62", 0 ]
 				}
 

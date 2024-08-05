@@ -138,6 +138,7 @@ def optimize_interpolator(df, reducer, log_prefix):
             smoothing, kernel, epsilon = params
 
             # train the model
+            original_data = df.drop(['ID', 'name', 'preset'])
             original_data = original_data.values
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]

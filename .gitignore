@@ -4,8 +4,8 @@ __pycache__/*
 logs/*
 snapshots/*
 *.txt
-data/*
 audio/*
-static/graph_01.js
+data/*
+output/*
 random_selection.py
 *.RPP

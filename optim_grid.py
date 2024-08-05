@@ -27,6 +27,12 @@ def get_arguments():
                       type=str,
                       default=None)
     
+    # Filepath where to save the pretrained model, only necessary if -F is passed
+    parser.add_argument('-s', '--filepath_save_pretrain',
+                      dest='filepath_save_pretrain',
+                      type=str,
+                      default=None)
+    
     return parser.parse_args()
 
 
@@ -60,7 +66,7 @@ def compute_validation_error(model, criterion, data, beta):
     return loss.item()
 
 
-def optimize_vae(df_train, df_test, log_prefix):
+def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):
     
     # VAE's params' grid
     vae_grid = {
@@ -76,6 +82,7 @@ def optimize_vae(df_train, df_test, log_prefix):
     param_combinations = list(itertools.product(*vae_grid.values()))
     best_validation_error = float('inf')
     best_params = None
+    best_model = None
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
@@ -85,26 +92,30 @@ def optimize_vae(df_train, df_test, log_prefix):
             activation = get_activation_function(activation_name)
 
             # train the model
-            reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model)
             reducer.train_vae(n_epochs)
 
             # compute validation error
             validation_error = compute_validation_error(reducer.model, reducer.criterion, df_test, beta)
-            #print(validation_error)
             print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
 
             # update best parameters if current model is better
             if validation_error < best_validation_error:
                 best_validation_error = validation_error
                 best_params = params
+                best_model = reducer.model
 
         except Exception as e:
-            logging.debug(f'Error during VAE optimization: {e}')
-
-
-    # Save best VAE params and log the best hyperparameters and validation error
-    logging.info(f'{log_prefix} best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
-    return best_params
+            logging.error(f'Error during VAE optimization: {e}')
+    
+    if save_pretrained_model:
+        # Save the pretrained model
+        torch.save(reducer.model.state_dict(), f'{save_filepath}.pt')
+    else:
+        # Save best VAE params and log the best hyperparameters and validation error
+        logging.info(f'{log_prefix} best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
+    
+    return best_params, best_model
 
 
 def optimize_interpolator(df, reducer, log_prefix):
@@ -163,37 +174,29 @@ def main():
 
         filepath = args.filepath
         filepath_pretrain = args.filepath_pretrain
+        filepath_save_pretrain = args.filepath_save_pretrain
 
         df = load_data(filepath)
-        
-        #columns_to_drop = ['name', 'file', 'ID']
-        #df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
         
         df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 
         if filepath_pretrain:
-            # Optimize and train the VAE with best pretrain params
+            # Optimize and train the VAE to find the best pretrain params
             df_pretrain = load_data(filepath_pretrain)
-            #df_pretrain = df_pretrain.drop(columns=[col for col in columns_to_drop if col in df.columns])
-
             df_pretrain_train, df_pretrain_test = train_test_split(df_pretrain, test_size=0.2, random_state=42)
 
-            best_pretrain_params = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain')
+            best_pretrain_params, best_pretrain_model = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
+
+            # Create best pretrain model with the hyperparams found 
             n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
             activation = get_activation_function(activation_name)
             reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
             reducer.train_vae(n_epochs)
 
-            best_train_params = optimize_vae(df_train, df_test, 'Train')
+            best_train_params, _ = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None, pretrained_model=best_pretrain_model)
 
         else:
-            best_train_params = optimize_vae(df_train, df_test, 'Train')
-
-        # Train the VAE with the best train params
-        n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_train_params
-        activation = get_activation_function(activation_name)
-        reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
-        reducer.train_vae(n_epochs)
+            best_train_params, _ = optimize_vae(df_train, df_test, 'Train')
 
         # Train the interpolator with the best train params
         best_rbf_params = optimize_interpolator(df, reducer, 'Interpolator')

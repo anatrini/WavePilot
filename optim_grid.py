@@ -79,22 +79,27 @@ def optimize_vae(df_train, df_test, log_prefix):
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
-        # unpack params
-        n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = params
-        activation = get_activation_function(activation_name)
+        try:
+            # unpack params
+            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = params
+            activation = get_activation_function(activation_name)
 
-        # train the model
-        reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
-        reducer.train_vae(n_epochs)
+            # train the model
+            reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer.train_vae(n_epochs)
 
-        # compute validation error
-        validation_error = compute_validation_error(reducer.model, reducer.criterion, df_test, beta)
-        print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
+            # compute validation error
+            validation_error = compute_validation_error(reducer.model, reducer.criterion, df_test, beta)
+            #print(validation_error)
+            print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
 
-        # update best parameters if current model is better
-        if validation_error < best_validation_error:
-            best_validation_error = validation_error
-            best_params = params
+            # update best parameters if current model is better
+            if validation_error < best_validation_error:
+                best_validation_error = validation_error
+                best_params = params
+
+        except Exception as e:
+            logging.debug(f'Error during VAE optimization: {e}')
 
 
     # Save best VAE params and log the best hyperparameters and validation error
@@ -117,31 +122,34 @@ def optimize_interpolator(df, reducer, log_prefix):
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
-        # unpack params
-        smoothing, kernel, epsilon = params
+        try:
+            # unpack params
+            smoothing, kernel, epsilon = params
 
-        # train the model
-        original_data = df.drop(['ID', 'name', 'file'], axis=1)
-        original_data = original_data.values
-        reduced_data, _ = reducer.vae()
-        reduced_data = reduced_data[:, 1:]
+            # train the model
+            original_data = original_data.values
+            reduced_data, _ = reducer.vae()
+            reduced_data = reduced_data[:, 1:]
         
-        # train the interpolator
-        interpolator = RBFInterpolator(reduced_data, original_data, smoothing=smoothing, kernel=kernel, epsilon=epsilon)
-        interpolated_data = interpolator(reduced_data)
+            # train the interpolator
+            interpolator = RBFInterpolator(reduced_data, original_data, smoothing=smoothing, kernel=kernel, epsilon=epsilon)
+            interpolated_data = interpolator(reduced_data)
 
-        # Compute euclidean distance between original and reduced vectors
-        distances = []
-        for original, interpolated in zip(original_data, interpolated_data):
-            distance = euclidean(original, interpolated)
-            distances.append(distance)
+            # Compute euclidean distance between original and reduced vectors
+            distances = []
+            for original, interpolated in zip(original_data, interpolated_data):
+                distance = euclidean(original, interpolated)
+                distances.append(distance)
 
-        validation_distance = np.mean(distances)
-        print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_distance = {validation_distance}')
+            validation_distance = np.mean(distances)
+            print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_distance = {validation_distance}')
 
-        if validation_distance < best_validation_distance:
-            best_validation_distance = validation_distance
-            best_params = params
+            if validation_distance < best_validation_distance:
+                best_validation_distance = validation_distance
+                best_params = params
+            
+        except Exception as e:
+            logging.error(f'Error during interpolation optimization: {e}')
 
     # Save best VAE params and log the best hyperparameters and validation error
     logging.info(f'{log_prefix} best RBF params: {best_params} with a validation error of {best_validation_distance}')
@@ -149,41 +157,52 @@ def optimize_interpolator(df, reducer, log_prefix):
 
 
 def main():
-    args = get_arguments()
-    torch.manual_seed(42)
+    try:
+        args = get_arguments()
+        torch.manual_seed(42)
 
-    filepath = args.filepath
-    filepath_pretrain = args.filepath_pretrain
+        filepath = args.filepath
+        filepath_pretrain = args.filepath_pretrain
 
-    df = load_data(filepath)
-    df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        df = load_data(filepath)
+        
+        #columns_to_drop = ['name', 'file', 'ID']
+        #df = df.drop(columns=[col for col in columns_to_drop if col in df.columns])
+        
+        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 
-    if filepath_pretrain:
-        # Optimize and train the VAE with best pretrain params
-        df_pretrain = load_data(filepath_pretrain)
-        df_pretrain_train, df_pretrain_test = train_test_split(df_pretrain, test_size=0.2, random_state=42)
+        if filepath_pretrain:
+            # Optimize and train the VAE with best pretrain params
+            df_pretrain = load_data(filepath_pretrain)
+            #df_pretrain = df_pretrain.drop(columns=[col for col in columns_to_drop if col in df.columns])
 
-        best_pretrain_params = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain')
-        n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
+            df_pretrain_train, df_pretrain_test = train_test_split(df_pretrain, test_size=0.2, random_state=42)
+
+            best_pretrain_params = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain')
+            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
+            activation = get_activation_function(activation_name)
+            reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer.train_vae(n_epochs)
+
+            best_train_params = optimize_vae(df_train, df_test, 'Train')
+
+        else:
+            best_train_params = optimize_vae(df_train, df_test, 'Train')
+
+        # Train the VAE with the best train params
+        n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_train_params
         activation = get_activation_function(activation_name)
-        reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
+        reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
         reducer.train_vae(n_epochs)
 
-        best_train_params = optimize_vae(df_train, df_test, 'Train')
+        # Train the interpolator with the best train params
+        best_rbf_params = optimize_interpolator(df, reducer, 'Interpolator')
 
-    else:
-        best_train_params = optimize_vae(df_train, df_test, 'Train')
+    except Exception as e:
+        logging.error(f'Error in main: {e}')
 
-    # Train the VAE with the best train params
-    n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_train_params
-    activation = get_activation_function(activation_name)
-    reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta)
-    reducer.train_vae(n_epochs)
 
-    # Train the interpolator with the best train params
-    best_rbf_params = optimize_interpolator(df, reducer, 'Interpolator')
-
-if __name__ == 'main':
+if __name__ == '__main__':
     main()
 
 

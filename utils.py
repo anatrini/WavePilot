@@ -59,65 +59,6 @@ def select_random_entries(input_csv, ouput_csv, n):
     df_sample.to_csv(ouput_csv, index=False)
 
 
-# Plot autoencoder e interpolator performances during optimization
-def plot_losses(model_trials, interpolator_trials):
-    model_errors = []
-    interpolator_errors = []
-
-    for trial in model_trials:
-        #model_errors.append(trial.user_attrs['validation_errors'])
-        model_errors.append(trial.value)
-    for trial in interpolator_trials:
-        interpolator_errors.append(trial.value)
-
-    # Create plot
-    fig = make_subplots(rows=1, cols=2)
-    # Add traces to the plot
-    fig.add_trace(go.Scatter(y=model_errors, mode='lines', name=f'Autoencoder metrics'), row=1, col=1)
-    fig.add_trace(go.Scatter(y=interpolator_errors, mode='lines', name=f'Interpolator metrics'), row=1, col=2)
-
-    fig.update_layout(height=600, width=1200, title='Metrics during optimization')
-    fig.update_xaxes(title_text='Trials', row=1, col=1)
-    fig.update_yaxes(title_text='Target', row=1, col=1)
-    fig.update_xaxes(title_text='Trials', row=1, col=2)
-    fig.update_yaxes(title_text='Target', row=1, col=2)
-    fig.show()
-
-
-def plot_euclidean_distance(df_original, data_reduced):
-    # df_original is a Dataset, data_reduced is np array
-    dist_original = distance.pdist(df_original.values, 'euclidean')
-    # data_reduced is not normalized like the original data so we have to scale it
-    scaler = MinMaxScaler()
-    data_reduced_norm = scaler.fit_transform(data_reduced)
-    dist_reduced = distance.pdist(data_reduced_norm, 'euclidean')
-    distances = np.array([distance.euclidean(a, b) for a, b in zip(df_original.values, data_reduced_norm)])
-
-    fig = go.Figure(data=go.Scatter(x=dist_original, y=dist_reduced, mode='markers',
-                                    marker=dict(color=distances, colorscale='Viridis', size=8,
-                                    colorbar=dict(title='Euclidean distances between original and reconstructed vectors'))))
-    
-    fig.update_layout(title=f'Correlation between orginal and reconstructed vectors\'s distances.',
-                      xaxis_title='Original distances',
-                      yaxis_title='Reconstructed distances'
-                      )
-    fig.show()
-
-
-def plot_dispersion_matrix(original_data, reconstructed_data):
-    df_original = pd.DataFrame(original_data)
-    df_reconstructed = pd.DataFrame(reconstructed_data)
-
-    # Crea una matrice di dispersione per i dati originali
-    fig1 = go.Figure(data=go.Splom(dimensions=[dict(label=col, values=df_original[col]) for col in df_original.columns]))
-    fig1.update_layout(title='Scatter Matrix of Original Data')
-    fig1.show()
-
-    # Crea una matrice di dispersione per i dati ricostruiti
-    fig2 = go.Figure(data=go.Splom(dimensions=[dict(label=col, values=df_reconstructed[col]) for col in df_reconstructed.columns]))
-    fig2.update_layout(title='Scatter Matrix of Reconstructed Data')
-    fig2.show()
-
 def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
     average_error = np.mean(reconstruction_error)
@@ -135,24 +76,3 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
                              yaxis_title='Y',
                              zaxis_title='Reconstruction Error'))
     fig.show()
-
-
-def plot_average_reconstruction_error(datasets):
-    # Calcola l'errore di ricostruzione medio per ciascun dataset
-    average_errors = []
-    for original_data, reduced_data, reconstructed_data in datasets:
-        reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
-        average_error = np.mean(reconstruction_error)
-        average_errors.append(average_error)
-
-    # Crea un grafico a barre dell'errore di ricostruzione medio
-    fig = go.Figure(data=[go.Bar(x=['2', '5', '10', '20', '30', '50', '100'],  # Aggiungi le dimensioni dei tuoi dataset qui
-                           y=average_errors)])
-
-    fig.update_layout(title='Average Reconstruction Error for Different Datasets',
-                      xaxis_title='Dataset',
-                      yaxis_title='Average Reconstruction Error')
-    fig.show()
-
-#TODO:
-# 1. polish utils (get rid of unused defs)

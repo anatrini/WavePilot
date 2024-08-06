@@ -114,7 +114,9 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     
     if save_pretrained_model:
         # Save the pretrained model
-        torch.save(reducer.model.state_dict(), f'{save_filepath}.pt')
+        #torch.save(reducer.model.state_dict(), f'{save_filepath}.pt')
+        torch.save(best_model, f'{save_filepath}.pt')
+
     else:
         # Save best VAE params and log the best hyperparameters and validation error
         logging.info(f'Best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')

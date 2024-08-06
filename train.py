@@ -25,15 +25,15 @@ logging = setup_logger('Main VAE')
 def get_arguments():
     parser = argparse.ArgumentParser()
 
-    # Small dataset of the presets to be reduced (Mandatory)
+    # The actual dataset of the presets to be reduced (Mandatory)
     parser.add_argument('-f', '--filepath',
                       dest='filepath',
                       type=str,
                       default=None)
     
-    # Large dataset of presets to pretrain the model (Optional)
-    parser.add_argument('-F', '--filepath_pretrain',
-                      dest='filepath_pretrain',
+    # The pretrained model created on a bigger dataset (Optional)
+    parser.add_argument('-m', '--pretrained_model',
+                      dest='pretrained_model',
                       type=str,
                       default=None)
     
@@ -122,7 +122,7 @@ async def main():
     
     args = get_arguments()
     filepath = args.filepath
-    filepath_pretrain = args.filepath_pretrain
+    pretrained_model = args.pretrained_model
 
     if args.optimizer_session:
         params = get_hyperparams_from_log(args.optimizer_session)
@@ -148,41 +148,30 @@ async def main():
         epsilon = args.epsilon
 
     try:
-        pretrained_model = None
-        # pretrain session if a larger context dataset is provided
-        if filepath_pretrain is not None:
-            loader_pretrain = DataLoader(filepath_pretrain)
-            df_pretrain = loader_pretrain.load_presets()
-            reducer_pretrain = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
-            reducer_pretrain.train_vae(n_epochs)
-            pretrained_model = reducer_pretrain.model
-        
-        # training session on the data that are represented in the 3D virtual space
         loader = DataLoader(filepath)
         df = loader.load_presets()
-        original_data = df.drop(['ID', 'name', 'file'], axis=1)
+        
+        if pretrained_model is not None:
+            pmodel = torch.load(pretrained_model)
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pmodel)
+        else:
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
 
-        reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pretrained_model)
         reducer.train_vae(n_epochs)
         reduced_data, reconstructed_data = reducer.vae()
 
-        #dot = reducer.visualize_model()
-        #dot.format = 'png'
-        #dot.render('Variational Autoencoder Architecture')
-
         reduced_data = reduced_data[:, 1:] # get rid of ID
-        #logging.info(f'Reduced data: {reduced_data}')
         
-    
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
+    original_data = df.drop(['ID', 'name', 'file'], axis=1)
+    # Uncomment the line below to plot the reconstruction error
+    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
     end_time = time.time()
 
     original_data = original_data.values # to np array
-
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon)
     visualizer = Visualize(reduced_data, app, socketio)
     elapsed_time = end_time - start_time
@@ -199,5 +188,3 @@ async def main():
 if __name__ == '__main__':
     asyncio.run(main())
 
-#TODO:
-# 1. check how you drop ID, file and name from csv file

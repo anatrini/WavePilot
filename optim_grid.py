@@ -70,11 +70,13 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     
     # VAE's params' grid
     vae_grid = {
-        'n_epochs': [5, 10, 25, 50, 75, 100, 150, 200],
+        #'n_epochs': [5, 10, 25, 50, 75, 100, 150, 200],
+        'n_epochs': [5, 10, 25],
         'learning_rate': np.logspace(-5, -2, num=4),
         'weight_decay': np.logspace(-5, -2, num=4),
-        'n_layers': list(range(1, 6)),
-        'activation': ['ReLU', 'Sigmoid', 'Tanh'],
+        #'n_layers': list(range(1, 6)),
+        'n_layers': list(range(1, 2)),
+        'activation': ['ReLU', 'Sigmoid'],
         'beta': np.linspace(0.1, 1.0, num=10)
     }
 
@@ -83,6 +85,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     best_validation_error = float('inf')
     best_params = None
     best_model = None
+    best_reducer = None
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
@@ -104,6 +107,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
                 best_validation_error = validation_error
                 best_params = params
                 best_model = reducer.model
+                best_reducer = reducer
 
         except Exception as e:
             logging.error(f'Error during VAE optimization: {e}')
@@ -115,7 +119,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
         # Save best VAE params and log the best hyperparameters and validation error
         logging.info(f'{log_prefix} best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
     
-    return best_params, best_model
+    return best_params, best_model, best_reducer
 
 
 def optimize_interpolator(df, reducer, log_prefix):
@@ -138,7 +142,7 @@ def optimize_interpolator(df, reducer, log_prefix):
             smoothing, kernel, epsilon = params
 
             # train the model
-            original_data = df.drop(['ID', 'name', 'preset'])
+            original_data = df.drop(['ID', 'name', 'file'], axis=1)
             original_data = original_data.values
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]
@@ -186,7 +190,7 @@ def main():
             df_pretrain = load_data(filepath_pretrain)
             df_pretrain_train, df_pretrain_test = train_test_split(df_pretrain, test_size=0.2, random_state=42)
 
-            best_pretrain_params, best_pretrain_model = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
+            best_pretrain_params, best_pretrain_model, _ = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
 
             # Create best pretrain model with the hyperparams found 
             n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
@@ -194,13 +198,13 @@ def main():
             reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
             reducer.train_vae(n_epochs)
 
-            best_train_params, _ = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None, pretrained_model=best_pretrain_model)
+            _, _, best_reducer = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None, pretrained_model=best_pretrain_model)
 
         else:
-            best_train_params, _ = optimize_vae(df_train, df_test, 'Train')
+            _, _, best_reducer = optimize_vae(df_train, df_test, 'Train')
 
         # Train the interpolator with the best train params
-        best_rbf_params = optimize_interpolator(df, reducer, 'Interpolator')
+        _ = optimize_interpolator(df_train, best_reducer, 'Interpolator')
 
     except Exception as e:
         logging.error(f'Error in main: {e}')

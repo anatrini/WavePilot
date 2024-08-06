@@ -155,7 +155,7 @@ async def main():
         
         if pretrained_model is not None:
             pmodel = torch.load(pretrained_model)
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pretrained_model)
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pmodel)
         else:
             reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
 
@@ -164,7 +164,6 @@ async def main():
 
         reduced_data = reduced_data[:, 1:] # get rid of ID
         
-    
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)

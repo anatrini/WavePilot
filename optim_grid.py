@@ -70,12 +70,10 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     
     # VAE's params' grid
     vae_grid = {
-        #'n_epochs': [5, 10, 25, 50, 75, 100, 150, 200],
-        'n_epochs': [5, 10, 25],
+        'n_epochs': [5, 10, 25, 50, 75, 100, 150, 200],
         'learning_rate': np.logspace(-5, -2, num=4),
         'weight_decay': np.logspace(-5, -2, num=4),
-        #'n_layers': list(range(1, 6)),
-        'n_layers': list(range(1, 2)),
+        'n_layers': list(range(1, 5)),
         'activation': ['ReLU', 'Sigmoid'],
         'beta': np.linspace(0.1, 1.0, num=10)
     }
@@ -114,7 +112,6 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     
     if save_pretrained_model:
         # Save the pretrained model
-        #torch.save(reducer.model.state_dict(), f'{save_filepath}.pt')
         torch.save(best_model, f'{save_filepath}.pt')
 
     else:

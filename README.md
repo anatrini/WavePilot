@@ -3,7 +3,7 @@
 
 Official implementation of *WavePilot: Framework multidimensionale per l'esplorazione dello spazio parametrico di strumenti digitali* by Alessandro Anatrini (XXIV CIM, 2024).
 
-WavePilot is a framework designed to facilitate the exploration and manipulation of Digital Multimedia Instrument (DMmI) parameters. WavePilot employs a Variational Autoencoder (VAE) to translate the values of one or more DMmIs into a multidimensional (3d) representation of their parameter space. The primary goal is to enhance user interaction by offering a high-level graphical user interface (GUI) in the form of a navigable virtual space, simplifying DMmI programming.
+*WavePilot* is a framework designed to facilitate the exploration and manipulation of Digital Multimedia Instrument (DMmI) parameters. *WavePilot* employs a Variational Autoencoder (VAE) to translate the values of one or more DMmIs into a multidimensional (3D) representation of their parameter space. The primary goal is to enhance user interaction by offering a high-level graphical user interface (GUI) in the form of a navigable virtual space, simplifying DMmI programming.
 
 ![Alt text](media/scheme.png)
 WavePilot Operation Diagram: Blue for data processing, green for Flask server, orange for real-time communication with SocketIO, and magenta for decision-making (Anatrini, 2024).
@@ -12,7 +12,7 @@ WavePilot Operation Diagram: Blue for data processing, green for Flask server, o
 ## Introduction
 
 WavePilot uses dimensionality reduction techniques for parameter space and nonlinear interpolation, enabling it to tackle multiple tasks simultaneously: exploring various DMmI configurations, automated macro-control learning, and interpolating between different instrument states defined as starting points. Essentially, programming a DMmI is reduced to a nonlinear mapping problem within a multidimensional virtual space.
-The tool uses the DAW Reaper as a host for the audio plugins it applies. However, its versatility allows it to be used in any environment with OSC support that can host plugins or integrate them natively, such as TouchDesigner, Max, or any standalone FAUST app.
+The tool uses the DAW REAPER as a host for the audio plugins it applies. However, its versatility allows it to be used in any environment with OSC support that can host plugins or integrate them natively, such as TouchDesigner, Max, or any standalone FAUST app.
 
 
 ## Requirements
@@ -39,7 +39,7 @@ You need Max (version 8 or later), which can be run in runtime mode if you do no
 
 ### Install Blackhole
 
-In addition to the dependencies listed in environment.yml and Reaper, ensure that Blackhole is installed. Blackhole is a crucial component for sending and receiving audio from the Reaper hosting the plugin:
+In addition to the dependencies listed in environment.yml and REAPER, ensure that Blackhole is installed. Blackhole is a crucial component for sending and receiving audio from the REAPER hosting the plugin:
 
     `brew install blackhole`
 
@@ -48,17 +48,17 @@ In addition to the dependencies listed in environment.yml and Reaper, ensure tha
 Please note that this code has been tested only on macOS. Compatibility with other operating systems is not guaranteed.
  
 
-## Dataset and Configuration for WavePilot
+## Dataset and Configuration for *WavePilot*
 
-To use WavePilot, you need at least one dataset representing a collection of presets in `.csv` format. REAPER is used as the plugin host due to its advanced scripting capabilities. This setup enables you to load one or more plugins, receive OSC messages to set parameters, and save those parameter values to a dataset.
+To use *WavePilot*, you need at least one dataset representing a collection of presets in `.csv` format. REAPER is used as the plugin host due to its advanced scripting capabilities. This setup enables you to load one or more plugins, receive OSC messages to set parameters, and save those parameter values to a dataset.
 
 ### Preparing Presets
 
-When working with WavePilot on a single audio plugin, you can use presets in three ways:
+When working on a single audio plugin, you can use presets in three ways:
 
-1. **User-defined Presets**: Manually create and save presets within the plugin. You can then export these presets to a .csv file using the plugin_render.py script:
+1. **User-defined Presets**: Manually create and save presets within the plugin. You can then export these presets to a `.csv` file using the `plugin_renderer.py` script:
 
-    `python plugin_render.py -m preset -d <blackhole_device_id>`
+    `python plugin_renderer.py -m preset -d <blackhole_device_id>`
 
 2. **Factory Presets**: You can also export the factory presets already available in the plugin using the same script.
 
@@ -68,14 +68,14 @@ When working with WavePilot on a single audio plugin, you can use presets in thr
 
 Here, `-t` specifies the amplitude threshold below which presets are considered silent and excluded from the dataset. The default value is 1e-6. Use `plugin_render.py -h` to see all options for dataset generation and saving.
 
-We recommend starting with at least 10 presets, although WavePilot can operate with fewer. The dataset defines the exploration space, and having more presets can improve results.
+We recommend starting with at least 10 presets, although *WavePilot* can operate with fewer. The dataset defines the exploration space arbitrarily set by the user, and having more presets can improve results.
 
 ### Transfer Learning for Enhanced Performance
 
 For improved accuracy in reconstructing preset values from the latent space, consider using transfer learning. This involves working with two datasets: your initial dataset and a larger one containing as many presets as possible from the plugin.
 To find the optimal hyperparameters for the VAE’s low-dimensional representation and the Radial Basis Function interpolator, run a grid search:
 
-`python optim_grid.py -f <filepath_small_dataset> -F <filepath_large_dataset> -s <filepath_pretrained_model>`
+    `python optim_grid.py -f <filepath_small_dataset> -F <filepath_large_dataset> -s <filepath_pretrained_model>`
 
 * `-F`: Path to the larger dataset for pretraining;
 * `-s`: Path to store the pre-trained model.
@@ -86,7 +86,7 @@ When using transfer learning (i.e., providing both `-F` and `-s`), this script w
 
 With the `.log` file containing the best hyperparameter combinations for the VAE and the interpolator, you can now train the model and visualize the representation of presets as points in a three-dimensional space:
 
-`python train.py -f <filepath_small_dataset> -m <filepath_pretrained_model> -o <filepath_to_optimization_log>`
+    `python train.py -f <filepath_small_dataset> -m <filepath_pretrained_model> -o <filepath_to_optimization_log>`
 
 * `-m`: Path to the pre-trained model (omit this if not using transfer learning);
 * `-o`: Path to the optimization `.log` file (omit this if you did not run the optimization routine);
@@ -100,7 +100,7 @@ You can navigate the 3D representation by moving the cursor. To control the curs
 
 2. **Smart Device Control**: Use a smart device to control the cursor `SMARTD`. You can choose between using a combination of gyroscope and accelerometer data or x,y screen coordinates with pressure sensitivity, if your device supports it. To control the cursor from a smart device, install the free app [ZIG SIM](https://apps.apple.com/de/app/zig-sim/id1112909974) and configure the settings with the IP address of the machine running the model, port number 8888, and message format set to OSC.
 
-Simultaneously, open REAPER with the plugin to which WavePilot is applied and run:
+Simultaneously, open REAPER with the plugin to which *WavePilot* is applied and in a new terminal window run:
 
     `python plugin_setter.py`
 

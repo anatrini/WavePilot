@@ -6,7 +6,7 @@ Official implementation of *WavePilot: Framework multidimensionale per l'esplora
 *WavePilot* is a framework designed to facilitate the exploration and manipulation of Digital Multimedia Instrument (DMmI) parameters. *WavePilot* employs a Variational Autoencoder (VAE) to translate the values of one or more DMmIs into a multidimensional (3D) representation of their parameter space. The primary goal is to enhance user interaction by offering a high-level graphical user interface (GUI) in the form of a navigable virtual space, simplifying DMmI programming.
 
 ![Alt text](media/scheme.png)
-WavePilot Operation Diagram: Blue for data processing, green for Flask server, orange for real-time communication with SocketIO, and magenta for decision-making (Anatrini, 2024).
+*WavePilot Operation Diagram* (Anatrini, 2024).
 
 
 ## Introduction

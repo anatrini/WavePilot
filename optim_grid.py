@@ -74,7 +74,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
         'learning_rate': np.logspace(-5, -2, num=4),
         'weight_decay': np.logspace(-5, -2, num=4),
         'n_layers': list(range(1, 5)),
-        'activation': ['ReLU', 'Sigmoid'],
+        'activation': ['ReLU', 'Sigmoid', 'Tanh'],
         'beta': np.linspace(0.1, 1.0, num=10)
     }
 
@@ -125,31 +125,61 @@ def optimize_interpolator(df, reducer, log_prefix):
 
     # Interpolator's params' grid
     interpolator_grid = {
-        'smoothing': np.linspace(0.001, 1.0, num=10),
+        'smoothing': np.linspace(0.0, 1.0, num=50),
         'kernel': ['multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian', 'linear', 'quintic', 'cubic', 'thin_plate_spline'],
-        'epsilon': np.linspace(0.0, 3.0, num=30)
+        'epsilon': np.linspace(0.0, 3.0, num=30),
+        'degree': np.linspace(-1, 3, num=5)
     }
+
+    # Minimum degree requirements for each kernel
+    min_degree = {
+        'multiquadric': 1,
+        'linear': 0,
+        'thin_plate_spline': 1,
+        'cubic': 1,
+        'quintic': 2
+    }
+
+    # Kernels for which epsilon should be set to 1
+    fixed_epsilon_kernes = ['linear', 'thin_plate_spline', 'cubic', 'quintic']
 
     param_combinations = list(itertools.product(*interpolator_grid.values()))
     best_validation_distance = float('inf')
     best_params = None
 
+    # Get the number of rows in the dataset
+    df_size = df.shape[0]
+
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
         try:
             # unpack params
-            smoothing, kernel, epsilon = params
+            smoothing, kernel, epsilon, degree = params
+
+            # Skip epsilon for certain kernels
+            if kernel in fixed_epsilon_kernes:
+                epsilon = 1.0
+
+            # Ensure degree meets minimum requiriments for certain kernels
+            if kernel in min_degree and degree < min_degree[kernel]:
+                continue
+
+            # Calculate the number of polynomial terms for the given degree
+            num_poly_terms = 0 if degree == -1 else (degree + 1) * (degree + 2) // 2
+            if df_size < num_poly_terms:
+                print(f'Insufficient dataset size for kernel={kernel}, epsilon={epsilon}, smoothing={smoothing}, degree={degree}, skipping this configuration...')
+                continue
 
             # train the model
-            original_data = df.drop(['ID', 'name', 'file'], axis=1)
+            original_data = df.drop(columns=['ID', 'name', 'file'])
             original_data = original_data.values
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]
-        
-            # train the interpolator
-            interpolator = RBFInterpolator(reduced_data, original_data, smoothing=smoothing, kernel=kernel, epsilon=epsilon)
-            interpolated_data = interpolator(reduced_data)
 
+            # train the interpolator
+            interpolator = RBFInterpolator(reduced_data, original_data, smoothing=smoothing, kernel=kernel, epsilon=epsilon, degree=degree)
+            interpolated_data = interpolator(reduced_data)
+ 
             # Compute euclidean distance between original and reduced vectors
             distances = []
             for original, interpolated in zip(original_data, interpolated_data):
@@ -162,9 +192,18 @@ def optimize_interpolator(df, reducer, log_prefix):
             if validation_distance < best_validation_distance:
                 best_validation_distance = validation_distance
                 best_params = params
-            
-        except Exception as e:
-            logging.error(f'Error during interpolation optimization: {e}')
+
+        # Handling specific exceptions within the function to ensure the computation continues
+        except np.linalg.LinAlgError:
+            # Handles the singular matrix error and continues with the next configuration
+            print(f'Singular matrix encountered with kernel={kernel}, epsilon={epsilon}, smoothing={smoothing}, degree={degree}, skipping this configuration...')
+        except ValueError as e:
+            # Handles the specific error that requires a minimum number of data points and continues with the next configuration
+            if "At least" in str(e):
+                print(f'Error encountered with kernel={kernel}, epsilon={epsilon}, smoothing={smoothing}, degree={degree}: {e}, skipping this configuration...')
+            else:
+                # Raises other ValueError exceptions that are not specifically handled
+                raise e
 
     # Save best VAE params and log the best hyperparameters and validation error
     logging.info(f'Best RBF params: {best_params} with a validation error of {best_validation_distance}')
@@ -181,8 +220,10 @@ def main():
         filepath_save_pretrain = args.filepath_save_pretrain
 
         df = load_data(filepath)
+        #print(f'This is df {df}')
         
         df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        #print(f'This is df_train {df_train}')
 
         if filepath_pretrain:
             # Optimize and train the VAE to find the best pretrain params
@@ -192,18 +233,35 @@ def main():
             best_pretrain_params, best_pretrain_model, _ = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
 
             # Create best pretrain model with the hyperparams found 
-            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
-            activation = get_activation_function(activation_name)
-            reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
-            reducer.train_vae(n_epochs)
+            #n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_pretrain_params
+            #activation = get_activation_function(activation_name)
+            #reducer = VectorReducer(df_pretrain, learning_rate, weight_decay, n_layers, activation, beta)
+            #reducer.train_vae(n_epochs)
 
             _, _, best_reducer = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None, pretrained_model=best_pretrain_model)
+            _ = optimize_interpolator(df_train, best_reducer, 'Interpolator')
 
         else:
-            _, _, best_reducer = optimize_vae(df_train, df_test, 'Train')
+
+            best_train_params, _, _ = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None)
+            
+            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_train_params
+            activation = get_activation_function(activation_name)
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer.train_vae(n_epochs)
+
+            _ = optimize_interpolator(df, reducer, 'Interpolator')
+
+
+            #activation = get_activation_function('ReLU')
+            #reducer = VectorReducer(df, 0.001, 0.0001, 3, activation, 0.6)
+            #reducer.train_vae(50)
+            #_, _, best_reducer = optimize_vae(df_train, df_test, 'Train')
 
         # Train the interpolator with the best train params
-        _ = optimize_interpolator(df_train, best_reducer, 'Interpolator')
+        #_ = optimize_interpolator(df_train, best_reducer, 'Interpolator')
+        #_ = optimize_interpolator(df, reducer, 'Interpolator')
+
 
     except Exception as e:
         logging.error(f'Error in main: {e}')

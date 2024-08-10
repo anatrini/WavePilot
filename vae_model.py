@@ -53,7 +53,6 @@ class VAE(nn.Module):
 class VectorReducer:
     def __init__(self, df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=None):
         self.ids = df['ID'].values
-        #self.df = df.drop(columns=['ID', 'PRESET_NAME'])
         self.df = df.drop(columns=['ID', 'name', 'file'])
         if pretrained_model is None:
             self.model = VAE(self.df.shape[1], n_layers, activation)

@@ -95,6 +95,12 @@ def get_arguments():
                         type=float,
                         default=1.0,
                         help='Epsilon value if kernel is one of: multiquadric, inverse_multiquadric, inverse_quadratic, gaussian.')
+    
+    parser.add_argument('-d', '--degree',
+                        dest='degree',
+                        type=int,
+                        default=None,
+                        help='Degree of the added polynomial. Minimum degree for RBFs: multiquadric=0, linear=0, thin_plate_spline=1, cubic=1, quintic=2. The default value is the minimum degree for kernel or 0 if there is no minimum degree. Set this to -1 for no added polynomial.')
         
     return parser.parse_args()
 
@@ -136,6 +142,7 @@ async def main():
             smoothing = params['rbf']['smoothing']
             kernel = params['rbf']['kernel']
             epsilon = params['rbf']['epsilon']
+            degree = params['rbf']['degree']
     else:
         n_layers = args.n_layers
         activation = args.activation_function
@@ -146,6 +153,7 @@ async def main():
         smoothing = args.smoothing
         kernel = args.kernel
         epsilon = args.epsilon
+        degree = args.degree
 
     try:
         loader = DataLoader(filepath)
@@ -172,7 +180,9 @@ async def main():
     end_time = time.time()
 
     original_data = original_data.values # to np array
-    interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon)
+    #logging.info(f"Reduced data: {reduced_data} sec.")
+
+    interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)
     elapsed_time = end_time - start_time
     logging.info(f"Computation time: {elapsed_time} sec.")

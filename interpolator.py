@@ -7,13 +7,14 @@ logging = setup_logger('Radial Basis Function Interpolator')
 
 
 class RBFInterpolation:
-    def __init__(self, reduced_data, original_data, smoothing, kernel, epsilon):
+    def __init__(self, reduced_data, original_data, smoothing, kernel, epsilon, degree):
         self.reduced_data = reduced_data
         self.original_data = original_data
         self.smoothing = smoothing
         self.kernel = kernel
         self.epsilon = epsilon
-        self.interpolator = RBFInterpolator(self.reduced_data, self.original_data, smoothing=self.smoothing, kernel=self.kernel, epsilon=self.epsilon)
+        self.degree = degree
+        self.interpolator = RBFInterpolator(self.reduced_data, self.original_data, smoothing=self.smoothing, kernel=self.kernel, epsilon=self.epsilon, degree=self.degree)
         
         self.minX = np.min(reduced_data[:, 0])
         self.maxX = np.max(reduced_data[:, 0])
@@ -21,6 +22,12 @@ class RBFInterpolation:
         self.maxY = np.max(reduced_data[:, 1])
         self.minZ = np.min(reduced_data[:, 2])
         self.maxZ = np.max(reduced_data[:, 2])
+
+        # reduced_data[:, 0] = 2 * (reduced_data[:, 0] - self.minX) / (self.maxX - self.minX) - 1
+        # reduced_data[:, 1] = 2 * (reduced_data[:, 1] - self.minY) / (self.maxY - self.minY) - 1
+        # reduced_data[:, 2] = 2 * (reduced_data[:, 2] - self.minZ) / (self.maxZ - self.minZ) - 1
+        # self.interpolator = RBFInterpolator(self.reduced_data, self.original_data, smoothing=self.smoothing, kernel=self.kernel, epsilon=self.epsilon)
+
 
     # Denormalize cursor position so cursor position will correspond when moved in the 3D graph
     # While at the same time, once denormalized, can be properly used for the interpolation

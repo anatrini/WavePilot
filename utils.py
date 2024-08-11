@@ -27,7 +27,7 @@ def get_hyperparams_from_log(log_file):
             # Get interpolator's best hyperp fomr log
             params_str = line.split("Best RBF params: ")[1].split(" with")[0]
             params_tuple = eval(params_str)
-            params['rbf'] = {'smoothing': params_tuple[0], 'kernel': params_tuple[1], 'epsilon': params_tuple[2]}
+            params['rbf'] = {'smoothing': params_tuple[0], 'kernel': params_tuple[1], 'epsilon': params_tuple[2], 'degree': params_tuple[3]}
 
     return params
 

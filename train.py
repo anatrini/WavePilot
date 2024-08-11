@@ -175,15 +175,17 @@ async def main():
         exit(1)
 
     original_data = df.drop(['ID', 'name', 'file'], axis=1)
+    original_data = original_data.values # to np array
     # Uncomment the line below to plot the reconstruction error
     #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
-    end_time = time.time()
 
-    original_data = original_data.values # to np array
-    #logging.info(f"Reduced data: {reduced_data} sec.")
+    print(f'TRAIN Original data {original_data}')
+    print(f'TRAIN Reduced data {reduced_data}')
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)
+
+    end_time = time.time()
     elapsed_time = end_time - start_time
     logging.info(f"Computation time: {elapsed_time} sec.")
     

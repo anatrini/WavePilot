@@ -9,3 +9,4 @@ data/*
 output/*
 random_selection.py
 *.RPP
+test.py

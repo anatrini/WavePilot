@@ -177,7 +177,7 @@ async def main():
     original_data = df.drop(['ID', 'name', 'file'], axis=1)
     original_data = original_data.values # to np array
     # Uncomment the line below to plot the reconstruction error
-    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
+    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
 
     print(f'TRAIN Original data {original_data}')
     print(f'TRAIN Reduced data {reduced_data}')

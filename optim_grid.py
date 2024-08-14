@@ -105,7 +105,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
                 best_validation_error = validation_error
                 best_params = params
                 best_model = reducer.model
-                best_reducer = reducer
+                #best_reducer = reducer
 
         except Exception as e:
             logging.error(f'Error during VAE optimization: {e}')
@@ -118,7 +118,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
         # Save best VAE params and log the best hyperparameters and validation error
         logging.info(f'Best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
     
-    return best_params, best_model, best_reducer
+    return best_params, best_model #, best_reducer
 
 
 def optimize_interpolator(df, reducer, log_prefix):
@@ -127,7 +127,7 @@ def optimize_interpolator(df, reducer, log_prefix):
     interpolator_grid = {
         'smoothing': np.linspace(0.0, 1.0, num=50),
         'kernel': ['multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian', 'linear', 'quintic', 'cubic', 'thin_plate_spline'],
-        'epsilon': np.linspace(0.0, 3.0, num=30),
+        'epsilon': np.linspace(1e-03, 3.0, num=30),
         'degree': np.linspace(-1, 2, num=4)
     }
 
@@ -145,10 +145,12 @@ def optimize_interpolator(df, reducer, log_prefix):
 
     param_combinations = list(itertools.product(*interpolator_grid.values()))
     best_validation_distance = float('inf')
+    #print(f'Best validation distance of: {best_validation_distance}')
     best_params = []
 
     # Get the number of rows in the dataset
     df_size = df.shape[0]
+    count = 0
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
@@ -176,8 +178,8 @@ def optimize_interpolator(df, reducer, log_prefix):
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]
 
-            print(f'OPTIM Original data {original_data}')
-            print(f'OPTIM Reduced data {reduced_data}')
+            #print(f'OPTIM Original data {original_data}')
+            #print(f'OPTIM Reduced data {reduced_data}')
 
 
             # train the interpolator
@@ -191,12 +193,13 @@ def optimize_interpolator(df, reducer, log_prefix):
                 distances.append(distance)
 
             validation_distance = np.mean(distances)
-            print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_distance = {validation_distance}')
+            print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_distance = {validation_distance} and {best_validation_distance}')
 
             if validation_distance < best_validation_distance:
                 best_validation_distance = validation_distance
                 best_params = params
-                valid_config = True
+                count += 1
+                print(f'This is the best combinations of params no. {count} : {best_params}')
 
         # Handling specific exceptions within the function to ensure the computation continues
         except np.linalg.LinAlgError:
@@ -211,8 +214,7 @@ def optimize_interpolator(df, reducer, log_prefix):
                 raise e
             
     # Save best VAE params and log the best hyperparameters and validation error
-    if valid_config:
-        logging.info(f'Best RBF params: {best_params} with a validation error of {best_validation_distance}')
+    logging.info(f'Best RBF params: {best_params} with a validation error of {best_validation_distance}')
 
 
 
@@ -227,36 +229,44 @@ def main():
         filepath_save_pretrain = args.filepath_save_pretrain
 
         df = load_data(filepath)
-        #print(f'This is df {df}')
         
         df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
-        #print(f'This is df_train {df_train}')
 
         if filepath_pretrain:
             # Optimize and train the VAE to find the best pretrain params
             df_pretrain = load_data(filepath_pretrain)
-            df_pretrain_train, df_pretrain_test = train_test_split(df_pretrain, test_size=0.2, random_state=42)
+            df_train_pretrain, df_test_pretrain = train_test_split(df_pretrain, test_size=0.2, random_state=42)
+            best_params_pretrain, best_model_pretrain = optimize_vae(df_train_pretrain, df_test_pretrain, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
+            best_params_train, _ = optimize_vae(df_train, df_test, 'Train', pretrained_model=best_model_pretrain)
 
-            # If transfer learning is used, the RBF optimisation occurs on df_train, 
-            # so it's possible to use the best_reducer obtained from the VAE optimization 
-            # by passing best_pretrained_model
-            _, best_pretrain_model, _ = optimize_vae(df_pretrain_train, df_pretrain_test, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
+            n_epochs_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_name_pretrain, beta_pretrain = best_params_pretrain
+            activation_pretrain = get_activation_function(activation_name_pretrain)
+            reducer_pretrain = VectorReducer(df_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_pretrain, beta_pretrain)
+            reducer_pretrain.train_vae(n_epochs_pretrain)
 
-            _, _, best_reducer = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None, pretrained_model=best_pretrain_model)
-            _ = optimize_interpolator(df_train, best_reducer, 'Interpolator')
+            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, beta_train = best_params_train
+            activation_train = get_activation_function(activation_name_train)
+            pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
+            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, beta_train, pretrained_model=pretrained_model)
+            reducer_train.train_vae(n_epochs_train)
+
+            # activation_train = get_activation_function('Tanh')
+            # pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
+            # reducer_train = VectorReducer(df, 1e-05, 1e-05, 3, activation_train, 0.6, pretrained_model=pretrained_model)
+            # reducer_train.train_vae(5)
 
         else:
             # Without transfer learning, the VAE optimisation occurs on df_train, from which best_train_params is obtained
             # This is then passed to a full training loop, so that the resulting reducer is computed on the entire dataset,
             # and the RBF optimization can be performed on the entire dataset
-            best_train_params, _, _ = optimize_vae(df_train, df_test, 'Train', save_pretrained_model=False, save_filepath=None)
+            best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
             
-            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = best_train_params
-            activation = get_activation_function(activation_name)
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
-            reducer.train_vae(n_epochs)
+            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, beta_train = best_params_train
+            activation_train = get_activation_function(activation_name_train)
+            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, beta_train)
+            reducer_train.train_vae(n_epochs_train)
 
-            optimize_interpolator(df, reducer, 'Interpolator')
+        optimize_interpolator(df, reducer_train, 'Interpolator')
 
     except Exception as e:
         logging.error(f'Error in main: {e}')

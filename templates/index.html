@@ -1,7 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Preset Render Visualizer</title>
+
+    <!-- Collegamento al file CSS esterno -->
+    <link rel="stylesheet" href="styles.css">
+
     <!-- Include three.js library -->    
     <script type="importmap">
         {
@@ -11,23 +17,21 @@
                 "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.0/build/index.module.js"
             }
         }
-        </script>
+    </script>
     <!-- Include Socket.IO library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
-    <style>
-        h1 {
-           text-align: left;
-           font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
-           font-size: 24px;
-           color: #fff;
-           text-transform: capitalize;
-        }
-    </style> 
 </head>
 
 <body>
-    <h1>Preset Renderer</h1>
-    <!-- Include js script -->
+    <!-- Contenitore per il titolo -->
+    <div id="title-container">
+        <h1>Preset Renderer Visualization</h1>
+    </div>
+
+    <!-- Contenitore per il canvas 3D -->
+    <div id="canvas-container"></div>
+
+    <!-- Include js script per visualizzare il grafico 3D -->
     <script type="module" src="/static/graph_11.js"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 59.0, 97.0, 364.0, 747.0 ],
+		"rect" : [ 59.0, 97.0, 361.0, 747.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -39,6 +39,34 @@
 		"subpatcher_template" : "dark_template",
 		"assistshowspatchername" : 0,
 		"boxes" : [ 			{
+				"box" : 				{
+					"id" : "obj-13",
+					"linecount" : 18,
+					"maxclass" : "comment",
+					"numinlets" : 1,
+					"numoutlets" : 0,
+					"patching_rect" : [ 391.0, 167.0, 150.0, 248.0 ],
+					"presentation" : 1,
+					"presentation_linecount" : 12,
+					"presentation_rect" : [ 353.0, 48.0, 268.0, 167.0 ],
+					"text" : "1. Ottieni preset\n2. Fai ottimizzazione\n3. Usa il log dell'ottimizzazione per il t\n\n\n1. Get presets\n2. Run optimisation\n3. Pass optimization log file during the train\n4. Open the host (Reaper, Max, Td...)\n5. Set port 8888 and IP on smartdevice\n6. Open the controller and set interaction mode\n7. Normalised values are sent back to port 5106 "
+				}
+
+			}
+, 			{
+				"box" : 				{
+					"fontface" : 0,
+					"id" : "obj-8",
+					"maxclass" : "o.display",
+					"numinlets" : 1,
+					"numoutlets" : 1,
+					"outlettype" : [ "" ],
+					"patching_rect" : [ 555.0, 319.0, 150.0, 33.0 ],
+					"text" : "/touchcount : 0"
+				}
+
+			}
+, 			{
 				"box" : 				{
 					"fontface" : 3,
 					"fontname" : "Graphik",
@@ -462,13 +490,13 @@
 				"box" : 				{
 					"fontface" : 0,
 					"id" : "obj-38",
-					"linecount" : 48,
+					"linecount" : 52,
 					"maxclass" : "o.expr.codebox",
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "FullPacket", "FullPacket" ],
-					"patching_rect" : [ 799.0, 164.0, 555.0, 633.0 ],
-					"text" : "### IMU with fusion filter (accelerometer, gyroscope, compass)\nif( /type == 0,\n  progn(\n    /delta = 0.0333, # update rate (30Hz)\n    /alpha = 0.98, # constant value for complementary filter\n\n    /normAccel = /accel / 9.81, \n    /normCompass = (/compass[[ 0 ]] - 180) / 180,\n\t\t\t\n    ### Estimate accelerometer angles\n    /accelAngleX = atan2(/normAccel[[ 1 ]], /normAccel[[ 2 ]]),\n    /accelAngleY = atan2(/normAccel[[ 0 ]], /normAccel[[ 2 ]]),\n    /accelAngleZ = 0, #accel cannot measure rotation on z axis\n\n    ### Integrate angular velocity of gyroscope in time\n    /gyroAngleX = /historyAngleX + (/gyro[[ 0 ]] * /delta),\n    /gyroAngleY = /historyAngleY + (/gyro[[ 1 ]] * /delta),\n    /gyroAngleZ = /historyAngleZ + (/gyro[[ 2 ]] * /delta),\n\n    ### Apply complementary filter\n    /filterAngleX = /alpha * /gyroAngleX + (1 - /alpha) * /accelAngleX,\n    /filterAngleY = /alpha * /gyroAngleY + (1 - /alpha) * /accelAngleY,\n    /filterAngleZ = /alpha * /gyroAngleZ + (1 - /alpha) * /normCompass,\n\n    /posX = /filterAngleX / pi() * /scalingFactor,\n    /posY = /filterAngleY / pi() * /scalingFactor,\n    /posZ = -1 * /filterAngleZ / pi() * /scalingFactor,\n    \n    /cursor = [/posZ, /posY, /posX],\n\n    /historyAngleX = /filterAngleX,\n    /historyAngleY = /filterAngleY,\n    /historyAngleZ = /filterAngleZ\n  ),\n  progn(\n    /min = -1.0,\n    /max = 1.0,\n    /touchforce0_max = 2.5,\n\n    /posX = /touch0[[ 0 ]],\n    /posY = /touch0[[ 1 ]] * -1,\n    /posZ = scale(/touchforce0, 0.0, /touchforce0_max, /max, /min),\n \n    /cursor = [/posX, /posY, /posZ] * /scalingFactor\n  )\n),\n### To display in spat viewer\n/source/1/xyz = /cursor"
+					"patching_rect" : [ 799.0, 164.0, 555.0, 684.0 ],
+					"text" : "/historyAngleX = 0,\n/historyAngleY = 0,\n/historyAngleZ = 0,\n\n### IMU with fusion filter (accelerometer, gyroscope, compass)\nif( /type == 0,\n  progn(\n    /delta = 0.0333, # update rate (30Hz)\n    /alpha = 0.98, # constant value for complementary filter\n\n    /normAccel = /accel / 9.81, \n    /normCompass = (/compass[[ 0 ]] - 180) / 180,\n\t\t\t\n    ### Estimate accelerometer angles\n    /accelAngleX = atan2(/normAccel[[ 1 ]], /normAccel[[ 2 ]]),\n    /accelAngleY = atan2(/normAccel[[ 0 ]], /normAccel[[ 2 ]]),\n    /accelAngleZ = 0, #accel cannot measure rotation on z axis\n\n    ### Integrate angular velocity of gyroscope in time\n    /gyroAngleX = /historyAngleX + (/gyro[[ 0 ]] * /delta),\n    /gyroAngleY = /historyAngleY + (/gyro[[ 1 ]] * /delta),\n    /gyroAngleZ = /historyAngleZ + (/gyro[[ 2 ]] * /delta),\n\n    ### Apply complementary filter\n    /filterAngleX = /alpha * /gyroAngleX + (1 - /alpha) * /accelAngleX,\n    /filterAngleY = /alpha * /gyroAngleY + (1 - /alpha) * /accelAngleY,\n    /filterAngleZ = /alpha * /gyroAngleZ + (1 - /alpha) * /normCompass,\n\n    /posX = /filterAngleX / pi() * /scalingFactor,\n    /posY = /filterAngleY / pi() * /scalingFactor,\n    /posZ = -1 * /filterAngleZ / pi() * /scalingFactor,\n    \n    /cursor = [/posZ, /posY, /posX],\n\n    /historyAngleX = /filterAngleX,\n    /historyAngleY = /filterAngleY,\n    /historyAngleZ = /filterAngleZ\n  ),\n  progn(\n    /min = -1.0,\n    /max = 1.0,\n    /touchforce0_max = 2.5,\n\n    /posX = /touch0[[ 0 ]],\n    /posY = /touch0[[ 1 ]] * -1,\n    /posZ = scale(/touchforce0, 0.0, /touchforce0_max, /max, /min),\n \n    /cursor = [/posX, /posY, /posZ] * /scalingFactor\n  )\n),\n### To display in spat viewer\n/source/1/xyz = /cursor"
 				}
 
 			}
@@ -564,7 +592,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "FullPacket" ],
-					"patching_rect" : [ 655.0, 116.5, 107.0, 22.0 ],
+					"patching_rect" : [ 682.0, 81.5, 107.0, 22.0 ],
 					"text" : "o.route /deviceinfo"
 				}
 
@@ -641,6 +669,7 @@
 
 					}
 ,
+					"text" : "/cursor : [0.154667, -0.224888, 0.893333]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 
@@ -700,7 +729,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "FullPacket" ],
-					"patching_rect" : [ 655.0, 81.5, 213.0, 22.0 ],
+					"patching_rect" : [ 682.0, 46.5, 213.0, 22.0 ],
 					"text" : "o.route /ZIGSIM/00KWhGqPVfKH51Xf"
 				}
 
@@ -1079,7 +1108,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 1,
 					"outlettype" : [ "" ],
-					"patching_rect" : [ 655.0, 47.0, 142.0, 22.0 ],
+					"patching_rect" : [ 682.0, 11.5, 142.0, 22.0 ],
 					"text" : "udpreceive 8888 CNMAT"
 				}
 
@@ -1371,6 +1400,15 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-2", 0 ],
+					"order" : 0,
+					"source" : [ "obj-5", 1 ]
+				}
+
+			}
+, 			{
+				"patchline" : 				{
+					"destination" : [ "obj-8", 0 ],
+					"order" : 1,
 					"source" : [ "obj-5", 1 ]
 				}
 

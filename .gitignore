@@ -10,3 +10,4 @@ output/*
 random_selection.py
 *.RPP
 test.py
+adaptive_std.py

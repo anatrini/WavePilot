@@ -178,10 +178,6 @@ def optimize_interpolator(df, reducer, log_prefix):
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]
 
-            #print(f'OPTIM Original data {original_data}')
-            #print(f'OPTIM Reduced data {reduced_data}')
-
-
             # train the interpolator
             interpolator = RBFInterpolator(reduced_data, original_data, smoothing=smoothing, kernel=kernel, epsilon=epsilon, degree=degree)
             interpolated_data = interpolator(reduced_data)
@@ -249,11 +245,6 @@ def main():
             pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
             reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, beta_train, pretrained_model=pretrained_model)
             reducer_train.train_vae(n_epochs_train)
-
-            # activation_train = get_activation_function('Tanh')
-            # pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
-            # reducer_train = VectorReducer(df, 1e-05, 1e-05, 3, activation_train, 0.6, pretrained_model=pretrained_model)
-            # reducer_train.train_vae(5)
 
         else:
             # Without transfer learning, the VAE optimisation occurs on df_train, from which best_train_params is obtained

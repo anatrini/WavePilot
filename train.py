@@ -179,8 +179,8 @@ async def main():
     # Uncomment the line below to plot the reconstruction error
     plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
 
-    print(f'TRAIN Original data {original_data}')
-    print(f'TRAIN Reduced data {reduced_data}')
+    #print(f'TRAIN Original data {original_data}')
+    #print(f'TRAIN Reduced data {reduced_data}')
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)

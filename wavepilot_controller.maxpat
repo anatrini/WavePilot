@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 59.0, 97.0, 361.0, 747.0 ],
+		"rect" : [ 34.0, 98.0, 360.0, 747.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -45,24 +45,11 @@
 					"maxclass" : "comment",
 					"numinlets" : 1,
 					"numoutlets" : 0,
-					"patching_rect" : [ 391.0, 167.0, 150.0, 248.0 ],
+					"patching_rect" : [ 391.0, 167.0, 152.0, 248.0 ],
 					"presentation" : 1,
 					"presentation_linecount" : 12,
 					"presentation_rect" : [ 353.0, 48.0, 268.0, 167.0 ],
 					"text" : "1. Ottieni preset\n2. Fai ottimizzazione\n3. Usa il log dell'ottimizzazione per il t\n\n\n1. Get presets\n2. Run optimisation\n3. Pass optimization log file during the train\n4. Open the host (Reaper, Max, Td...)\n5. Set port 8888 and IP on smartdevice\n6. Open the controller and set interaction mode\n7. Normalised values are sent back to port 5106 "
-				}
-
-			}
-, 			{
-				"box" : 				{
-					"fontface" : 0,
-					"id" : "obj-8",
-					"maxclass" : "o.display",
-					"numinlets" : 1,
-					"numoutlets" : 1,
-					"outlettype" : [ "" ],
-					"patching_rect" : [ 555.0, 319.0, 150.0, 33.0 ],
-					"text" : "/touchcount : 0"
 				}
 
 			}
@@ -268,7 +255,7 @@
 							"parameter_initial_enable" : 1,
 							"parameter_linknames" : 1,
 							"parameter_longname" : "scale",
-							"parameter_mmax" : 10.0,
+							"parameter_mmax" : 100.0,
 							"parameter_mmin" : 0.1,
 							"parameter_modmode" : 0,
 							"parameter_shortname" : "scale",
@@ -669,7 +656,7 @@
 
 					}
 ,
-					"text" : "/cursor : [0.154667, -0.224888, 0.893333]",
+					"text" : "/cursor : [0.000263914, -0.128412, -0.113842]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 
@@ -1400,15 +1387,6 @@
 , 			{
 				"patchline" : 				{
 					"destination" : [ "obj-2", 0 ],
-					"order" : 0,
-					"source" : [ "obj-5", 1 ]
-				}
-
-			}
-, 			{
-				"patchline" : 				{
-					"destination" : [ "obj-8", 0 ],
-					"order" : 1,
 					"source" : [ "obj-5", 1 ]
 				}
 

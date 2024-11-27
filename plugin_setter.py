@@ -18,6 +18,7 @@ def process_data():
     while True:
         # Take one data package from the queue and process it
         params = data_queue.get()
+        print(params)
         with reapy.inside_reaper():
             # Link and get current project
             reapy.connect()

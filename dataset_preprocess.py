@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 
 from data import DataLoader
+from decimal import Decimal
 from logger import setup_logger
 
 
@@ -33,7 +34,7 @@ def get_arguments():
     parser.add_argument('-d', '--decimal_places',
                        dest='decimal_places',
                        type=int,
-                       default=3,
+                       default=4,
                        help="Number of decimal places to round numerical values.")
     
     return parser.parse_args()
@@ -48,7 +49,7 @@ class DatasetPreprocessor:
 
     def drop_columns(self):
         if self.columns_to_drop:
-            logging.info(f'Dropping columns: {self.columns_to_drop}...')
+            logging.info(f'Dropping columns: {self.columns_to_drop}')
             self.df = self.df.drop(columns=self.columns_to_drop, errors='ignore')
         else:
             logging.info('No columns specified to drop. Skipping this step.')
@@ -56,7 +57,9 @@ class DatasetPreprocessor:
     def round_decimals(self):
         if self.decimal_places:
             logging.info(f'Rounding decimals to {self.decimal_places} places...')
-            self.df = self.df.round(self.decimal_places)
+            # Detect if normalization is needed
+            self.df = np.round(self.df, decimals=self.decimal_places)
+
         else:
             logging.info('No rounding specified. Skipping this step.')
 
@@ -105,14 +108,11 @@ class DatasetPreprocessor:
             xaxis_title='Feature', 
             yaxis_title='Variance',
             title=dict(text='Boxplot of Numeric Columns', x=0.5))
-
         fig.show()
 
-    def generate_variance_plot(self):
-        #threshold = 0.01
 
+    def generate_variance_plot(self):
         variances = self.df.var()
-        #colors = np.where(variances < threshold, 'red', 'blue')
 
         fig = px.bar(
             x=variances.index,
@@ -123,11 +123,9 @@ class DatasetPreprocessor:
             color_continuous_scale='Viridis') 
                
         fig.update_layout(
-            #legend_title_text='Columns',
             xaxis_title='Feature', 
             yaxis_title='Variance',
             title=dict(text='Variance of Numeric Columns', x=0.5))
-        
         fig.show()
 
 
@@ -160,7 +158,7 @@ class DatasetPreprocessor:
     def save_dataset(self):
         if self.output:
             logging.info('Saving preprocessed dataset to {self.output}...')
-            self.df.to_csv(self.output, index=False)
+            self.df.to_csv(self.output, index=False, float_format='%.4f')
         else:
             logging.info('No output file specified. Skipping save.')
 

@@ -172,7 +172,6 @@ class DatasetPreprocessor:
         self.generate_correlation_heatmap()
         self.generate_boxplot()
         self.generate_variance_plot()
-        #self.generate_histogram()
         self.save_dataset()
 
 

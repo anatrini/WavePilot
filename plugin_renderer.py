@@ -44,7 +44,7 @@ def get_arguments():
     parser.add_argument('-f', '--folder',
                         dest='folder',
                         type=str,
-                        default='device',
+                        default='d',
                         help="Name of the subfolder to store rendered presets. Default: 'data'")
     
     parser.add_argument('-n', '--dataset_filename',
@@ -190,6 +190,7 @@ def main():
     # Get track and plugin
     track = project.tracks[0]
     plugin = track.fxs[0]
+    
 
     # Create an instance of Dataframe and Recorder
     global df
@@ -205,6 +206,7 @@ def main():
         df = pd.DataFrame()
 
         for i in range(num_presets):
+            print(f'n preset: {i}')
             plugin.preset = i
             name = plugin.preset
 

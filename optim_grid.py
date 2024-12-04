@@ -73,8 +73,9 @@ def kl_divergence(mu, logvar):
 
 # Calculate validation error
 def compute_validation_error(model, data):
+    data_tensor = torch.tensor(data.values).float()
     with torch.no_grad():
-        return model.compute_loss(data, compute_gradients=False)
+        return model.compute_loss(data_tensor, compute_gradients=False)
 
 
 def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):

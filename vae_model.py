@@ -51,7 +51,7 @@ class VAE(nn.Module):
 
 
 class VectorReducer:
-    def __init__(self, df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=None):
+    def __init__(self, df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta, pretrained_model=None):
         self.ids = df['ID'].values
         self.df = df.drop(columns=['ID', 'name', 'file'])
         if pretrained_model is None:
@@ -60,21 +60,33 @@ class VectorReducer:
             self.model = pretrained_model
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        self.beta = beta
+        self.kl_beta = kl_beta
+        self.mse_beta = mse_beta
 
     def kl_divergence(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    
+    def compute_loss(self, data, compute_gradients=False):
+        data = torch.tensor(data.values).float()
+        mu, logvar, output = self.model(data)
+        recon_loss = self.criterion(output, data)
+        kl_loss = self.kl_divergence(mu, logvar)
+        mse_loss = (output - data).pow(2).mean()
+
+        # Weighted sum of losses
+        loss = recon_loss + (kl_loss * self.kl_beta) + (mse_loss * self.mse_beta)
+
+        if compute_gradients:
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        return loss.item()
 
     def train_vae(self, epochs):
         self.df = torch.tensor(self.df.values).float()
         for _ in range(epochs):
-            mu, logvar, output = self.model(self.df)
-            recon_loss = self.criterion(output, self.df)
-            kl_loss = self.kl_divergence(mu, logvar)
-            loss = recon_loss + kl_loss * self.beta
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            self.compute_loss(self.df, compute_gradients=True)
 
     def vae(self):
         with torch.no_grad(): # no need to calculate gradients during evaluation

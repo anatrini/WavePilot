@@ -35,6 +35,7 @@ def get_hyperparams_from_log(log_file):
 def get_activation_function(activation_name):
     activation_functions = {
         'ReLU': nn.ReLU(),
+        'LeakyReLU': nn.LeakyReLU(),
         'Sigmoid': nn.Sigmoid(),
         'Tanh': nn.Tanh()
     }

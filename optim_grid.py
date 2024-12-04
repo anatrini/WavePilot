@@ -15,17 +15,25 @@ from utils import *
 def get_arguments():
     parser = argparse.ArgumentParser()
 
-    # Small dataset of the presets to be reduced (Mandatory)
+    # (Small) dataset of the presets to be reduced (Mandatory)
     parser.add_argument('-f', '--filepath',
                       dest='filepath',
                       type=str,
-                      default=None)
+                      required=True,
+                      help='Dataset of the presets to be reduced.')
+    
+    parser.add_argument('-n', '--num_entries',
+                        dest='num_entries',
+                        type=int,
+                        default=None,
+                        help='Number of random entries to select from the dataset.')
     
     # Large dataset of presets to pretrain the model (Optional)
     parser.add_argument('-F', '--filepath_pretrain',
                       dest='filepath_pretrain',
                       type=str,
-                      default=None)
+                      default=None,
+                      help='Large dataset to pretrain the model.')
     
     # Filepath where to save the pretrained model, only necessary if -F is passed
     parser.add_argument('-s', '--filepath_save_pretrain',
@@ -36,13 +44,21 @@ def get_arguments():
     return parser.parse_args()
 
 
-logging = setup_logger('Grid Opmization session', file=True)
+logging = setup_logger('Grid Opmization Session', file=True)
 
 
 # Load data
-def load_data(filepath):
+def load_data(filepath, num_entries=None):
     loader = DataLoader(filepath)
-    return loader.load_presets()
+    df = loader.load_presets()
+
+    if num_entries:
+        df = df.sample(n=num_entries, random_state=42)
+        logging.info(f'Randomly selected {num_entries} entries from ther dataset.')
+    else:
+        logging.info(f'Using the entire dataset.')
+    
+    return df
 
 
 # Compute KL divergence
@@ -51,31 +67,22 @@ def kl_divergence(mu, logvar):
 
 
 # Calculate validation error
-def compute_validation_error(model, criterion, data, beta):
-    
-    # Drop unnecessary columns
-    data = data.drop(columns=['ID', 'name', 'file'])
-    data = torch.tensor(data.values).float()
-
+def compute_validation_error(model, data):
     with torch.no_grad():
-        mu, logvar, output = model(data)
-        recon_loss = criterion(output, data)
-        kl_loss = kl_divergence(mu, logvar)
-        mse_loss = (output - data).pow(2).mean()
-        loss = (recon_loss + (kl_loss * beta)) + mse_loss
-    return loss.item()
+        return model.compute_loss(data, compute_gradients=False)
 
 
 def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):
     
     # VAE's params' grid
     vae_grid = {
-        'n_epochs': [5, 10, 25, 50, 75, 100, 150, 200],
-        'learning_rate': np.logspace(-5, -2, num=4),
-        'weight_decay': np.logspace(-5, -2, num=4),
-        'n_layers': list(range(1, 5)),
-        'activation': ['ReLU', 'Sigmoid', 'Tanh'],
-        'beta': np.linspace(0.1, 1.0, num=10)
+        'n_epochs': [5, 10, 25, 50, 100, 150, 200],
+        'learning_rate': np.logspace(-5, -2, num=10),
+        'weight_decay': np.logspace(-5, -2, num=5),
+        'n_layers': list(range(1, 7)),
+        'activation': ['ReLU', 'LeakyReLU', 'Sigmoid', 'Tanh'],
+        'kl_beta': np.linspace(0.05, 0.5, num=20),
+        'mse_beta': np.linspace(0.3, 1.0, num=20)
     }
 
     # Get all combinations of hyperparameters
@@ -83,21 +90,21 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     best_validation_error = float('inf')
     best_params = []
     best_model = None
-    best_reducer = None
+    #best_reducer = None
 
     # Loop over all combinations of hyperparameters
     for i, params in enumerate(param_combinations):
         try:
             # unpack params
-            n_epochs, learning_rate, weight_decay, n_layers, activation_name, beta = params
+            n_epochs, learning_rate, weight_decay, n_layers, activation_name, kl_beta, mse_beta = params
             activation = get_activation_function(activation_name)
 
             # train the model
-            reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model)
+            reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta, pretrained_model)
             reducer.train_vae(n_epochs)
 
             # compute validation error
-            validation_error = compute_validation_error(reducer.model, reducer.criterion, df_test, beta)
+            validation_error = compute_validation_error(reducer, df_test)
             print(f'{log_prefix} trial {i+1}/{len(param_combinations)}: validation_error = {validation_error}')
 
             # update best parameters if current model is better
@@ -173,7 +180,7 @@ def optimize_interpolator(df, reducer, log_prefix):
                 continue
 
             # train the model
-            original_data = df.drop(columns=['ID', 'name', 'file'])
+            #original_data = df.drop(columns=['ID', 'name', 'file'])
             original_data = original_data.values
             reduced_data, _ = reducer.vae()
             reduced_data = reduced_data[:, 1:]
@@ -221,10 +228,11 @@ def main():
         torch.manual_seed(42)
 
         filepath = args.filepath
+        num_entries = args.num_entries
         filepath_pretrain = args.filepath_pretrain
         filepath_save_pretrain = args.filepath_save_pretrain
 
-        df = load_data(filepath)
+        df = load_data(filepath, num_entries)
         
         df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 

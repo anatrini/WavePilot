@@ -52,8 +52,7 @@ class VAE(nn.Module):
 
 class VectorReducer:
     def __init__(self, df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta, pretrained_model=None):
-        self.ids = df['ID'].values
-        self.df = df.drop(columns=['ID', 'name', 'file'])
+        self.df = torch.tensor(df.values).float()
         if pretrained_model is None:
             self.model = VAE(self.df.shape[1], n_layers, activation)
         else:
@@ -67,7 +66,6 @@ class VectorReducer:
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     
     def compute_loss(self, data, compute_gradients=False):
-        data = torch.tensor(data.values).float()
         mu, logvar, output = self.model(data)
         recon_loss = self.criterion(output, data)
         kl_loss = self.kl_divergence(mu, logvar)
@@ -84,7 +82,6 @@ class VectorReducer:
         return loss.item()
 
     def train_vae(self, epochs):
-        self.df = torch.tensor(self.df.values).float()
         for _ in range(epochs):
             self.compute_loss(self.df, compute_gradients=True)
 
@@ -94,8 +91,9 @@ class VectorReducer:
         reduced_data = mu.detach().numpy()
         reconstructed_data = decoded.detach().numpy()
         # Add back ID as the first element of each sublist
-        reduced_data_with_ids = np.column_stack((self.ids, reduced_data))
-        return reduced_data_with_ids, reconstructed_data
+        #reduced_data_with_ids = np.column_stack((self.ids, reduced_data))
+        #return reduced_data_with_ids, reconstructed_data
+        return reduced_data, reconstructed_data
     
     def visualize_model(self):
         x = torch.randn(1, self.df.shape[1])

@@ -17,10 +17,10 @@ def get_arguments():
 
     # (Small) dataset of the presets to be reduced (Mandatory)
     parser.add_argument('-f', '--filepath',
-                      dest='filepath',
-                      type=str,
-                      required=True,
-                      help='Dataset of the presets to be reduced.')
+                        dest='filepath',
+                        type=str,
+                        required=True,
+                        help='Dataset of the presets to be reduced.')
     
     parser.add_argument('-n', '--num_entries',
                         dest='num_entries',
@@ -30,16 +30,21 @@ def get_arguments():
     
     # Large dataset of presets to pretrain the model (Optional)
     parser.add_argument('-F', '--filepath_pretrain',
-                      dest='filepath_pretrain',
-                      type=str,
-                      default=None,
-                      help='Large dataset to pretrain the model.')
+                        dest='filepath_pretrain',
+                        type=str,
+                        default=None,
+                        help='Large dataset to pretrain the model.')
     
     # Filepath where to save the pretrained model, only necessary if -F is passed
     parser.add_argument('-s', '--filepath_save_pretrain',
-                      dest='filepath_save_pretrain',
-                      type=str,
-                      default=None)
+                        dest='filepath_save_pretrain',
+                        type=str,
+                        default=None)
+    
+    parser.add_argument('-d', '--disable_split',
+                        dest='disable_split',
+                        action='store_false',
+                        help='Disable train/test split and use the entire dataset for both training and validation. Default split enabled.')
     
     return parser.parse_args()
 
@@ -231,10 +236,14 @@ def main():
         num_entries = args.num_entries
         filepath_pretrain = args.filepath_pretrain
         filepath_save_pretrain = args.filepath_save_pretrain
+        disable_split = args.disable_split
 
         df = load_data(filepath, num_entries)
         
-        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        if disable_split:
+            df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        else:
+            df_train, df_test = df, df
 
         if filepath_pretrain:
             # Optimize and train the VAE to find the best pretrain params

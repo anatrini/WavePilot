@@ -253,15 +253,15 @@ def main():
             best_params_pretrain, best_model_pretrain = optimize_vae(df_train_pretrain, df_test_pretrain, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
             best_params_train, _ = optimize_vae(df_train, df_test, 'Train', pretrained_model=best_model_pretrain)
 
-            n_epochs_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_name_pretrain, beta_pretrain = best_params_pretrain
+            n_epochs_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_name_pretrain, kl_beta_pretrain, mse_beta_pretrain = best_params_pretrain
             activation_pretrain = get_activation_function(activation_name_pretrain)
-            reducer_pretrain = VectorReducer(df_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_pretrain, beta_pretrain)
+            reducer_pretrain = VectorReducer(df_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, activation_pretrain, kl_beta_pretrain, mse_beta_pretrain)
             reducer_pretrain.train_vae(n_epochs_pretrain)
 
-            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, beta_train = best_params_train
+            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, kl_beta_train, mse_beta_train = best_params_train
             activation_train = get_activation_function(activation_name_train)
             pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
-            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, beta_train, pretrained_model=pretrained_model)
+            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, kl_beta_train, mse_beta_train, pretrained_model=pretrained_model)
             reducer_train.train_vae(n_epochs_train)
 
         else:
@@ -270,9 +270,9 @@ def main():
             # and the RBF optimization can be performed on the entire dataset
             best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
             
-            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, beta_train = best_params_train
+            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, activation_name_train, kl_beta_train, mse_beta_train = best_params_train
             activation_train = get_activation_function(activation_name_train)
-            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, beta_train)
+            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, activation_train, kl_beta_train, mse_beta_train)
             reducer_train.train_vae(n_epochs_train)
 
         optimize_interpolator(df, reducer_train, 'Interpolator')

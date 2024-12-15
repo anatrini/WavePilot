@@ -10,6 +10,19 @@ from sklearn.preprocessing import MinMaxScaler
 import torch
 from torch import nn
 
+# Set GPU device if available according to OS
+# Funzione per rilevare il dispositivo migliore
+def get_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+device = get_device()
+print(f"Using device: {device}")
+
 
 # Read and get best hyperparams from log session
 def get_hyperparams_from_log(log_file):
@@ -36,20 +49,19 @@ def get_activation_function(activation_name):
     activation_functions = {
         'ReLU': nn.ReLU(),
         'LeakyReLU': nn.LeakyReLU(),
-        'Sigmoid': nn.Sigmoid(),
-        'Tanh': nn.Tanh()
+        'Sigmoid': nn.Sigmoid()
     }
     return activation_functions.get(activation_name, None)
 
 
-# Compute loss for optimization
-def compute_validation_error(model, criterion, val_data):
-    with torch.no_grad():
-        val_data = val_data.drop(['ID', 'PRESET_NAME'], axis=1)
-        val_data = torch.tensor(val_data.values).float()
-        _, output = model(val_data)
-        loss = criterion(output, val_data)
-    return loss.item()
+# # Compute loss for optimization
+# def compute_validation_error(model, criterion, val_data):
+#     with torch.no_grad():
+#         val_data = val_data.drop(['ID', 'PRESET_NAME'], axis=1)
+#         val_data = torch.tensor(val_data.values).float()
+#         _, output = model(val_data)
+#         loss = criterion(output, val_data)
+#     return loss.item()
 
 def select_random_entries(input_csv, ouput_csv, n):
     df = pd.read_csv(input_csv)

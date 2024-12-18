@@ -52,14 +52,11 @@ class VAE(nn.Module):
 
 class VectorReducer:
     def __init__(self, df, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model=None):
-        try:
-            print(f"VectorReducer received arguments: {locals()}")
-        except Exception as e:
-            print(f"Error initializing VectorReducer: {e}")
-            raise
-        
+
         self.device = get_device()
         self.df = torch.tensor(df.values).float()
+
+
         if pretrained_model is None:
             self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
         else:

@@ -5,12 +5,14 @@ import torch
 
 from data import DataLoader
 from logger import setup_logger
+from model import VectorReducer
 from multiprocessing import Pool, cpu_count
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 from utils import *
-from vae_model import VectorReducer
+
 
 
 
@@ -51,8 +53,7 @@ def get_arguments():
     return parser.parse_args()
 
 
-log_file = setup_logger('Opmization Session', file=True)
-log_console = setup_logger('Opmization Session')
+log = setup_logger('Opmization Session', file=True)
 
 
 
@@ -63,9 +64,9 @@ def load_data(filepath, num_entries=None):
 
     if num_entries:
         df = df.sample(n=num_entries, random_state=42)
-        log_console.info(f'Randomly selected {num_entries} entries from ther dataset.')
+        print(f'Randomly selected {num_entries} entries from ther dataset.')
     else:
-        log_console.info(f'Using the entire dataset.')
+        print(f'Using the entire dataset.')
     
     return df
 
@@ -83,15 +84,15 @@ def compute_validation_error(reducer, data):
 
 
 # Funzione per addestrare e validare
-def train_and_validate(params, df_train, df_test, pretrained_model=None):
+def train_and_validate(n_epochs, params, df_train, df_test, pretrained_model=None):
     try:
         # unpack params
-        n_epochs, learning_rate, weight_decay, n_layers, layer_dim, activation_name, kl_beta, mse_beta = params
+        learning_rate, weight_decay, n_layers, layer_dim, activation_name, kl_beta, mse_beta = params
         activation = get_activation_function(activation_name)
 
-        log_console.info(f"Params: n_epochs={n_epochs}, learning_rate={learning_rate}, weight_decay={weight_decay}, "
-                         f"n_layers={n_layers}, layer_dim={layer_dim}, activation={activation_name}, "
-                         f"kl_beta={kl_beta}, mse_beta={mse_beta}")
+        #print(f"Params: n_epochs={n_epochs}, learning_rate={learning_rate}, weight_decay={weight_decay}, "
+                         #f"n_layers={n_layers}, layer_dim={layer_dim}, activation={activation_name}, "
+                         #f"kl_beta={kl_beta}, mse_beta={mse_beta}")
 
         # Costruzione e addestramento del modello
         reducer = VectorReducer(df_train, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model)
@@ -107,7 +108,7 @@ def train_and_validate(params, df_train, df_test, pretrained_model=None):
     
 
 def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):
-    log_console.info(f"{log_prefix} Starting VAE optimization...")
+    print(f"{log_prefix} Starting VAE optimization...")
 
     # VAE's params' grid
     vae_grid = {
@@ -123,32 +124,39 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
 
     # Get all combinations of hyperparameters
     param_combinations = list(itertools.product(*vae_grid.values()))
-    log_console.info(f"{log_prefix} Total hyperparameter combinations: {len(param_combinations)}")
+    print(f"{log_prefix} Total hyperparameter combinations: {len(param_combinations)}")
 
     # Debug log for parameter combinations (Punto 5)
     for i, combination in enumerate(param_combinations):  # Limitiamoci alle prime 5 per non inondare i log
-        log_console.info(f"{log_prefix} Sample parameter combination {i + 1}: {combination}")
+        print(f"{log_prefix} Sample parameter combination {i + 1}: {combination}")
+
+    # Prepare for multiprocessing
+    input_data = [(params[0], params[1:], df_train, df_test, pretrained_model) for params in param_combinations]
 
     # Prepare for multiprocessing
     with Pool(processes=cpu_count()) as pool:
-        input_data = [(params, df_train, df_test, pretrained_model) for params in param_combinations]
-        for i, item in enumerate(input_data[:5]):  # Anche qui, limitiamoci alle prime 5
-            log_console.info(f"{log_prefix} starmap input {i + 1}: {item}")
+        results = pool.starmap(train_and_validate, input_data)
 
     # Find the best result
     best_validation_error = float('inf')
     best_params = None
     best_model = None
 
-    for validation_error, params, model in input_data:
-        log_console.info(f"{log_prefix} Validation Error: {validation_error:.4f} | Params: {params}")
+    for idx, result in enumerate(results):
+        # Controllo della validità del risultato
+        # if not isinstance(result, tuple) or len(result) != 3:
+        #     print(f"{log_prefix} Invalid result at index {idx}: {result}")
+        #     continue
+
+        validation_error, params, model = result
+        print(f"{log_prefix} Validation Error: {validation_error:.4f} | Params: {params}")
 
         if validation_error < best_validation_error:
             best_validation_error = validation_error
             best_params = params
             best_model = model
 
-    log_file.info(f'Best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
+    print(f'Best VAE hyperparams: {best_params} with a validation error of {best_validation_error}')
 
     if save_pretrained_model:
         torch.save(best_model, f'{save_filepath}.pt')
@@ -162,7 +170,7 @@ def main():
         torch.manual_seed(42)
 
         device = get_device()
-        log_console.info(f"Using device: {device}")
+        print(f"Using device: {device}")
 
         filepath = args.filepath
         num_entries = args.num_entries
@@ -186,7 +194,7 @@ def main():
             best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
 
     except Exception as e:
-        log_console.error(f'Error in main: {e}')
+        print(f'Error in main: {e}')
 
 
 if __name__ == '__main__':

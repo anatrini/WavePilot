@@ -439,7 +439,7 @@ def main():
 
             
             print(f"Reduced data is on device: {reducer_train.device}")
-        #optimize_interpolator(original_data_train, reduced_data, 'Interpolator')
+        optimize_interpolator(original_data_train, reduced_data, 'Interpolator')
 
     except Exception as e:
         log_progress.error(f'Error in main: {e}')

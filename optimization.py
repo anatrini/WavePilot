@@ -2,6 +2,7 @@ import argparse
 import itertools
 from logging import Logger
 import numpy as np
+import pandas as pd
 import torch
 
 from data import DataLoader
@@ -440,6 +441,10 @@ def main():
             
             print(f"Reduced data is on device: {reducer_train.device}")
         optimize_interpolator(original_data_train, reduced_data, 'Interpolator')
+
+
+
+
 
     except Exception as e:
         log_progress.error(f'Error in main: {e}')

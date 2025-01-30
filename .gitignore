@@ -8,9 +8,7 @@ audio/*
 data/*
 .data/*
 output/*
-random_selection.py
 *.RPP
 Backups/*
-plugin_setter.py
 multithread_tests/*
 

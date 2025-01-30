@@ -32,6 +32,7 @@ def get_arguments():
     parser.add_argument('-n', '--num_entries',
                         dest='num_entries',
                         type=int,
+                        required=True,
                         default=None,
                         help='Number of random entries to select from the dataset.')
     
@@ -211,8 +212,6 @@ def interpolate_and_validate(progress_queue, params, original_data, reduced_data
         return float('inf'), params
     
 
-
-
 def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):
     
     #VAE's params' grid
@@ -329,7 +328,7 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     progress_queue = manager.Queue()
     log_queue = manager.Queue()
 
-    log = setup_logger('InterpolatorLogger', log_queue=log_queue, file=True)
+    log = setup_logger('OptimizationLogger', log_queue=log_queue, file=True)
     listener_log = log_listener(log_queue, log.handlers)
 
     # Listener per il progresso
@@ -432,13 +431,13 @@ def main():
 
             activation_train = get_activation_function(activation_name_train)
             reducer_train = VectorReducer(original_data_train, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_train, kl_beta_train, mse_beta_train)
-            print("VR called!")
+            #print("VR called!")
             reducer_train.train_vae(n_epochs_train)
-            print("TV called!")
+            #print("TV called!")
             reduced_data, _ = reducer_train.vae()
-            print("Reducer called!")
+            #print("Reducer called!")
+            #print(f"Reduced data is on device: {reducer_train.device}")
 
-            
             print(f"Reduced data is on device: {reducer_train.device}")
         optimize_interpolator(original_data_train, reduced_data, 'Interpolator')
 

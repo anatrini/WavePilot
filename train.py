@@ -16,11 +16,11 @@ from visualizer import Visualize
 
 
 IP_ADDRESS = '127.0.0.1'
-IN_PORT = 5105
-OUT_PORT = 5106
+IN_PORT = 9108 # receive on
+OUT_PORT = 9109 # send to
+
 
 logging = setup_logger('Main VAE')
-
 
 def get_arguments():
     parser = argparse.ArgumentParser()
@@ -32,7 +32,7 @@ def get_arguments():
                       default=None)
     
     # The pretrained model created on a bigger dataset (Optional)
-    parser.add_argument('-m', '--pretrained_model',
+    parser.add_argument('-p', '--pretrained_model',
                       dest='pretrained_model',
                       type=str,
                       default=None)
@@ -46,7 +46,7 @@ def get_arguments():
     parser.add_argument('-n', '--n_layers',
                       dest='n_layers',
                       type=int,
-                      default=2,
+                      default=1,
                       help='Set the number of hidden layers used by the model.')
     
     parser.add_argument('-a', '--activation_function',
@@ -58,7 +58,7 @@ def get_arguments():
     parser.add_argument('-E', '--n_epochs',
                       dest='n_epochs',
                       type=int,
-                      default=300)
+                      default=100)
     
     parser.add_argument('-l', '--learning_rate',
                       dest='learning_rate',
@@ -76,17 +76,21 @@ def get_arguments():
                       type=float,
                       default=1e-4)
     
-    parser.add_argument('-b', '--beta',
-                        dest='beta',
+    parser.add_argument('-b', '--kl_beta',
+                        dest='kl_beta',
                         type=float,
-                        default=1.0)
+                        default=0.05)
+    
+    parser.add_argument('-m', '--mse_beta',
+                        dest='mse_beta',
+                        type=float,
+                        default=0.1)
     
     # Kernel functions for radial based interpolation
     parser.add_argument('-k', '--kernel',
                       dest='kernel',
                       type=str,
                       choices=['multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian'],
-                      #choices=['linear', 'thin_plate_spline', 'cubic', 'quintic', 'multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian'],
                       default='gaussian',
                       help='The type of kernel to use for the RBF interpolation.')
     
@@ -132,24 +136,25 @@ async def main():
 
     if args.optimizer_session:
         params = get_hyperparams_from_log(args.optimizer_session)
-        if params:
-            n_layers = params['vae']['n_layers']
-            activation = get_activation_function(params['vae']['activation'])
-            n_epochs = params['vae']['n_epochs']
-            learning_rate = params['vae']['learning_rate']
-            weight_decay = params['vae']['weight_decay']
-            beta = params['vae']['beta']
-            smoothing = params['rbf']['smoothing']
-            kernel = params['rbf']['kernel']
-            epsilon = params['rbf']['epsilon']
-            degree = params['rbf']['degree']
+        n_layers = params['vae']['n_layers']
+        activation = get_activation_function(params['vae']['activation_function'])
+        n_epochs = params['vae']['num_epochs']
+        learning_rate = params['vae']['learning_rate']
+        weight_decay = params['vae']['weight_decay']
+        kl_beta = params['vae']['kl_beta']
+        mse_beta = params['vae']['mse_beta']
+        smoothing = params['rbf']['smoothing']
+        kernel = params['rbf']['kernel']
+        epsilon = params['rbf']['epsilon']
+        degree = params['rbf']['degree']
     else:
         n_layers = args.n_layers
         activation = args.activation_function
         n_epochs = args.n_epochs
         learning_rate = args.learning_rate
         weight_decay = args.weight_decay
-        beta = args.beta
+        kl_beta = args.kl_beta
+        mse_beta = args.mse_beta
         smoothing = args.smoothing
         kernel = args.kernel
         epsilon = args.epsilon
@@ -161,26 +166,20 @@ async def main():
         
         if pretrained_model is not None:
             pmodel = torch.load(pretrained_model)
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta, pretrained_model=pmodel)
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta, pretrained_model=pmodel)
         else:
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, beta)
+            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta)
 
         reducer.train_vae(n_epochs)
         reduced_data, reconstructed_data = reducer.vae()
-
-        reduced_data = reduced_data[:, 1:] # get rid of ID
         
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    original_data = df.drop(['ID', 'name', 'file'], axis=1)
-    original_data = original_data.values # to np array
+    original_data = df.values # to np array
     # Uncomment the line below to plot the reconstruction error
-    plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
-
-    #print(f'TRAIN Original data {original_data}')
-    #print(f'TRAIN Reduced data {reduced_data}')
+    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)
@@ -199,4 +198,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-

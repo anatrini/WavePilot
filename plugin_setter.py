@@ -10,7 +10,7 @@ from reapy import reascript_api as RPR
 
 logging = setup_logger('Plugin setter')
 
-# Create a queu for incoming data packages
+# Create a queue for incoming data packages
 data_queue = queue.Queue()
 
 

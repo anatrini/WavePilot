@@ -1,4 +1,4 @@
-#import json
+import numpy as np
 import os
 import pandas as pd
 
@@ -39,7 +39,7 @@ class DataLoader:
             df = self._drop_nan_columns(df)
 
             logging.info(f"Cleaned dataset shape: {df.shape}")
-            return df
+            return df.to_numpy(dtype=np.float32)
 
         except Exception as e:
             logging.error(f"Error loading file: {str(e)}")
@@ -68,37 +68,3 @@ class DataLoader:
         if nan_cols:
             logging.info(f"Columns with all NaN values removed: {nan_cols}")
         return df.dropna(axis=1, how='all')
-
-
-# class DataLoader:
-#     def __init__(self, filepath):
-#         self.filepath = filepath
-
-#     def load_presets(self):
-
-#         _, file_extension = os.path.splitext(self.filepath)
-
-#         try:
-#             if file_extension == '.json':
-#                 with open(self.filepath, 'r') as f:
-#                     data = json.load(f)
-
-#                 # Create a dataframe
-#                 df = pd.DataFrame()
-#                 for key, values in data.items():
-#                     tmp_df = pd.json_normalize(values)
-#                     tmp_df['PRESET_NAME'] = key
-#                     # Add tmp_df to df
-#                     df = pd.concat([df, tmp_df], ignore_index=True)
-
-#                 df.reset_index(inplace=True)
-#                 df.rename(columns={'index': 'ID'}, inplace=True)
-#             elif file_extension == '.csv':
-#                 df = pd.read_csv(self.filepath, sep='\t')
-#             else:
-#                 raise ValueError(f'Unsupported file type: {file_extension}')
-            
-#             return df
-        
-#         except Exception as e:
-#             logging.error(str(e))

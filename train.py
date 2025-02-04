@@ -1,8 +1,9 @@
 import argparse
 import asyncio
 import time
+import torch
 
-from vae_model import VectorReducer
+from model import VectorReducer
 from data import DataLoader
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
@@ -11,7 +12,7 @@ from logger import setup_logger
 from pythonosc import udp_client
 from torch import nn
 from threading import Thread
-from utils import *
+from utils import get_activation_function, get_hyperparams_from_log
 from visualizer import Visualize
 
 
@@ -49,6 +50,12 @@ def get_arguments():
                       default=1,
                       help='Set the number of hidden layers used by the model.')
     
+    parser.add_argument('-l', '--layer_dim',
+                      dest='layer_dim',
+                      type=int,
+                      default=128,
+                      help='Set the size of hidden layers used by the model.')
+    
     parser.add_argument('-a', '--activation_function',
                       dest='activation_function',
                       type=nn.Module,
@@ -60,7 +67,7 @@ def get_arguments():
                       type=int,
                       default=100)
     
-    parser.add_argument('-l', '--learning_rate',
+    parser.add_argument('-r', '--learning_rate',
                       dest='learning_rate',
                       type=float,
                       default=1e-2)
@@ -141,6 +148,7 @@ async def main():
         n_epochs = params['vae']['num_epochs']
         learning_rate = params['vae']['learning_rate']
         weight_decay = params['vae']['weight_decay']
+        layer_dim = params['vae']['layer_dim']
         kl_beta = params['vae']['kl_beta']
         mse_beta = params['vae']['mse_beta']
         smoothing = params['rbf']['smoothing']
@@ -153,6 +161,7 @@ async def main():
         n_epochs = args.n_epochs
         learning_rate = args.learning_rate
         weight_decay = args.weight_decay
+        layer_dim = args.layer_dim
         kl_beta = args.kl_beta
         mse_beta = args.mse_beta
         smoothing = args.smoothing
@@ -162,13 +171,13 @@ async def main():
 
     try:
         loader = DataLoader(filepath)
-        df = loader.load_presets()
+        original_data = loader.load_presets()
         
         if pretrained_model is not None:
             pmodel = torch.load(pretrained_model)
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta, pretrained_model=pmodel)
+            reducer = VectorReducer(original_data, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model=pmodel)
         else:
-            reducer = VectorReducer(df, learning_rate, weight_decay, n_layers, activation, kl_beta, mse_beta)
+            reducer = VectorReducer(original_data, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta)
 
         reducer.train_vae(n_epochs)
         reduced_data, reconstructed_data = reducer.vae()
@@ -176,10 +185,6 @@ async def main():
     except FileNotFoundError:
         logging.error('You must provide at least a dataset!')
         exit(1)
-
-    original_data = df.values # to np array
-    # Uncomment the line below to plot the reconstruction error
-    #plot_reconstruction_error(original_data, reduced_data, reconstructed_data)
 
     interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)

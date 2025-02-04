@@ -14,7 +14,7 @@ from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-from utils import *
+from utils import get_activation_function
 
 
 
@@ -66,7 +66,7 @@ def load_data(filepath, num_entries=None):
     df = loader.load_presets()
 
     if num_entries:
-        df = df.sample(n=num_entries, random_state=42)
+        df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
         log_progress.info(f'Randomly selected {num_entries} entries from the dataset')
     else:
         log_progress.info(f'Using the entire dataset !')
@@ -82,9 +82,7 @@ def kl_divergence(mu, logvar):
 # Calculate validation error
 def compute_validation_error(reducer, data):
     data_tensor = torch.tensor(data).float().to(reducer.device)
-    #print(f"Validation data device: {data_tensor.device}, Reducer device: {reducer.device}")
     with torch.no_grad():
-        #reducer.model.to(device)
         return reducer.compute_loss(data_tensor, compute_gradients=False)
 
 
@@ -164,11 +162,6 @@ def interpolate_and_validate(progress_queue, params, original_data, reduced_data
             progress_queue.put(1)
             return float('inf'), params
 
-        # Train the interpolator
-        #original_data = df.values
-        #reduced_data, _ = reducer.vae()
-        #reduced_data = reduced_data[:, 1:]  # Exclude ID column if present
-
         interpolator = RBFInterpolator(
                                         reduced_data,
                                         original_data,
@@ -229,7 +222,6 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     # Get all combinations of hyperparameters
     param_combinations = list(itertools.product(*vae_grid.values()))
     total_combinations = len(param_combinations)
-    #log_progress.info(f"{log_prefix} Total hyperparameter combinations: {len(param_combinations)}")
 
     # Logger configurations
     manager = Manager()
@@ -397,8 +389,6 @@ def main():
         else:
             df_train, df_test = df, df
 
-        original_data_train = df_train.values
-        original_data_test = df_test.values
 
         if filepath_pretrain:
             df_pretrain = load_data(filepath_pretrain)
@@ -418,7 +408,7 @@ def main():
             reducer_train.train_vae(n_epochs_train)
 
         else:
-            best_params_train, _ = optimize_vae(original_data_train, original_data_test, 'Train')
+            best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
 
             n_epochs_train = best_params_train['num_epochs']
             learning_rate_train = best_params_train['learning_rate']
@@ -430,16 +420,14 @@ def main():
             mse_beta_train = best_params_train['mse_beta']
 
             activation_train = get_activation_function(activation_name_train)
-            reducer_train = VectorReducer(original_data_train, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_train, kl_beta_train, mse_beta_train)
-            #print("VR called!")
+            reducer_train = VectorReducer(df_train, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_train, kl_beta_train, mse_beta_train)
+
             reducer_train.train_vae(n_epochs_train)
-            #print("TV called!")
+        
             reduced_data, _ = reducer_train.vae()
-            #print("Reducer called!")
-            #print(f"Reduced data is on device: {reducer_train.device}")
 
             print(f"Reduced data is on device: {reducer_train.device}")
-        optimize_interpolator(original_data_train, reduced_data, 'Interpolator')
+        optimize_interpolator(df_train, reduced_data, 'Interpolator')
 
 
 

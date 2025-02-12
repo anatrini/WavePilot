@@ -16,7 +16,6 @@ from logger import setup_logger
 from model import VectorReducer
 from utils import get_activation_function
 
-
 RANDOM_SEED = 579
 
 
@@ -74,7 +73,7 @@ def load_data(filepath, num_entries=None):
         np.random.seed(RANDOM_SEED)
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
-        #df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
+        # df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
         log_progress.info("Randomly selected %d entries from the dataset", num_entries)
         log_progress.info("Selected indices from dataset: %s", selected_idx)
     else:
@@ -238,15 +237,14 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
 
     # VAE's params' grid
     vae_grid = {
-
-        'n_epochs': [50, 100, 200],
-        'learning_rate': np.logspace(-6, -2, num=5),
-        'weight_decay': np.logspace(-6, -2, num=5),
-        'n_layers': list(range(1, 4)),
-        'layer_dim': [64, 128, 256],
-        'activation': ['ReLU', 'LeakyReLU', 'ELU', 'GELU'],
-        'kl_beta': np.linspace(0.01, 1.0, num=5),
-        'mse_beta': np.linspace(0.1, 2.0, num=5)
+        "n_epochs": [50, 100, 200],
+        "learning_rate": np.logspace(-6, -2, num=5),
+        "weight_decay": np.logspace(-6, -2, num=5),
+        "n_layers": list(range(1, 4)),
+        "layer_dim": [64, 128, 256],
+        "activation": ["ReLU", "LeakyReLU", "ELU", "GELU"],
+        "kl_beta": np.linspace(0.01, 1.0, num=5),
+        "mse_beta": np.linspace(0.1, 2.0, num=5),
     }
 
     # Get all combinations of hyperparameters
@@ -406,7 +404,6 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     return best_params
 
 
-
 def main():
 
     try:
@@ -513,12 +510,11 @@ def main():
 
             reducer_train.train_vae(n_epochs_train)
 
-        
             reduced_data, reconstructed_data = reducer_train.vae()
 
-            #print(f"Reduced data is on device: {reducer_train.device}")
-        
-        optimize_interpolator(reconstructed_data, reduced_data, 'Interpolator')
+            # print(f"Reduced data is on device: {reducer_train.device}")
+
+        optimize_interpolator(reconstructed_data, reduced_data, "Interpolator")
 
     except Exception as e:
         log_progress.error("Error in main: %s", e)

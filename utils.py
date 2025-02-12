@@ -9,16 +9,18 @@ from torch import nn
 
 from logger import setup_logger
 
-logging = setup_logger('Utils Logger')
+logging = setup_logger("Utils Logger")
+
 
 # Set GPU device if available according to OS
-def get_device():
+def get_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
     elif torch.backends.mps.is_available():
         return torch.device("mps")
     else:
         return torch.device("cpu")
+
 
 device = get_device()
 print(f"Using device: {device}")
@@ -27,7 +29,7 @@ print(f"Using device: {device}")
 def load_osc_addresses(file_path):
 
     try:
-        with open(file_path, 'r') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             addresses = json.load(f)
         logging.info(f"Loaded {len(addresses)} OSC addresses from {file_path}")
         return addresses
@@ -45,7 +47,7 @@ def get_hyperparams_from_log(log_file):
     params = {}
 
     try:
-        with open(log_file, 'r') as f:
+        with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         for line in lines:
@@ -53,22 +55,22 @@ def get_hyperparams_from_log(log_file):
             if "Best VAE hyperparams" in line:
                 try:
                     params_str = line.split("Best VAE hyperparams: ")[1].split(" with")[0]
-                    params['vae'] = ast.literal_eval(params_str)
+                    params["vae"] = ast.literal_eval(params_str)
                 except (IndexError, SyntaxError, ValueError) as e:
-                    raise ValueError(f"Error processing VAE parameters from line: {line}. Details: {e}")
+                    raise ValueError(f"Error processing VAE parameters from line: {line}. Details: {e}") from e
 
             # Extract the best hyperparameters for the interpolator
             elif "Best Interpolator params" in line:
                 try:
                     params_str = line.split("Best Interpolator params: ")[1].split(" with")[0]
-                    params['rbf'] = ast.literal_eval(params_str)
+                    params["rbf"] = ast.literal_eval(params_str)
                 except (IndexError, SyntaxError, ValueError) as e:
-                    raise ValueError(f"Error processing interpolator parameters from line: {line}. Details: {e}")
+                    raise ValueError(f"Error processing interpolator parameters from line: {line}. Details: {e}") from e
 
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"The specified log file does not exist: {log_file}. Details: {e}")
+        raise FileNotFoundError(f"The specified log file does not exist: {log_file}. Details: {e}") from e
     except IOError as e:
-        raise IOError(f"Error reading the log file: {log_file}. Details: {e}")
+        raise IOError(f"Error reading the log file: {log_file}. Details: {e}") from e
 
     if not params:
         raise ValueError("No parameters found in the log file.")
@@ -79,18 +81,18 @@ def get_hyperparams_from_log(log_file):
 # Get activation function module from string
 def get_activation_function(activation_name):
     activation_functions = {
-        'ReLU': nn.ReLU(),
-        'LeakyReLU': nn.LeakyReLU(),
-        'Sigmoid': nn.Sigmoid(),
-        'ELU': nn.ELU(),
-        'GELU': nn.GELU()
+        "ReLU": nn.ReLU(),
+        "LeakyReLU": nn.LeakyReLU(),
+        "Sigmoid": nn.Sigmoid(),
+        "ELU": nn.ELU(),
+        "GELU": nn.GELU(),
     }
     return activation_functions.get(activation_name, None)
 
 
 def select_random_entries(input_csv, ouput_csv, n):
     df = pd.read_csv(input_csv)
-    df['ID'] = range(1, len(df) + 1)
+    df["ID"] = range(1, len(df) + 1)
     df.to_csv(input_csv, index=False)
 
     df_sample = df.sample(n)
@@ -106,11 +108,16 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     x, y, z = reduced_data.T
 
     # Crea un grafico a dispersione 3D dell'errore di ricostruzione
-    fig = go.Figure(data=[go.Scatter3d(x=x, y=y, z=z, mode='markers',
-                                   marker=dict(size=5, color=reconstruction_error, colorscale='Viridis'))])
+    fig = go.Figure(
+        data=[
+            go.Scatter3d(
+                x=x, y=y, z=z, mode="markers", marker=dict(size=5, color=reconstruction_error, colorscale="Viridis")
+            )
+        ]
+    )
 
-    fig.update_layout(title='3D Scatter Plot of Reconstruction Error',
-                  scene=dict(xaxis_title='X',
-                             yaxis_title='Y',
-                             zaxis_title='Reconstruction Error'))
+    fig.update_layout(
+        title="3D Scatter Plot of Reconstruction Error",
+        scene=dict(xaxis_title="X", yaxis_title="Y", zaxis_title="Reconstruction Error"),
+    )
     fig.show()

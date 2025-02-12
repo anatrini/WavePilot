@@ -1,10 +1,10 @@
 import torch
-
 from torch import nn, optim
+
 from utils import get_device
 
-
 torch.manual_seed(42)
+
 
 class VAE(nn.Module):
     def __init__(self, input_dim, n_layers, layer_dim, activation):
@@ -19,7 +19,7 @@ class VAE(nn.Module):
                 layer_dim = layer_dim // 2
         self.encoder = nn.Sequential(*encoder_layers)
 
-        self.output_dim = 3 # make default
+        self.output_dim = 3  # make default
         self.fc_mu = nn.Linear(layer_dims[-1], self.output_dim)
         self.fc_var = nn.Linear(layer_dims[-1], self.output_dim)
 
@@ -28,14 +28,14 @@ class VAE(nn.Module):
         layer_dims.reverse()  # Reverse the layer dimensions
         layer_dims = [self.output_dim] + layer_dims[:-1]
         for i in range(n_layers):
-            decoder_layers.append(nn.Linear(layer_dims[i], layer_dims[i+1]))
+            decoder_layers.append(nn.Linear(layer_dims[i], layer_dims[i + 1]))
             decoder_layers.append(activation)
         decoder_layers.append(nn.Linear(layer_dims[-1], input_dim))  # Add a final layer to match the input dimension
-        decoder_layers.append(nn.Sigmoid()) # nn.Sigmoid()
+        decoder_layers.append(nn.Sigmoid())  # nn.Sigmoid()
         self.decoder = nn.Sequential(*decoder_layers)
 
     def reparametrize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar) # verificare
+        std = torch.exp(0.5 * logvar)  # verificare
         eps = torch.randn_like(std)
         return mu + eps * std
 
@@ -49,7 +49,9 @@ class VAE(nn.Module):
 
 
 class VectorReducer:
-    def __init__(self, df, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model=None):
+    def __init__(
+        self, df, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model=None
+    ):
 
         self.device = get_device()
         self.df: torch.Tensor = torch.tensor(df).float()
@@ -65,7 +67,7 @@ class VectorReducer:
 
     def kl_divergence(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    
+
     def compute_loss(self, data, compute_gradients=False):
         # Move data on the device
         data = data.to(self.device)
@@ -91,15 +93,15 @@ class VectorReducer:
 
     def vae(self):
         device = next(self.model.parameters()).device
-        #print(f"Model is on device: {device}")
-        #print(f"Input data is on device: {self.df.device}")
-        with torch.no_grad(): # no need to calculate gradients during evaluation
+        # print(f"Model is on device: {device}")
+        # print(f"Input data is on device: {self.df.device}")
+        with torch.no_grad():  # no need to calculate gradients during evaluation
             mu, _, decoded = self.model(self.df.to(device))
         reduced_data = mu.detach().cpu().numpy()
         reconstructed_data = decoded.detach().cpu().numpy()
         return reduced_data, reconstructed_data
-    
+
     def move_to_cpu(self):
-        #Move the model to CPU. This method centralizes the logic for device handling
-        self.model = self.model.to('cpu')
-        self.df = self.df.to('cpu')
+        # Move the model to CPU. This method centralizes the logic for device handling
+        self.model = self.model.to("cpu")
+        self.df = self.df.to("cpu")

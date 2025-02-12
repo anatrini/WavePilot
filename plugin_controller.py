@@ -1,7 +1,9 @@
 import argparse
 import queue
 import threading
+
 from pythonosc import dispatcher, osc_server, udp_client
+
 from logger import setup_logger
 from utils import load_osc_addresses
 
@@ -10,28 +12,32 @@ def get_arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-f', '--filepath',
-                        dest='filepath',
-                        type=str,
-                        required=True,
-                        help="Path to the JSON file containing OSC addresses.")
+    parser.add_argument(
+        "-f",
+        "--filepath",
+        dest="filepath",
+        type=str,
+        required=True,
+        help="Path to the JSON file containing OSC addresses.",
+    )
 
-    parser.add_argument('-r', '--receive_port',
-                        dest='receive_port',
-                        type=int,
-                        default=9109,
-                        help="Port to receive OSC messages from external sources.")
+    parser.add_argument(
+        "-r",
+        "--receive_port",
+        dest="receive_port",
+        type=int,
+        default=9109,
+        help="Port to receive OSC messages from external sources.",
+    )
 
-    parser.add_argument('-s', '--send_port',
-                        dest='send_port',
-                        type=int,
-                        default=9110,
-                        help="Port to send OSC messages to REAPER.")
+    parser.add_argument(
+        "-s", "--send_port", dest="send_port", type=int, default=9110, help="Port to send OSC messages to REAPER."
+    )
 
     return parser.parse_args()
 
 
-logging = setup_logger('OSC Forwarder')
+logging = setup_logger("OSC Forwarder")
 data_queue = queue.Queue()
 
 
@@ -73,16 +79,17 @@ def main():
     # Set up the OSC client to send messages to REAPER
     client = udp_client.SimpleUDPClient("localhost", send_port)
 
-
     # Start the forwarding thread
-    forwarding_thread = threading.Thread(target=forward_osc_messages, args=(client, osc_addresses, data_queue), daemon=True)
+    forwarding_thread = threading.Thread(
+        target=forward_osc_messages, args=(client, osc_addresses, data_queue), daemon=True
+    )
     forwarding_thread.start()
 
     # Set up the OSC server to receive messages
     dispatcher_map = dispatcher.Dispatcher()
-    dispatcher_map.map('/interpolated_data', receive_osc_params)
+    dispatcher_map.map("/interpolated_data", receive_osc_params)
 
-    server = osc_server.ThreadingOSCUDPServer(('localhost', receive_port), dispatcher_map)
+    server = osc_server.ThreadingOSCUDPServer(("localhost", receive_port), dispatcher_map)
     logging.info(f"Receiving OSC messages on port {receive_port}, forwarding to REAPER on port {send_port}")
 
     try:

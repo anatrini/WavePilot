@@ -1,13 +1,12 @@
-import time
 import logging
 import os
-
+import time
 from logging.handlers import QueueHandler
 
 
 def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
     folder_path = "logs/"
-    
+
     try:
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
@@ -17,7 +16,7 @@ def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
             pass
     except OSError as e:
         print(f"Error: {e}")
-    
+
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -28,15 +27,15 @@ def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
             logger.addHandler(queue_handler)
         else:
             console_handler = logging.StreamHandler()
-            console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+            console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
             logger.addHandler(console_handler)
 
         # Add file handler only if required and not already present
         if file and not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
             now = time.time()
             timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now))
-            file_handler = logging.FileHandler(f'logs/reduction_info_{timestamp}.log')
-            file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            file_handler = logging.FileHandler(f"logs/reduction_info_{timestamp}.log")
+            file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
             logger.addHandler(file_handler)
 
     return logger

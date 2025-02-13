@@ -16,7 +16,6 @@ from logger import setup_logger
 from model import VectorReducer
 from utils import get_activation_function
 
-
 RANDOM_SEED = 579
 
 
@@ -78,7 +77,7 @@ def load_data(filepath, num_entries=None, mask_columns=None):
         np.random.seed(RANDOM_SEED)
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
-        #df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
+        # df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
         log_progress.info("Randomly selected %d entries from the dataset", num_entries)
         log_progress.info("Selected indices from dataset: %s", selected_idx)
     else:
@@ -382,7 +381,6 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     return best_params
 
 
-
 def main():
     """
     This function solves an optimization problem using various algorithms.
@@ -449,8 +447,6 @@ def main():
             reducer_train.train_vae(n_epochs_train)
 
             reduced_data, reconstructed_data = reducer_train.vae()
-
-            #print(f"Reduced data is on device: {reducer_train.device}")
 
         optimize_interpolator(reconstructed_data, reduced_data, 'Interpolator')
 

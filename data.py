@@ -1,10 +1,11 @@
-import numpy as np
 import os
+
+import numpy as np
 import pandas as pd
 
 from logger import setup_logger
 
-logging = setup_logger('Data loader')
+logging = setup_logger("Data loader")
 
 
 class DataLoader:
@@ -28,7 +29,7 @@ class DataLoader:
         Load the dataset from a CSV file, remove non-numeric columns,
         columns with all NaN values, and the 'ID' column;
         Convert Pandas' Dataframe to array.
-        
+
         :return: a cleaned numpy.array.
         """
         _, file_extension = os.path.splitext(self.filepath)
@@ -49,7 +50,6 @@ class DataLoader:
 
         except Exception as e:
             raise ValueError("Error loading file: %s", e)
-
 
     def _detect_separator(self, separators):
 
@@ -79,9 +79,8 @@ class DataLoader:
             return df.drop(columns=['ID'])
         return df
 
-
     def _remove_non_numeric_columns(self, df):
-        numeric_cols = df.select_dtypes(include='number').columns
+        numeric_cols = df.select_dtypes(include="number").columns
         non_numeric_cols = [col for col in df.columns if col not in numeric_cols]
         if non_numeric_cols:
             logging.info("Non-numeric columns removed: %s", list(non_numeric_cols))

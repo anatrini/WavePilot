@@ -14,7 +14,7 @@ def get_arguments():
                         dest='filepath',
                         type=str,
                         required=True,
-                        help="Path to the JSON file containing OSC addresses.")
+                        help="Path to the JSON file containing the OSC addresses.")
 
     parser.add_argument('-r', '--receive_port',
                         dest='receive_port',

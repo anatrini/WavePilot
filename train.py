@@ -1,20 +1,20 @@
 import argparse
 import asyncio
 import time
-import torch
+from threading import Thread
 
-from model import VectorReducer
-from data import DataLoader
+import torch
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
-from interpolator import RBFInterpolation
-from logger import setup_logger
 from pythonosc import udp_client
 from torch import nn
-from threading import Thread
+
+from data import DataLoader
+from interpolator import RBFInterpolation
+from logger import setup_logger
+from model import VectorReducer
 from utils import get_activation_function, get_hyperparams_from_log
 from visualizer import Visualize
-
 
 IP_ADDRESS = '127.0.0.1'
 IN_PORT = 9108 # receive on
@@ -186,7 +186,7 @@ async def main():
         logging.error('You must provide at least a dataset!')
         exit(1)
 
-    interpolator = RBFInterpolation(reduced_data, original_data, smoothing, kernel, epsilon, degree)
+    interpolator = RBFInterpolation(reduced_data, reconstructed_data, smoothing, kernel, epsilon, degree)
     visualizer = Visualize(reduced_data, app, socketio)
 
     end_time = time.time()

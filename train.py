@@ -25,91 +25,38 @@ logging = setup_logger("Main VAE")
 
 
 def get_arguments():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
 
-    # The actual dataset of the presets to be reduced (Mandatory)
-    parser.add_argument("-f", "--filepath", dest="filepath", type=str, default=None)
+    # Dataset (Obbligatorio)
+    parser.add_argument("-f", "--filepath", dest="filepath", type=str, required=True, help="Dataset of presets to be reduced.")
 
-    # The pretrained model created on a bigger dataset (Optional)
-    parser.add_argument("-p", "--pretrained_model", dest="pretrained_model", type=str, default=None)
+    # Modello pre-addestrato (Opzionale)
+    parser.add_argument("-p", "--pretrained-model", dest="pretrained_model", type=str, default=None, help="Pretrained model file.")
 
-    parser.add_argument(
-        "-o",
-        "--optimizer_session",
-        dest="optimizer_session",
-        type=str,
-        default=None,
-        help="Path to the log file of an optimization session.",
-    )
+    # Sessione di ottimizzazione
+    parser.add_argument("-o", "--optimizer-session", dest="optimizer_session", type=str, default=None, help="Log file of a previous optimization session.")
 
-    parser.add_argument(
-        "-n",
-        "--n_layers",
-        dest="n_layers",
-        type=int,
-        default=1,
-        help="Set the number of hidden layers used by the model.",
-    )
+    # Mascheramento dei parametri (Solo se ottimizzazione non è stata fatta)
+    parser.add_argument("-m", "--mask-columns", dest="mask_columns", type=str, nargs="+", default=None, help="List of parameters to be masked (excluded).")
 
-    parser.add_argument(
-        "-l",
-        "--layer_dim",
-        dest="layer_dim",
-        type=int,
-        default=128,
-        help="Set the size of hidden layers used by the model.",
-    )
+    # Iperparametri principali
+    parser.add_argument("-n", "--num-layers", dest="n_layers", type=int, default=1, help="Number of hidden layers.")
+    parser.add_argument("-l", "--layer-dim", dest="layer_dim", type=int, default=128, help="Size of hidden layers.")
+    parser.add_argument("-a", "--activation", dest="activation_function", type=nn.Module, default=nn.ReLU(), help="Activation function.")
 
-    parser.add_argument(
-        "-a",
-        "--activation_function",
-        dest="activation_function",
-        type=nn.Module,
-        default=nn.ReLU(),
-        help="Set the activation function used by the model.",
-    )
+    # Training
+    parser.add_argument("-e", "--epochs", dest="n_epochs", type=int, default=100, help="Number of training epochs.")
+    parser.add_argument("-r", "--learning-rate", dest="learning_rate", type=float, default=1e-2, help="Learning rate.")
+    parser.add_argument("-w", "--weight-decay", dest="weight_decay", type=float, default=1e-4, help="L1/L2 regularization.")
 
-    parser.add_argument("-E", "--n_epochs", dest="n_epochs", type=int, default=100)
+    # Parametri VAE
+    parser.add_argument("-b", "--kl-beta", dest="kl_beta", type=float, default=0.05, help="KL divergence weight.")
+    parser.add_argument("-s", "--mse-beta", dest="mse_beta", type=float, default=0.1, help="MSE loss weight.")
 
-    parser.add_argument("-r", "--learning_rate", dest="learning_rate", type=float, default=1e-2)
-
-    # L1/L2 regularization (search space [1e-5, 1e-3])
-    parser.add_argument("-w", "--weight_decay", dest="weight_decay", type=float, default=1e-4)
-
-    parser.add_argument("-s", "--smoothing", dest="smoothing", type=float, default=1e-4)
-
-    parser.add_argument("-b", "--kl_beta", dest="kl_beta", type=float, default=0.05)
-
-    parser.add_argument("-m", "--mse_beta", dest="mse_beta", type=float, default=0.1)
-
-    # Kernel functions for radial based interpolation
-    parser.add_argument(
-        "-k",
-        "--kernel",
-        dest="kernel",
-        type=str,
-        choices=["multiquadric", "inverse_multiquadric", "inverse_quadratic", "gaussian"],
-        default="gaussian",
-        help="The type of kernel to use for the RBF interpolation.",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--epsilon",
-        dest="epsilon",
-        type=float,
-        default=1.0,
-        help="Epsilon value if kernel is one of: multiquadric, inverse_multiquadric, inverse_quadratic, gaussian.",
-    )
-
-    parser.add_argument(
-        "-d",
-        "--degree",
-        dest="degree",
-        type=int,
-        default=None,
-        help="Degree of the added polynomial. Minimum degree for RBFs: multiquadric=0, linear=0, thin_plate_spline=1, cubic=1, quintic=2. The default value is the minimum degree for kernel or 0 if there is no minimum degree. Set this to -1 for no added polynomial.",
-    )
+    # Parametri RBF Interpolation
+    parser.add_argument("-k", "--kernel", dest="kernel", type=str, choices=["multiquadric", "inverse_multiquadric", "inverse_quadratic", "gaussian"], default="gaussian", help="Kernel type for RBF interpolation.")
+    parser.add_argument("-x", "--epsilon", dest="epsilon", type=float, default=1.0, help="Epsilon value for RBF kernel.")
+    parser.add_argument("-d", "--degree", dest="degree", type=int, default=None, help="Polynomial degree for RBF.")
 
     return parser.parse_args()
 

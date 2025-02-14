@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Tool for Reducing and Visualizing Digital Instrument Presets in an Explorable 3D Virtual Space"
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "3.9.16"
@@ -17,14 +18,48 @@ optuna="3.5.0"
 numpy="1.26.4"
 sounddevice="0.4.6"
 torch="2.3.0"
-torchviz="0.0.2"
-pytest = "^8.3.4"
-pylint = "^3.3.3"
 
 [[tool.poetry.source]]
 name = "pytorch_cpu"
 url = "https://download.pytorch.org/whl/cpu"
 priority = "explicit"
+
+[tool.poetry.group.dev.dependencies]
+deptry = "^0.23.0"
+pyinstaller = "^6.11.1"
+black = "^25.1.0"
+pytest = "^8.3.4"
+pylint = "^3.3.4"
+isort = "^6.0.0"
+pytest-isort = "^4.0.0"
+pytest-black = "^0.6.0"
+pytest-cov = "^6.0.0"
+
+[tool.black]
+line-length = 120
+target-version = ["py38"]
+include = '\.pyi?$'
+exclude = '''
+(
+  /(
+      \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | data
+    | _build
+    | buck-out
+    | build
+    | dist
+  )/
+  | docs/conf.py
+)
+'''
+
+[tool.isort]
+profile = "black"
 
 [build-system]
 requires = ["poetry-core"]

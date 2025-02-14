@@ -6,7 +6,6 @@ snapshots/*
 *.txt
 audio/*
 data/*
-.data/*
 output/*
 *.RPP
 Backups/*

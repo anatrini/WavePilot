@@ -32,16 +32,22 @@ def get_arguments():
     parser.add_argument('-n', '--num_entries',
                         dest='num_entries',
                         type=int,
-                        required=True,
                         default=None,
                         help='Number of random entries to select from the dataset.')
 
     # Large dataset of presets to pretrain the model (Optional)
-    parser.add_argument('-F', '--filepath_pretrain',
-                        dest='filepath_pretrain',
+    parser.add_argument('-F', '--filepath_pretrain_dataset',
+                        dest='filepath_pretrain_dataset',
                         type=str,
                         default=None,
                         help='Large dataset to pretrain the model.')
+    
+    # Pretrained model of presets of the large dataset (Optional)
+    parser.add_argument('-p', '--filepath_pretrained_model',
+                        dest='filepath_pretrained_model',
+                        type=str,
+                        default=None,
+                        help='Path to a pre-trained model (.pt) to be loaded instead of recalculating it.')
 
     # Filepath where to save the pretrained model, only necessary if -F is passed
     parser.add_argument('-s', '--filepath_save_pretrain',
@@ -217,9 +223,10 @@ def interpolate_and_validate(progress_queue, params, original_data, reduced_data
         return float('inf'), params
 
 
+
 def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, save_filepath=None, pretrained_model=None):
 
-    #VAE's params' grid
+    # VAE's params' grid
     vae_grid = {
         'n_epochs': [50, 100, 200],
         'learning_rate': np.logspace(-6, -2, num=5),
@@ -230,6 +237,17 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
         'kl_beta': np.linspace(0.01, 1.0, num=5),
         'mse_beta': np.linspace(0.1, 2.0, num=5)
     }
+
+    # vae_grid = {
+    #     'n_epochs': [50, 100],
+    #     'learning_rate': np.logspace(-6, -2, num=2),
+    #     'weight_decay': np.logspace(-6, -2, num=2),
+    #     'n_layers': list(range(1, 2)),
+    #     'layer_dim': [64, 128],
+    #     'activation': ['ELU', 'GELU'],
+    #     'kl_beta': np.linspace(0.01, 1.0, num=4),
+    #     'mse_beta': np.linspace(0.1, 2.0, num=4)
+    # }
 
     # Get all combinations of hyperparameters
     param_combinations = list(itertools.product(*vae_grid.values()))
@@ -256,34 +274,49 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
         with Pool(processes=cpu_count()) as pool:
             results = pool.starmap(train_and_validate, input_data)
 
-        # Find the best result
-        best_validation_error = float('inf')
-        best_params = None
-        best_model = None
+        # Sort all combinations by validation error
+        sorted_results = sorted(results, key=lambda x: x[0])
+        top_500_results = sorted_results[:500]  
+        
+        # Select only the best combination
+        best_validation_error, best_params_tuple, best_model = top_500_results[0]
 
-        for idx, result in enumerate(results):
-            validation_error, params, model = result
+        # Find the index of the best combination in the original results
+        best_idx = results.index(top_500_results[0])
+        num_epochs = input_data[best_idx][1]
 
-            n_epochs = input_data[idx][1]
+        # Create the dictionary of the best parameters
+        best_params = {
+            'num_epochs': num_epochs,
+            "learning_rate": best_params_tuple[0],
+            "weight_decay": best_params_tuple[1],
+            "n_layers": best_params_tuple[2],
+            "layer_dim": best_params_tuple[3],
+            "activation_function": best_params_tuple[4],
+            "kl_beta": best_params_tuple[5],
+            "mse_beta": best_params_tuple[6]
+        }
 
-            # Converti params in formato dizionario
+        log_progress.info("%s Best Validation Error: %.12f | Params: %s", log_prefix, best_validation_error, best_params)
+
+
+        for idx, (validation_error, params_tuple, _) in enumerate(top_500_results):  
+            best_idx = results.index((validation_error, params_tuple, _))
+            num_epochs = input_data[best_idx][1]  
+
             param_dict = {
-                'num_epochs': n_epochs,
-                "learning_rate": params[0],
-                "weight_decay": params[1],
-                "n_layers": params[2],
-                "layer_dim": params[3],
-                "activation_function": params[4],
-                "kl_beta": params[5],
-                "mse_beta": params[6]
+                'num_epochs': num_epochs,
+                "learning_rate": params_tuple[0],
+                "weight_decay": params_tuple[1],
+                "n_layers": params_tuple[2],
+                "layer_dim": params_tuple[3],
+                "activation_function": params_tuple[4],
+                "kl_beta": params_tuple[5],
+                "mse_beta": params_tuple[6],
+                "validation_error": validation_error
             }
 
-            log_progress.info("%s Validation Error: %.12f | Params: %s", log_prefix, validation_error, params)
-
-            if validation_error < best_validation_error:
-                best_validation_error = validation_error
-                best_params = param_dict
-                best_model = model
+            log.info(param_dict) 
 
     except Exception as e:
         log_progress.error("%s Error during optimization: %s", log_prefix, e)
@@ -303,12 +336,14 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     return best_params, best_model
 
 
+
 def optimize_interpolator(original_data, reduced_data, log_prefix):
+
     # Interpolator's params' grid
     interpolator_grid = {
-        'smoothing': np.linspace(0.0, 1.0, num=50),
+        'smoothing': np.linspace(0.0, 1.0, num=10),
         'kernel': ['multiquadric', 'inverse_multiquadric', 'inverse_quadratic', 'gaussian', 'linear', 'quintic', 'cubic', 'thin_plate_spline'],
-        'epsilon': np.linspace(1e-03, 3.0, num=30),
+        'epsilon': np.linspace(1e-03, 3.0, num=10),
         'degree': np.linspace(-1, 2, num=4, dtype=int)
     }
 
@@ -327,7 +362,7 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     param_combinations = list(itertools.product(*interpolator_grid.values()))
     total_combinations = len(param_combinations)
 
-    # Configura logger
+    # Logger setup
     manager = Manager()
     progress_queue = manager.Queue()
     log_queue = manager.Queue()
@@ -335,7 +370,7 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     log = setup_logger('OptimizationLogger', log_queue=log_queue, file=True)
     listener_log = log_listener(log_queue, log.handlers)
 
-    # Listener per il progresso
+    # Listener for progress
     listener_process = Process(target=progress_listener, args=(progress_queue, total_combinations))
     listener_process.start()
 
@@ -348,23 +383,29 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
         with Pool(processes=cpu_count()) as pool:
             results = pool.starmap(interpolate_and_validate, input_data)
 
-        # Find the best result
-        best_validation_distance = float('inf')
-        best_params = None
+        # **Select the 500 best combinations based on validation distance**
+        top_500_results = sorted(results, key=lambda x: x[0])[:500]
 
-        for validation_distance, params in results:
+        # **Retrieve the best parameters**
+        best_validation_distance, best_params_tuple = top_500_results[0]
+
+        best_params = {
+            'smoothing': best_params_tuple[0],
+            'kernel': best_params_tuple[1],
+            'epsilon': best_params_tuple[2],
+            'degree': best_params_tuple[3]
+        }
+
+
+        for validation_distance, params_tuple in top_500_results:
             param_dict = {
-                'smoothing': params[0],
-                'kernel': params[1],
-                'epsilon': params[2],
-                'degree': params[3]
+                'smoothing': params_tuple[0],
+                'kernel': params_tuple[1],
+                'epsilon': params_tuple[2],
+                'degree': params_tuple[3],
+                'validation_distance': validation_distance
             }
-
-            log_progress.info("%s Validation Distance: %.12f | Params: %s", log_prefix, validation_distance, param_dict)
-
-            if validation_distance < best_validation_distance:
-                best_validation_distance = validation_distance
-                best_params = param_dict
+            log.info(param_dict)  # ✅ Logs all 500 best interpolator results
 
     except Exception as e:
         log_progress.error("%s Error during interpolator optimization: %s", log_prefix, e)
@@ -381,80 +422,106 @@ def optimize_interpolator(original_data, reduced_data, log_prefix):
     return best_params
 
 
-def main():
-    """
-    This function solves an optimization problem using various algorithms.
-    
-    The function takes no arguments, but uses data from external files or databases 
-    (not provided in this function) to solve the optimization problem. It writes 
-    the results of its computations into another file (also not specified here).
-        
-    Returns: None
-    """
 
+def pretrain_and_train(filepath_pretrain, filepath_save_pretrain, df_train, df_test):
+    """Performs pretraining on a large dataset and then training on a smaller one."""
+
+    # Load the pretraining dataset
+    df_pretrain = load_data(filepath_pretrain)
+    df_train_pretrain, df_test_pretrain = train_test_split(df_pretrain, test_size=0.3, random_state=12)
+
+    # Optimise VAE on the pretraining dataset
+    best_params_pretrain, best_model_pretrain = optimize_vae(df_train_pretrain, df_test_pretrain, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
+
+    # Call run_training() for pretraining on df_train_pretrain
+    run_training(best_params_pretrain, df_train_pretrain, None)  # No pre-trained model for the first phase
+
+    # Train using the pre-trained model
+    best_params_train, _ = optimize_vae(df_train, df_test, 'Train', pretrained_model=best_model_pretrain)
+
+    reduced_data, reconstructed_data = run_training(best_params_train, df_train, best_model_pretrain)
+    return reduced_data, reconstructed_data
+
+
+def train_with_pretrained_model(filepath_model, df_train, df_test):
+    """Refines training using an already pre-trained model, following the original main."""
+    
+    # Load the pre-trained model
+    pretrained_model = torch.load(filepath_model)
+
+    # Execute training using the pre-trained model
+    best_params_train, _ = optimize_vae(df_train, df_test, 'Train', pretrained_model=pretrained_model)
+
+    # Execute final training
+    reduced_data, reconstructed_data = run_training(best_params_train, df_train, pretrained_model)
+    return reduced_data, reconstructed_data
+
+
+def train_from_scratch(df_train, df_test):
+    """Performs standard training without pretraining or pre-trained models."""
+    
+    # Optimise VAE from scratch
+    best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
+
+    # Execute final training
+    reduced_data, reconstructed_data = run_training(best_params_train, df_train, None)
+    return reduced_data, reconstructed_data
+
+
+def run_training(best_params_train, df_train, pretrained_model):
+    """Executes training with the best parameters found."""
+    
+    best_params_train = {
+        key: float(value) if key != "activation_function" and isinstance(value, str) else value
+        for key, value in best_params_train.items()
+    }
+
+    reducer_train = VectorReducer(
+        df_train,
+        best_params_train["learning_rate"],
+        best_params_train["weight_decay"],
+        best_params_train["n_layers"],
+        best_params_train["layer_dim"],
+        get_activation_function(best_params_train["activation_function"]),
+        best_params_train["kl_beta"],
+        best_params_train["mse_beta"],
+        pretrained_model=pretrained_model
+    )
+
+    reducer_train.train_vae(best_params_train["num_epochs"])
+    return reducer_train.vae()
+
+
+
+def main():
     try:
         args = get_arguments()
         torch.manual_seed(42)
 
-        filepath = args.filepath
-        num_entries = args.num_entries
-        filepath_pretrain = args.filepath_pretrain
-        filepath_save_pretrain = args.filepath_save_pretrain
-        disable_split = args.disable_split
-        mask_columns = args.mask_columns
+        # Load the main dataset
+        df = load_data(args.filepath, args.num_entries, args.mask_columns)
 
-        df = load_data(filepath, num_entries, mask_columns)
+        # Train/test split
+        df_train, df_test = train_test_split(df, test_size=0.1, random_state=42) if args.disable_split else (df, df)
 
-        if disable_split:
-            df_train, df_test = train_test_split(df, test_size=0.1, random_state=42)
+        # Case 1: Pretraining on a large dataset followed by training
+        if args.filepath_pretrain_dataset:
+            reduced_data, reconstructed_data = pretrain_and_train(args.filepath_pretrain_dataset, args.filepath_save_pretrain, df_train, df_test)
+
+        # Case 2: Refinement using a pre-trained model
+        elif args.filepath_pretrained_model:
+            reduced_data, reconstructed_data = train_with_pretrained_model(args.filepath_pretrained_model, df_train, df_test)
+
+        # Case 3: Standard training
         else:
-            df_train, df_test = df, df
+            reduced_data, reconstructed_data = train_from_scratch(df_train, df_test)
 
-
-        if filepath_pretrain:
-            df_pretrain = load_data(filepath_pretrain)
-            df_train_pretrain, df_test_pretrain = train_test_split(df_pretrain, test_size=0.3, random_state=12)
-            best_params_pretrain, best_model_pretrain = optimize_vae(df_train_pretrain, df_test_pretrain, 'Pretrain', save_pretrained_model=True, save_filepath=filepath_save_pretrain)
-            best_params_train, _ = optimize_vae(df_train, df_test, 'Train', pretrained_model=best_model_pretrain)
-
-            n_epochs_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, layer_dim_pretrain, activation_name_pretrain, kl_beta_pretrain, mse_beta_pretrain = best_params_pretrain
-            activation_pretrain = get_activation_function(activation_name_pretrain)
-            reducer_pretrain = VectorReducer(df_pretrain, learning_rate_pretrain, weight_decay_pretrain, n_layers_pretrain, layer_dim_pretrain, activation_pretrain, kl_beta_pretrain, mse_beta_pretrain)
-            reducer_pretrain.train_vae(n_epochs_pretrain)
-
-            n_epochs_train, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_name_train, kl_beta_train, mse_beta_train = best_params_train
-            activation_train = get_activation_function(activation_name_train)
-            pretrained_model = torch.load(f'{filepath_save_pretrain}.pt')
-            reducer_train = VectorReducer(df, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_train, kl_beta_train, mse_beta_train, pretrained_model=pretrained_model)
-            reducer_train.train_vae(n_epochs_train)
-            reduced_data, reconstructed_data = reducer_train.vae()
-
-        else:
-            best_params_train, _ = optimize_vae(df_train, df_test, 'Train')
-
-            n_epochs_train = best_params_train['num_epochs']
-            learning_rate_train = best_params_train['learning_rate']
-            weight_decay_train = best_params_train['weight_decay']
-            n_layers_train = best_params_train['n_layers']
-            layer_dim_train = best_params_train['layer_dim']
-            activation_name_train = best_params_train['activation_function']
-            kl_beta_train = best_params_train['kl_beta']
-            mse_beta_train = best_params_train['mse_beta']
-
-            activation_train = get_activation_function(activation_name_train)
-            reducer_train = VectorReducer(df_train, learning_rate_train, weight_decay_train, n_layers_train, layer_dim_train, activation_train, kl_beta_train, mse_beta_train)
-
-            reducer_train.train_vae(n_epochs_train)
-
-            reduced_data, reconstructed_data = reducer_train.vae()
-
+        # Interpolator optimisation
         optimize_interpolator(reconstructed_data, reduced_data, 'Interpolator')
 
     except Exception as e:
         log_progress.error("Error in main: %s", e)
-
+        
 
 if __name__ == "__main__":
     main()
-
-# num_entries = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, n/2]

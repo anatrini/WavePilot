@@ -16,7 +16,7 @@ from logger import setup_logger
 from model import VectorReducer
 from utils import get_activation_function
 
-RANDOM_SEED = 579
+RANDOM_SEED = 8
 
 
 def get_arguments():
@@ -331,7 +331,7 @@ def optimize_vae(df_train, df_test, log_prefix, save_pretrained_model=False, sav
     log.info("Best VAE hyperparams: %s with a validation error of %.12f", best_params, best_validation_error)
 
     if save_pretrained_model:
-        torch.save(best_model, f'{save_filepath}.pt')
+        torch.save(best_model, f'./output/{save_filepath}.pt')
 
     return best_params, best_model
 
@@ -502,7 +502,7 @@ def main():
         df = load_data(args.filepath, args.num_entries, args.mask_columns)
 
         # Train/test split
-        df_train, df_test = train_test_split(df, test_size=0.1, random_state=42) if args.disable_split else (df, df)
+        df_train, df_test = train_test_split(df, test_size=0.3, random_state=42) if args.disable_split else (df, df)
 
         # Case 1: Pretraining on a large dataset followed by training
         if args.filepath_pretrain_dataset:
@@ -521,7 +521,7 @@ def main():
 
     except Exception as e:
         log_progress.error("Error in main: %s", e)
-        
+
 
 if __name__ == "__main__":
     main()

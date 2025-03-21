@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 34.0, 100.0, 724.0, 747.0 ],
+		"rect" : [ 107.0, 87.0, 1192.0, 959.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -332,7 +332,7 @@
 						}
 ,
 						"classnamespace" : "box",
-						"rect" : [ 61.0, 100.0, 640.0, 480.0 ],
+						"rect" : [ 205.0, 283.0, 640.0, 480.0 ],
 						"bglocked" : 0,
 						"openinpresentation" : 0,
 						"default_fontsize" : 12.0,
@@ -360,6 +360,7 @@
 						"style" : "",
 						"subpatcher_template" : "dark_template",
 						"assistshowspatchername" : 0,
+						"visible" : 1,
 						"boxes" : [ 							{
 								"box" : 								{
 									"comment" : "",
@@ -656,7 +657,7 @@
 
 					}
 ,
-					"text" : "/cursor : [0.440395, -0.496435, -0.748068]",
+					"text" : "/cursor : [0.0224456, 0.0356322, -0.040201]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 

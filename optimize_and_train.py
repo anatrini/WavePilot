@@ -76,19 +76,6 @@ def load_data(filepath, num_entries=None, mask_columns=None):
     return df
 
 
-# Compute KL divergence
-def kl_divergence(mu, logvar):
-    return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-
-
-# Calculate validation error
-def compute_validation_error(reducer, data):
-    data_tensor = torch.tensor(data).float().to(reducer.device)
-    with torch.no_grad():
-        return reducer.compute_loss(data_tensor, compute_gradients=False)
-
-
-
 def train_and_validate(n_epochs, params, original_train, original_test, pretrained_model=None):
     try:
         learning_rate = params['learning_rate']
@@ -114,7 +101,7 @@ def train_and_validate(n_epochs, params, original_train, original_test, pretrain
         )
 
         reducer.train_vae(n_epochs)
-        validation_error = compute_validation_error(reducer, original_test)
+        validation_error = reducer.compute_loss(original_test, compute_gradients=False)
         reducer.move_to_cpu()
 
         return validation_error, params, reducer.model
@@ -291,21 +278,6 @@ def run_training(best_params_train, df_train):
     return reducer_train.vae()
 
 
-
-# def train_from_scratch(df_train, df_test):
-#     """Performs standard training without pretraining or pre-trained models."""
-    
-#     optimizer = Optimizer(df_train, df_test)
-#     best_params_train = optimizer.optimize_vae()
-
-#     # Execute final training
-#     reduced_data, reconstructed_data = run_training(best_params_train, df_train)
-#     return reduced_data, reconstructed_data
-
-
-
-
-
 def main():
     args = get_arguments()
     df = load_data(args.filepath, args.num_entries, args.mask_columns)
@@ -316,7 +288,6 @@ def main():
    
     best_vae_params = optimizer.optimize_vae()
 
-    
     reduced_data, reconstructed_data = run_training(best_vae_params, df_train)
 
     best_rbf_params = optimizer.optimize_rbf(reduced_data, reconstructed_data)

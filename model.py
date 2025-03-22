@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn, optim
 
@@ -69,6 +70,10 @@ class VectorReducer:
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     def compute_loss(self, data, compute_gradients=False):
+        # Check if data is already a tensor
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data).float()
+
         # Move data on the device
         data = data.to(self.device)
 
@@ -93,8 +98,7 @@ class VectorReducer:
 
     def vae(self):
         device = next(self.model.parameters()).device
-        # print(f"Model is on device: {device}")
-        # print(f"Input data is on device: {self.df.device}")
+
         with torch.no_grad():  # no need to calculate gradients during evaluation
             mu, _, decoded = self.model(self.df.to(device))
         reduced_data = mu.detach().cpu().numpy()

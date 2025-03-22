@@ -108,7 +108,7 @@ def train_and_validate(n_epochs, params, original_train, original_test, pretrain
 
     except Exception as e:
         log_progress.error("Error during VAE optimization: %s", e, exc_info=True)
-        return float('inf'), params, None
+        return float('inf'), params
 
 
 
@@ -212,7 +212,6 @@ class Optimizer:
         self.study_vae.optimize(self.objective_vae, n_trials=n_trials, n_jobs=cpu_count(), callbacks=[pbar])
 
         best_params = self.study_vae.best_params
-        best_value = self.study_vae.best_value
         return best_params
 
 
@@ -249,20 +248,12 @@ class Optimizer:
             callbacks=[pbar])
 
         best_params = self.study_rbf.best_params
-        best_value = self.study_rbf.best_value
-        #log_progress.info(f"Best RBF Parameters: {best_params} with Validation Distance: {best_value}")
         return best_params
 
 
 
 def run_training(best_params_train, df_train):
     """Executes training with the best parameters found."""
-    
-    best_params_train = {
-        key: float(value) if key != "activation_function" and isinstance(value, str) else value
-        for key, value in best_params_train.items()
-    }
-
     reducer_train = VectorReducer(
         df_train,
         best_params_train["learning_rate"],
@@ -285,9 +276,7 @@ def main():
 
     optimizer = Optimizer(df_train, df_test)
 
-   
     best_vae_params = optimizer.optimize_vae()
-
     reduced_data, reconstructed_data = run_training(best_vae_params, df_train)
 
     best_rbf_params = optimizer.optimize_rbf(reduced_data, reconstructed_data)

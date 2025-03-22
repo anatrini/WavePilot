@@ -48,7 +48,6 @@ VAE_PARAM_RANGES = {
     }
 }
 
-
 # RBF parameter ranges, structured by type
 RBF_PARAM_RANGES = {
     "smoothing": {

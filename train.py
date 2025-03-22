@@ -9,6 +9,7 @@ from flask_socketio import SocketIO
 from pythonosc import udp_client
 from torch import nn
 
+from constants import IP_ADDRESS, IN_PORT, OUT_PORT
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
@@ -16,9 +17,6 @@ from model import VectorReducer
 from utils import get_activation_function, get_hyperparams_from_log
 from visualizer import Visualize
 
-IP_ADDRESS = '127.0.0.1'
-IN_PORT = 9108 # receive on
-OUT_PORT = 9109 # send to
 
 
 logging = setup_logger("Main VAE")

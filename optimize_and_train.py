@@ -3,21 +3,17 @@ import optuna
 from multiprocessing import cpu_count
 
 import numpy as np
-import torch
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import euclidean
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
+from constants import OPTUNA_RANDOM_SEED, ENTRY_SELECTION_RANDOM_SEED, TRAIN_TEST_SPLIT_RANDOM_SEED, VAE_PARAM_RANGES, RBF_PARAM_RANGES, RBF_MIN_DEGREE, RBF_FIXED_EPSILON_KERNELS, N_TRIALS_VAE, N_TRIALS_RBF
 from data import DataLoader
+from dispatcher import SUGGEST_DISPATCH
 from logger import setup_logger
 from model import VectorReducer
 from utils import get_activation_function
-
-OPTUNA_RANDOM_SEED = 56
-RANDOM_SEED = 8
-N_TRIALS_VAE = 500
-N_TRIALS_RBF = 300
 
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -29,7 +25,6 @@ log_progress = setup_logger('ProgressLogger', file=False)
 def get_arguments():
     parser = argparse.ArgumentParser()
 
-    # (Small) dataset of the presets to be reduced (Mandatory)
     parser.add_argument('-f', '--filepath',
                         dest='filepath',
                         type=str,
@@ -47,7 +42,12 @@ def get_arguments():
                         action='store_false',
                         help='Disable train/test split and use the entire dataset for both training and validation. Default split enabled.')
     
-    # Masked parameters
+    parser.add_argument('-t', '--test_size',
+                        dest='test_size',
+                        type=float,
+                        default=0.2,
+                        help='Train test split size, only available if -d flag is not provided. Default size 0.2.')
+    
     parser.add_argument('-m', '--mask_columns',
                         dest='mask_columns',
                         type=str,
@@ -58,16 +58,16 @@ def get_arguments():
     return parser.parse_args()
 
 
+
 # Load data
 def load_data(filepath, num_entries=None, mask_columns=None):
     loader = DataLoader(filepath, mask_columns)
     df = loader.load_presets()
 
     if num_entries:
-        np.random.seed(RANDOM_SEED)
+        np.random.seed(ENTRY_SELECTION_RANDOM_SEED)
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
-        # df = df[np.random.choice(df.shape[0], size=num_entries, replace=False)]
         log_progress.info("Randomly selected %d entries from the dataset", num_entries)
         log_progress.info("Selected indices from dataset: %s", selected_idx)
     else:
@@ -183,16 +183,10 @@ class Optimizer:
         self.study_rbf = None
 
     def objective_vae(self, trial):
-        """Funzione obiettivo per il VAE"""
+        """Objective function for VAE"""
         params = {
-            'num_epochs': trial.suggest_categorical('num_epochs', [50, 100]),
-            'learning_rate': trial.suggest_float('learning_rate', 1e-5, 1e-2, log=True),
-            'weight_decay': trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True),
-            'n_layers': trial.suggest_int('n_layers', 1, 2),
-            'layer_dim': trial.suggest_categorical('layer_dim', [64, 128]),
-            'activation_function': trial.suggest_categorical('activation_function', ['GELU', 'ELU']),
-            'kl_beta': trial.suggest_float('kl_beta', 0.01, 0.5),
-            'mse_beta': trial.suggest_float('mse_beta', 0.1, 1.0)
+            name: SUGGEST_DISPATCH[config["type"]](trial, name, config)
+            for name, config in VAE_PARAM_RANGES.items()
         }
 
         validation_error, _, _ = train_and_validate(
@@ -206,7 +200,6 @@ class Optimizer:
 
 
     def optimize_vae(self, n_trials=N_TRIALS_VAE):
-        """Ottimizza i parametri del VAE con Optuna"""
         pbar = TQDMProgressBar(n_trials)
         self.study_vae = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=OPTUNA_RANDOM_SEED))
         self.study_vae.optimize(self.objective_vae, n_trials=n_trials, n_jobs=cpu_count(), callbacks=[pbar])
@@ -216,29 +209,23 @@ class Optimizer:
 
 
     def objective_rbf(self, trial, original_data, reduced_data):
-        """Funzione obiettivo per l'RBF"""
+        """Objective function for RBF"""
         params = {
-            'smoothing': trial.suggest_float('smoothing', 0.5, 1.0),
-            'kernel': trial.suggest_categorical('kernel', ['linear', 'thin_plate_spline', 'cubic', 'inverse_quadratic']),
-            'epsilon': trial.suggest_float('epsilon', 1.5, 3.0),
-            'degree': trial.suggest_int('degree', -1, 1)
+            name: SUGGEST_DISPATCH[config["type"]](trial, name, config)
+            for name, config in RBF_PARAM_RANGES.items()
         }
-
-        min_degree = {'linear': 0, 'thin_plate_spline': 1, 'cubic': 1}
-        fixed_epsilon_kernels = ['linear', 'thin_plate_spline', 'cubic']
 
         validation_distance, _ = interpolate_and_validate(
             params,
             original_data,
             reduced_data,
-            min_degree,
-            fixed_epsilon_kernels
+            RBF_MIN_DEGREE,
+            RBF_FIXED_EPSILON_KERNELS
         )
 
         return validation_distance
 
     def optimize_rbf(self, original_data, reduced_data, n_trials=N_TRIALS_RBF):
-        """Ottimizza i parametri dell'RBF con Optuna"""
         pbar = TQDMProgressBar(n_trials)
         self.study_rbf = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=OPTUNA_RANDOM_SEED))
         self.study_rbf.optimize(
@@ -270,9 +257,15 @@ def run_training(best_params_train, df_train):
 
 
 def main():
+
     args = get_arguments()
-    df = load_data(args.filepath, args.num_entries, args.mask_columns)
-    df_train, df_test = train_test_split(df, test_size=0.3, random_state=42) if args.disable_split else (df, df)
+    filepath = args.filepath
+    num_entries = args.num_entries
+    test_size = args.test_size
+    mask_columns = args.mask_columns
+
+    df = load_data(filepath, num_entries, mask_columns)
+    df_train, df_test = train_test_split(df, test_size=test_size, random_state=TRAIN_TEST_SPLIT_RANDOM_SEED) if args.disable_split else (df, df)
 
     optimizer = Optimizer(df_train, df_test)
 

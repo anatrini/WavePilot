@@ -26,7 +26,11 @@ def get_arguments():
     parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
 
     # Dataset (Obbligatorio)
-    parser.add_argument("-f", "--filepath", dest="filepath", type=str, required=True, help="Dataset of presets to be reduced.")
+    parser.add_argument("-f", "--filepath", 
+                        dest="filepath", 
+                        type=str, 
+                        required=True, 
+                        help="Dataset of presets to be reduced.")
 
     # Modello pre-addestrato (Opzionale)
     parser.add_argument("-p", "--pretrained-model", dest="pretrained_model", type=str, default=None, help="Pretrained model file.")

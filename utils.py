@@ -52,17 +52,17 @@ def get_hyperparams_from_log(log_file):
 
         for line in lines:
             # Extract the best hyperparameters for the VAE
-            if "Best VAE hyperparams" in line:
+            if "Best VAE Parameters" in line:
                 try:
-                    params_str = line.split("Best VAE hyperparams: ")[1].split(" with")[0]
+                    params_str = line.split("Best VAE Parameters: ")[1].split(" |")[0]
                     params["vae"] = ast.literal_eval(params_str)
                 except (IndexError, SyntaxError, ValueError) as e:
                     raise ValueError(f"Error processing VAE parameters from line: {line}. Details: {e}") from e
 
             # Extract the best hyperparameters for the interpolator
-            elif "Best Interpolator params" in line:
+            elif "Best RBF Parameters" in line:
                 try:
-                    params_str = line.split("Best Interpolator params: ")[1].split(" with")[0]
+                    params_str = line.split("Best RBF Parameters: ")[1].split(" |")[0]
                     params["rbf"] = ast.literal_eval(params_str)
                 except (IndexError, SyntaxError, ValueError) as e:
                     raise ValueError(f"Error processing interpolator parameters from line: {line}. Details: {e}") from e

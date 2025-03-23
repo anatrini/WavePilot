@@ -49,32 +49,122 @@ class VAE(nn.Module):
         return mu, logvar, decoded
 
 
+# class VectorReducer:
+#     def __init__(
+#         self, 
+#         df, 
+#         learning_rate, 
+#         weight_decay, 
+#         n_layers, 
+#         layer_dim, 
+#         activation, 
+#         kl_beta, 
+#         mse_beta, 
+#         pretrained_model: str = None
+#     ):
+
+#         self.device = get_device()
+#         self.df = torch.tensor(df, dtype=torch.float32)
+
+#         # Initialize the model
+#         self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
+      
+#         if pretrained_model is not None:
+#             if not isinstance(pretrained_model, str):
+#                 raise ValueError("Pretrained must be a path to a .pt file or None!")
+#             self.model.load_state_dict(torch.load(pretrained_model, map_location=self.device))
+#             self.model.eval()
+        
+#         self.criterion = nn.MSELoss()
+#         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+#         self.kl_beta = kl_beta
+#         self.mse_beta = mse_beta
+
+#     def kl_divergence(self, mu, logvar):
+#         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+
+#     def compute_loss(self, data, compute_gradients=False):
+#         # Check if data is already a tensor
+#         if isinstance(data, np.ndarray):
+#             data = torch.tensor(data).float()
+
+#         # Move data on the device
+#         data = data.to(self.device)
+
+#         mu, logvar, output = self.model(data)
+#         recon_loss = self.criterion(output, data)
+#         kl_loss = self.kl_divergence(mu, logvar)
+#         mse_loss = (output - data).pow(2).mean()
+
+#         # Weighted sum of losses
+#         loss = recon_loss + (kl_loss * self.kl_beta) + (mse_loss * self.mse_beta)
+
+#         if compute_gradients:
+#             self.optimizer.zero_grad()
+#             loss.backward()
+#             self.optimizer.step()
+
+#         return loss.item()
+
+#     def train_vae(self, epochs):
+#         for _ in range(epochs):
+#             self.compute_loss(self.df, compute_gradients=True)
+
+#     def vae(self):
+#         device = next(self.model.parameters()).device
+
+#         with torch.no_grad():  # no need to calculate gradients during evaluation
+#             mu, _, decoded = self.model(self.df.to(device))
+#         reduced_data = mu.detach().cpu().numpy()
+#         reconstructed_data = decoded.detach().cpu().numpy()
+#         return reduced_data, reconstructed_data
+
+#     def move_to_cpu(self):
+#         # Move the model to CPU. This method centralizes the logic for device handling
+#         self.model = self.model.to("cpu")
+#         self.df = self.df.to("cpu")
+
+
 class VectorReducer:
     def __init__(
-        self, df, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta, pretrained_model=None
+        self,
+        df=None,
+        learning_rate=None,
+        weight_decay=None,
+        n_layers=None,
+        layer_dim=None,
+        activation=None,
+        kl_beta=None,
+        mse_beta=None,
+        pretrained_model=None
     ):
-
         self.device = get_device()
-        self.df: torch.Tensor = torch.tensor(df).float()
 
-        if pretrained_model is None:
-            self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
-        else:
+        if pretrained_model is not None:
             self.model = pretrained_model.to(self.device)
-        self.criterion = nn.MSELoss()
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        self.kl_beta = kl_beta
-        self.mse_beta = mse_beta
+            self.model.eval()
+
+            self.df = None
+            self.optimizer = None
+            self.kl_beta = None
+            self.mse_beta = None
+
+        else:
+            # Training from scratch
+            self.df = torch.tensor(df).float().to(self.device)
+            self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
+
+            self.kl_beta = kl_beta
+            self.mse_beta = mse_beta
+            self.criterion = nn.MSELoss()
+            self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     def kl_divergence(self, mu, logvar):
         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     def compute_loss(self, data, compute_gradients=False):
-        # Check if data is already a tensor
         if isinstance(data, np.ndarray):
             data = torch.tensor(data).float()
-
-        # Move data on the device
         data = data.to(self.device)
 
         mu, logvar, output = self.model(data)
@@ -82,7 +172,6 @@ class VectorReducer:
         kl_loss = self.kl_divergence(mu, logvar)
         mse_loss = (output - data).pow(2).mean()
 
-        # Weighted sum of losses
         loss = recon_loss + (kl_loss * self.kl_beta) + (mse_loss * self.mse_beta)
 
         if compute_gradients:
@@ -93,19 +182,19 @@ class VectorReducer:
         return loss.item()
 
     def train_vae(self, epochs):
+        if self.df is None:
+            raise ValueError("Training data not available (df is None). Cannot train model.")
         for _ in range(epochs):
             self.compute_loss(self.df, compute_gradients=True)
 
     def vae(self):
-        device = next(self.model.parameters()).device
-
-        with torch.no_grad():  # no need to calculate gradients during evaluation
-            mu, _, decoded = self.model(self.df.to(device))
-        reduced_data = mu.detach().cpu().numpy()
-        reconstructed_data = decoded.detach().cpu().numpy()
-        return reduced_data, reconstructed_data
+        if self.df is None:
+            raise ValueError("Dataset not available (df is None). Cannot compute latent representation.")
+        with torch.no_grad():
+            mu, _, decoded = self.model(self.df.to(self.device))
+        return mu.cpu().numpy(), decoded.cpu().numpy()
 
     def move_to_cpu(self):
-        # Move the model to CPU. This method centralizes the logic for device handling
         self.model = self.model.to("cpu")
-        self.df = self.df.to("cpu")
+        if self.df is not None:
+            self.df = self.df.to("cpu")

@@ -76,7 +76,7 @@ def load_data(filepath, num_entries=None, mask_columns=None):
     return df
 
 
-def train_and_validate(n_epochs, params, original_train, original_test, pretrained_model=None):
+def train_and_validate(n_epochs, params, original_train, original_test):
     try:
         learning_rate = params['learning_rate']
         weight_decay = params['weight_decay']
@@ -96,8 +96,7 @@ def train_and_validate(n_epochs, params, original_train, original_test, pretrain
             layer_dim,
             activation,
             kl_beta,
-            mse_beta,
-            pretrained_model
+            mse_beta
         )
 
         reducer.train_vae(n_epochs)

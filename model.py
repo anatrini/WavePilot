@@ -128,7 +128,7 @@ class VAE(nn.Module):
 class VectorReducer:
     def __init__(
         self,
-        df=None,
+        df,
         learning_rate=None,
         weight_decay=None,
         n_layers=None,
@@ -140,18 +140,18 @@ class VectorReducer:
     ):
         self.device = get_device()
 
+        self.df = torch.tensor(df).float().to(self.device)
+
         if pretrained_model is not None:
             self.model = pretrained_model.to(self.device)
             self.model.eval()
 
-            self.df = None
             self.optimizer = None
             self.kl_beta = None
             self.mse_beta = None
 
         else:
             # Training from scratch
-            self.df = torch.tensor(df).float().to(self.device)
             self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
 
             self.kl_beta = kl_beta

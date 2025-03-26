@@ -9,5 +9,6 @@ data/*
 output/*
 *.RPP
 Backups/*
-multithread_tests/*
+legacy/*
+
 

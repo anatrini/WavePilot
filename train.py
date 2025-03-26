@@ -3,32 +3,31 @@ import asyncio
 import time
 from threading import Thread
 
-import torch
+#import torch
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from pythonosc import udp_client
-from torch import nn
+#from torch import nn
 
+from constants import IP_ADDRESS, IN_PORT, OUT_PORT
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
 from model import VectorReducer
+from serialization import load_model, save_model
 from utils import get_activation_function, get_hyperparams_from_log
 from visualizer import Visualize
 
-IP_ADDRESS = '127.0.0.1'
-IN_PORT = 9108 # receive on
-OUT_PORT = 9109 # send to
 
 
-logging = setup_logger("Main VAE")
+log = setup_logger("Main VAE")
 
 
 def get_arguments():
     parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
 
     # Dataset (Obbligatorio)
-    parser.add_argument("-f", "--filepath", dest="filepath", type=str, required=True, help="Dataset of presets to be reduced.")
+    parser.add_argument("-f", "--filepath", dest="filepath", type=str, help="Dataset of presets to be reduced.")
 
     # Modello pre-addestrato (Opzionale)
     parser.add_argument("-p", "--pretrained-model", dest="pretrained_model", type=str, default=None, help="Pretrained model file.")
@@ -36,27 +35,7 @@ def get_arguments():
     # Sessione di ottimizzazione
     parser.add_argument("-o", "--optimizer-session", dest="optimizer_session", type=str, default=None, help="Log file of a previous optimization session.")
 
-    # Mascheramento dei parametri (Solo se ottimizzazione non è stata fatta)
-    parser.add_argument("-m", "--mask-columns", dest="mask_columns", type=str, nargs="+", default=None, help="List of parameters to be masked (excluded).")
-
-    # Iperparametri principali
-    parser.add_argument("-n", "--num-layers", dest="n_layers", type=int, default=1, help="Number of hidden layers.")
-    parser.add_argument("-l", "--layer-dim", dest="layer_dim", type=int, default=128, help="Size of hidden layers.")
-    parser.add_argument("-a", "--activation", dest="activation_function", type=nn.Module, default=nn.ReLU(), help="Activation function.")
-
-    # Training
-    parser.add_argument("-e", "--epochs", dest="n_epochs", type=int, default=100, help="Number of training epochs.")
-    parser.add_argument("-r", "--learning-rate", dest="learning_rate", type=float, default=1e-2, help="Learning rate.")
-    parser.add_argument("-w", "--weight-decay", dest="weight_decay", type=float, default=1e-4, help="L1/L2 regularization.")
-
-    # Parametri VAE
-    parser.add_argument("-b", "--kl-beta", dest="kl_beta", type=float, default=0.05, help="KL divergence weight.")
-    parser.add_argument("-s", "--mse-beta", dest="mse_beta", type=float, default=0.1, help="MSE loss weight.")
-
-    # Parametri RBF Interpolation
-    parser.add_argument("-k", "--kernel", dest="kernel", type=str, choices=["multiquadric", "inverse_multiquadric", "inverse_quadratic", "gaussian"], default="gaussian", help="Kernel type for RBF interpolation.")
-    parser.add_argument("-x", "--epsilon", dest="epsilon", type=float, default=1.0, help="Epsilon value for RBF kernel.")
-    parser.add_argument("-d", "--degree", dest="degree", type=int, default=None, help="Polynomial degree for RBF.")
+    parser.add_argument("-s", "--save-model-path", dest="save_model_path", help="If set save model to this path after training.")
 
     return parser.parse_args()
 
@@ -74,87 +53,102 @@ def run_flask(app, socketio, reduced_data):
 
 
 async def main():
-
-    start_time = time.time()
-
+    args = get_arguments()
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*")
     osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, OUT_PORT)
 
-    args = get_arguments()
-    filepath = args.filepath
-    pretrained_model = args.pretrained_model
+    start_time = time.time()
 
-    if args.optimizer_session:
-        params = get_hyperparams_from_log(args.optimizer_session)
-        n_layers = params["vae"]["n_layers"]
-        activation = get_activation_function(params["vae"]["activation_function"])
-        n_epochs = params["vae"]["num_epochs"]
-        learning_rate = params["vae"]["learning_rate"]
-        weight_decay = params["vae"]["weight_decay"]
-        layer_dim = params["vae"]["layer_dim"]
-        kl_beta = params["vae"]["kl_beta"]
-        mse_beta = params["vae"]["mse_beta"]
-        smoothing = params["rbf"]["smoothing"]
-        kernel = params["rbf"]["kernel"]
-        epsilon = params["rbf"]["epsilon"]
-        degree = params["rbf"]["degree"]
-    else:
-        n_layers = args.n_layers
-        activation = args.activation_function
-        n_epochs = args.n_epochs
-        learning_rate = args.learning_rate
-        weight_decay = args.weight_decay
-        layer_dim = args.layer_dim
-        kl_beta = args.kl_beta
-        mse_beta = args.mse_beta
-        smoothing = args.smoothing
-        kernel = args.kernel
-        epsilon = args.epsilon
-        degree = args.degree
+    filepath = args.filepath
+    pretrained_model_path = args.pretrained_model
+    optimizer_session = args.optimizer_session
+    save_model_path = args.save_model_path
+
+    # Check combinazioni valide
+    if not filepath:
+        log.error("You must provide a dataset file with --filepath.")
+        return
+    if not (pretrained_model_path or optimizer_session):
+        log.error("You must specify either --pretrained-model or --optimizer-session.")
+        return
+    if pretrained_model_path and optimizer_session:
+        log.error("You must specify only one between --pretrained-model or --optimizer-session.")
+        return
+
+    loader = DataLoader(filepath)
+    original_data = loader.load_presets()
 
     try:
-        loader = DataLoader(filepath)
-        original_data = loader.load_presets()
+        reduced_data = None
+        reconstructed_data = None
 
-        if pretrained_model is not None:
-            pmodel = torch.load(pretrained_model)
+        if pretrained_model_path:
+            # CASE 1: Load pretrained model (.pt), extract params from checkpoint
+            model, vae_params, rbf_params = load_model(pretrained_model_path)
+            reducer = VectorReducer(df=original_data, pretrained_model=model)
+            reduced_data, reconstructed_data = reducer.vae()
+
+        elif optimizer_session:
+            # CASE 2: Train from optimizer log
+            full_params = get_hyperparams_from_log(optimizer_session)
+            vae_params = full_params["vae"]
+            rbf_params = full_params["rbf"]
+
             reducer = VectorReducer(
-                original_data,
-                learning_rate,
-                weight_decay,
-                n_layers,
-                layer_dim,
-                activation,
-                kl_beta,
-                mse_beta,
-                pretrained_model=pmodel,
-            )
-        else:
-            reducer = VectorReducer(
-                original_data, learning_rate, weight_decay, n_layers, layer_dim, activation, kl_beta, mse_beta
+                df=original_data,
+                learning_rate=vae_params["learning_rate"],
+                weight_decay=vae_params["weight_decay"],
+                n_layers=vae_params["n_layers"],
+                layer_dim=vae_params["layer_dim"],
+                activation=get_activation_function(vae_params["activation_function"]),
+                kl_beta=vae_params["kl_beta"],
+                mse_beta=vae_params["mse_beta"],
             )
 
-        reducer.train_vae(n_epochs)
-        reduced_data, reconstructed_data = reducer.vae()
+            reducer.train_vae(vae_params["num_epochs"])
+            reduced_data, reconstructed_data = reducer.vae()
 
-    except FileNotFoundError:
-        logging.error("You must provide at least a dataset!")
+            # Save model if requested
+            if save_model_path:
+                save_model(
+                    model=reducer.model,
+                    vae_params={
+                        "input_dim": original_data.shape[1],
+                        "n_layers": vae_params["n_layers"],
+                        "layer_dim": vae_params["layer_dim"],
+                        "activation_function": vae_params["activation_function"]
+                    },
+                    rbf_params=rbf_params,
+                    filepath=save_model_path
+                )
+
+        # Initialize interpolator with RBF params
+        interpolator = RBFInterpolation(
+            reduced_data,
+            reconstructed_data,
+            rbf_params["smoothing"],
+            rbf_params["kernel"],
+            rbf_params["epsilon"],
+            rbf_params["degree"]
+        )
+
+        visualizer = Visualize(reduced_data, app, socketio)
+
+        elapsed_time = time.time() - start_time
+        log.info("Training and setup completed in %.2f seconds.", elapsed_time)
+
+        flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
+        flask_thread.start()
+
+        await visualizer.run(IP_ADDRESS, IN_PORT, interpolator, osc_client)
+
+    except FileNotFoundError as e:
+        log.error("File not found: %s", e)
         exit(1)
-
-    interpolator = RBFInterpolation(reduced_data, reconstructed_data, smoothing, kernel, epsilon, degree)
-    visualizer = Visualize(reduced_data, app, socketio)
-
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    logging.info(f"Computation time: {elapsed_time} sec.")
-
-    # Start Flask in a separate thread
-    flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
-    flask_thread.start()
-
-    # Run asyncio event loop
-    await visualizer.run(IP_ADDRESS, IN_PORT, interpolator, osc_client)
+    except Exception as e:
+        log.error("Unhandled error: %s", e, exc_info=True)
+        exit(1)
 
 
 if __name__ == "__main__":

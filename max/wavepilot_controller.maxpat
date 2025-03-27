@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 107.0, 87.0, 1192.0, 959.0 ],
+		"rect" : [ 134.0, 100.0, 1192.0, 848.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -657,7 +657,6 @@
 
 					}
 ,
-					"text" : "/cursor : [0.0224456, 0.0356322, -0.040201]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 
@@ -717,8 +716,8 @@
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "FullPacket" ],
-					"patching_rect" : [ 682.0, 46.5, 213.0, 22.0 ],
-					"text" : "o.route /ZIGSIM/00KWhGqPVfKH51Xf"
+					"patching_rect" : [ 682.0, 46.5, 110.0, 22.0 ],
+					"text" : "o.route /PhoneTrini"
 				}
 
 			}
@@ -1108,7 +1107,7 @@
 					"numinlets" : 1,
 					"numoutlets" : 0,
 					"patching_rect" : [ 523.0, 852.0, 135.0, 22.0 ],
-					"text" : "udpsend localhost 9108"
+					"text" : "udpsend localhost 9100"
 				}
 
 			}

@@ -27,7 +27,6 @@ print(f"Using device: {device}")
 
 
 def load_osc_addresses(file_path):
-
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             addresses = json.load(f)
@@ -43,9 +42,7 @@ def load_osc_addresses(file_path):
 
 
 def get_hyperparams_from_log(log_file):
-
     params = {}
-
     try:
         with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -97,6 +94,21 @@ def select_random_entries(input_csv, ouput_csv, n):
 
     df_sample = df.sample(n)
     df_sample.to_csv(ouput_csv, index=False)
+
+
+def remove_duplicate_lines(file_path):
+    """Removes duplicate lines from a log file while preserving order."""
+    seen_lines = set()
+    unique_lines = []
+
+    with open(file_path, "r") as file:
+        for line in file:
+            if line not in seen_lines:
+                seen_lines.add(line)
+                unique_lines.append(line)
+
+    with open(file_path, "w") as file:
+        file.writelines(unique_lines)
 
 
 def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):

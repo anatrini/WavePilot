@@ -2,9 +2,10 @@ import numpy as np
 import torch
 from torch import nn, optim
 
+from constants import LATENT_SPACE_SIZE, TORCH_MANUAL_SEED
 from utils import get_device
 
-torch.manual_seed(42)
+torch.manual_seed(TORCH_MANUAL_SEED)
 
 
 class VAE(nn.Module):
@@ -20,7 +21,7 @@ class VAE(nn.Module):
                 layer_dim = layer_dim // 2
         self.encoder = nn.Sequential(*encoder_layers)
 
-        self.output_dim = 3  # make default
+        self.output_dim = LATENT_SPACE_SIZE
         self.fc_mu = nn.Linear(layer_dims[-1], self.output_dim)
         self.fc_var = nn.Linear(layer_dims[-1], self.output_dim)
 
@@ -32,11 +33,11 @@ class VAE(nn.Module):
             decoder_layers.append(nn.Linear(layer_dims[i], layer_dims[i + 1]))
             decoder_layers.append(activation)
         decoder_layers.append(nn.Linear(layer_dims[-1], input_dim))  # Add a final layer to match the input dimension
-        decoder_layers.append(nn.Sigmoid())  # nn.Sigmoid()
+        decoder_layers.append(nn.Sigmoid())  
         self.decoder = nn.Sequential(*decoder_layers)
 
     def reparametrize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)  # verificare
+        std = torch.exp(0.5 * logvar) 
         eps = torch.randn_like(std)
         return mu + eps * std
 
@@ -47,82 +48,6 @@ class VAE(nn.Module):
         z = self.reparametrize(mu, logvar)
         decoded = self.decoder(z)
         return mu, logvar, decoded
-
-
-# class VectorReducer:
-#     def __init__(
-#         self, 
-#         df, 
-#         learning_rate, 
-#         weight_decay, 
-#         n_layers, 
-#         layer_dim, 
-#         activation, 
-#         kl_beta, 
-#         mse_beta, 
-#         pretrained_model: str = None
-#     ):
-
-#         self.device = get_device()
-#         self.df = torch.tensor(df, dtype=torch.float32)
-
-#         # Initialize the model
-#         self.model = VAE(self.df.shape[1], n_layers, layer_dim, activation).to(self.device)
-      
-#         if pretrained_model is not None:
-#             if not isinstance(pretrained_model, str):
-#                 raise ValueError("Pretrained must be a path to a .pt file or None!")
-#             self.model.load_state_dict(torch.load(pretrained_model, map_location=self.device))
-#             self.model.eval()
-        
-#         self.criterion = nn.MSELoss()
-#         self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-#         self.kl_beta = kl_beta
-#         self.mse_beta = mse_beta
-
-#     def kl_divergence(self, mu, logvar):
-#         return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-
-#     def compute_loss(self, data, compute_gradients=False):
-#         # Check if data is already a tensor
-#         if isinstance(data, np.ndarray):
-#             data = torch.tensor(data).float()
-
-#         # Move data on the device
-#         data = data.to(self.device)
-
-#         mu, logvar, output = self.model(data)
-#         recon_loss = self.criterion(output, data)
-#         kl_loss = self.kl_divergence(mu, logvar)
-#         mse_loss = (output - data).pow(2).mean()
-
-#         # Weighted sum of losses
-#         loss = recon_loss + (kl_loss * self.kl_beta) + (mse_loss * self.mse_beta)
-
-#         if compute_gradients:
-#             self.optimizer.zero_grad()
-#             loss.backward()
-#             self.optimizer.step()
-
-#         return loss.item()
-
-#     def train_vae(self, epochs):
-#         for _ in range(epochs):
-#             self.compute_loss(self.df, compute_gradients=True)
-
-#     def vae(self):
-#         device = next(self.model.parameters()).device
-
-#         with torch.no_grad():  # no need to calculate gradients during evaluation
-#             mu, _, decoded = self.model(self.df.to(device))
-#         reduced_data = mu.detach().cpu().numpy()
-#         reconstructed_data = decoded.detach().cpu().numpy()
-#         return reduced_data, reconstructed_data
-
-#     def move_to_cpu(self):
-#         # Move the model to CPU. This method centralizes the logic for device handling
-#         self.model = self.model.to("cpu")
-#         self.df = self.df.to("cpu")
 
 
 class VectorReducer:

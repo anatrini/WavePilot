@@ -3,11 +3,9 @@ import asyncio
 import time
 from threading import Thread
 
-#import torch
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from pythonosc import udp_client
-#from torch import nn
 
 from constants import IP_ADDRESS, IN_PORT, OUT_PORT
 from data import DataLoader
@@ -26,16 +24,29 @@ log = setup_logger("Main VAE")
 def get_arguments():
     parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
 
-    # Dataset (Obbligatorio)
-    parser.add_argument("-f", "--filepath", dest="filepath", type=str, help="Dataset of presets to be reduced.")
+    parser.add_argument("-f", "--filepath", 
+                        dest="filepath", 
+                        type=str,
+                        required=True, 
+                        help="Dataset of presets to be reduced.")
 
-    # Modello pre-addestrato (Opzionale)
-    parser.add_argument("-p", "--pretrained-model", dest="pretrained_model", type=str, default=None, help="Pretrained model file.")
+    parser.add_argument("-p", "--pretrained-model", 
+                        dest="pretrained_model", 
+                        type=str, 
+                        default=None, 
+                        help="Pretrained model file.")
 
-    # Sessione di ottimizzazione
-    parser.add_argument("-o", "--optimizer-session", dest="optimizer_session", type=str, default=None, help="Log file of a previous optimization session.")
+    parser.add_argument("-o", "--optimizer-session", 
+                        dest="optimizer_session", 
+                        type=str, 
+                        default=None, 
+                        help="Log file of a previous optimization session.")
 
-    parser.add_argument("-s", "--save-model-path", dest="save_model_path", help="If set save model to this path after training.")
+    parser.add_argument("-s", "--save-model-path", 
+                        dest="save_model_path",
+                        type=str,
+                        default=None, 
+                        help="If set save model to this path after training.")
 
     return parser.parse_args()
 

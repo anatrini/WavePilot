@@ -1,10 +1,9 @@
 import argparse
-from decimal import Decimal
 
 import numpy as np
-import pandas as pd
 import plotly.express as px
 
+from constants import DECIMAL_PLACES
 from data import DataLoader
 from logger import setup_logger
 
@@ -14,32 +13,35 @@ logging = setup_logger("Dataset preprocessor")
 def get_arguments():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "-f", "--filepath", dest="filepath", type=str, required=True, help="Input dataset to preprocess."
-    )
+    parser.add_argument("-f", "--filepath", 
+                        dest="filepath", 
+                        type=str, 
+                        required=True, 
+                        help="Input dataset to preprocess.")
 
-    parser.add_argument(
-        "-o", "--output", dest="output", type=str, default="None", help="Output filepath for preprocessed dataset."
-    )
+    parser.add_argument("-o", "--output", 
+                        dest="output", 
+                        type=str, 
+                        default=None, 
+                        help="Output filepath for preprocessed dataset.")
 
-    parser.add_argument(
-        "-c", "--columns_to_drop", dest="columns_to_drop", nargs="*", default=[], help="List of columns to drop."
-    )
+    parser.add_argument("-c", "--columns_to_drop", 
+                        dest="columns_to_drop", 
+                        nargs="*", 
+                        default=[], 
+                        help="List of columns to drop.")
 
-    parser.add_argument(
-        "-d",
-        "--decimal_places",
-        dest="decimal_places",
-        type=int,
-        default=4,
-        help="Number of decimal places to round numerical values.",
-    )
+    parser.add_argument("-d", "--decimal_places",
+                        dest="decimal_places",
+                        type=int,
+                        default=DECIMAL_PLACES,
+                        help="Number of decimal places to round numerical values.")
 
     return parser.parse_args()
 
 
 class DatasetPreprocessor:
-    def __init__(self, df, output=None, columns_to_drop=None, decimal_places=3):
+    def __init__(self, df, output=None, columns_to_drop=None, decimal_places=DECIMAL_PLACES):
         self.df = df
         self.output = output
         self.columns_to_drop = columns_to_drop

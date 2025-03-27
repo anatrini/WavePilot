@@ -79,7 +79,6 @@ async def main():
     args = parse_arguments()
 
     if args.mode == "optimize":
-        # Chiamata diretta senza modifiche al tuo optimize originale
         optimize_main(
             filepath=args.filepath,
             num_entries=args.num_entries,
@@ -88,7 +87,6 @@ async def main():
             mask_columns=args.mask_columns)
 
     elif args.mode == "train":
-        # Chiamata diretta senza modifiche al tuo train originale
         await train_main(
             filepath=args.filepath,
             pretrained_model_path=args.pretrained_model,

@@ -1,5 +1,3 @@
-#import argparse
-import asyncio
 import time
 from threading import Thread
 
@@ -21,36 +19,6 @@ from visualizer import Visualize
 log = setup_logger("VAE and Interpolator")
 
 
-# def get_arguments():
-#     parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
-
-#     parser.add_argument("-f", "--filepath", 
-#                         dest="filepath", 
-#                         type=str,
-#                         required=True, 
-#                         help="Dataset of presets to be reduced.")
-
-#     parser.add_argument("-p", "--pretrained-model", 
-#                         dest="pretrained_model", 
-#                         type=str, 
-#                         default=None, 
-#                         help="Pretrained model file.")
-
-#     parser.add_argument("-o", "--optimizer-session", 
-#                         dest="optimizer_session", 
-#                         type=str, 
-#                         default=None, 
-#                         help="Log file of a previous optimization session.")
-
-#     parser.add_argument("-s", "--save-model-path", 
-#                         dest="save_model_path",
-#                         type=str,
-#                         default=None, 
-#                         help="If set save model to this path after training.")
-
-#     return parser.parse_args()
-
-
 def run_flask(app, socketio, reduced_data):
     @app.route("/")
     def index():
@@ -64,19 +32,14 @@ def run_flask(app, socketio, reduced_data):
 
 
 async def main(filepath, pretrained_model_path, optimizer_session, save_model_path):
-    #args = get_arguments()
+
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*")
     osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, OUT_PORT)
 
     start_time = time.time()
 
-    # filepath = args.filepath
-    # pretrained_model_path = args.pretrained_model
-    # optimizer_session = args.optimizer_session
-    # save_model_path = args.save_model_path
-
-    # Check combinazioni valide
+    # Check valid combinations
     if not filepath:
         log.error("You must provide a dataset file with --filepath.")
         return
@@ -160,7 +123,3 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
     except Exception as e:
         log.error("Unhandled error: %s", e, exc_info=True)
         exit(1)
-
-
-# if __name__ == "__main__":
-#     asyncio.run(main())

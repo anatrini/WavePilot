@@ -10,7 +10,7 @@
 		}
 ,
 		"classnamespace" : "box",
-		"rect" : [ 134.0, 100.0, 1192.0, 848.0 ],
+		"rect" : [ 134.0, 100.0, 800.0, 848.0 ],
 		"bglocked" : 0,
 		"openinpresentation" : 1,
 		"default_fontsize" : 12.0,
@@ -360,7 +360,6 @@
 						"style" : "",
 						"subpatcher_template" : "dark_template",
 						"assistshowspatchername" : 0,
-						"visible" : 1,
 						"boxes" : [ 							{
 								"box" : 								{
 									"comment" : "",
@@ -657,6 +656,7 @@
 
 					}
 ,
+					"text" : "/cursor : [-0.00382451, -0.0169897, 0.0173941]",
 					"textcolor" : [ 1.0, 0.490196, 0.262745, 1.0 ]
 				}
 
@@ -716,8 +716,8 @@
 					"numinlets" : 1,
 					"numoutlets" : 2,
 					"outlettype" : [ "", "FullPacket" ],
-					"patching_rect" : [ 682.0, 46.5, 110.0, 22.0 ],
-					"text" : "o.route /PhoneTrini"
+					"patching_rect" : [ 682.0, 46.5, 155.0, 22.0 ],
+					"text" : "o.route /ZIGSIM/PhoneTrini"
 				}
 
 			}

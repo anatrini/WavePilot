@@ -40,7 +40,7 @@ def parse_arguments():
     optimize_parser.add_argument("-m", "--mask_columns",
                         dest="mask_columns",
                         type=str,
-                        nargs="+",  # Permette di passare una lista di stringhe
+                        nargs="+",  # Allows to pass a list of strings 
                         default=None,
                         help="List of parameter names to be masked (excluded) from the dataset.")
 
@@ -95,6 +95,7 @@ async def main():
 
     else:
         log.error("Invalid mode selected.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -5,7 +5,7 @@ from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from pythonosc import udp_client
 
-from constants import IP_ADDRESS, IN_PORT, OUT_PORT
+from constants import IP_ADDRESS, SEND_PORT, RECEIVE_PORT
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
@@ -35,7 +35,7 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
 
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*")
-    osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, OUT_PORT)
+    osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, RECEIVE_PORT)
 
     start_time = time.time()
 
@@ -115,7 +115,7 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
         flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
         flask_thread.start()
 
-        await visualizer.run(IP_ADDRESS, IN_PORT, interpolator, osc_client)
+        await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
 
     except FileNotFoundError as e:
         log.error("File not found: %s", e)

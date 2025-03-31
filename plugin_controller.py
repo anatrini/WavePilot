@@ -1,37 +1,36 @@
-import argparse
+#import argparse
 import queue
 import threading
 
 from pythonosc import dispatcher, osc_server, udp_client
 
+from constants import RECEIVE_PORT, FORWARD_PORT
 from logger import setup_logger
 from utils import load_osc_addresses
 
 
-def get_arguments():
+# def get_arguments():
 
-    parser = argparse.ArgumentParser()
+#     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-f', '--filepath',
-                        dest='filepath',
-                        type=str,
-                        required=True,
-                        help="Path to the JSON file containing the OSC addresses.")
+#     parser.add_argument("-f", "--filepath",
+#                         dest="filepath",
+#                         type=str,
+#                         required=True,
+#                         help="Path to the JSON file containing the OSC addresses.")
 
-    parser.add_argument(
-        "-r",
-        "--receive_port",
-        dest="receive_port",
-        type=int,
-        default=9109,
-        help="Port to receive OSC messages from external sources.",
-    )
+#     parser.add_argument("-r", "--receive_port",
+#                         dest="receive_port",
+#                         type=int,
+#                         default=9109,
+#                         help="Port to receive OSC messages from external sources.")
 
-    parser.add_argument(
-        "-s", "--send_port", dest="send_port", type=int, default=9110, help="Port to send OSC messages to REAPER."
-    )
+#     parser.add_argument("-s", "--send_port", 
+#                         dest="send_port", 
+#                         type=int, default=9110, 
+#                         help="Port to send OSC messages to REAPER.")
 
-    return parser.parse_args()
+#     return parser.parse_args()
 
 
 logging = setup_logger("OSC Forwarder")
@@ -59,13 +58,13 @@ def receive_osc_params(unused_addr, *args):
     logging.info(f"Received OSC message: {params}")
 
 
-def main():
+def main(filepath):
 
-    args = get_arguments()
+    # args = get_arguments()
 
-    filepath = args.filepath
-    receive_port = args.receive_port
-    send_port = args.send_port
+    # filepath = args.filepath
+    # receive_port = args.receive_port
+    # send_port = args.send_port
 
     # Load OSC addresses from the specified file
     osc_addresses = load_osc_addresses(filepath)
@@ -74,7 +73,7 @@ def main():
         return
 
     # Set up the OSC client to send messages to REAPER
-    client = udp_client.SimpleUDPClient("localhost", send_port)
+    client = udp_client.SimpleUDPClient("localhost", FORWARD_PORT)
 
     # Start the forwarding thread
     forwarding_thread = threading.Thread(
@@ -86,8 +85,8 @@ def main():
     dispatcher_map = dispatcher.Dispatcher()
     dispatcher_map.map("/interpolated_data", receive_osc_params)
 
-    server = osc_server.ThreadingOSCUDPServer(("localhost", receive_port), dispatcher_map)
-    logging.info(f"Receiving OSC messages on port {receive_port}, forwarding to REAPER on port {send_port}")
+    server = osc_server.ThreadingOSCUDPServer(("localhost", RECEIVE_PORT), dispatcher_map)
+    logging.info(f"Receiving OSC messages on port {RECEIVE_PORT}, forwarding to REAPER on port {FORWARD_PORT}")
 
     try:
         server.serve_forever()
@@ -96,8 +95,8 @@ def main():
         server.shutdown()
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
 
 
 ### receive on 9109

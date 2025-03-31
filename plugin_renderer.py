@@ -1,4 +1,5 @@
-import argparse
+# pylint: disable=no-member, unsubscriptable-object
+
 import datetime
 import os
 import random
@@ -9,300 +10,217 @@ import numpy as np
 import pandas as pd
 import reapy
 import sounddevice as sd
+
+from constants import NUM_CHANNELS, SAMPLERATE, BLOCKSIZE, AUTOSAVE_INTERVAL, TARGET_dBFS, DATASET_FOLDER, RENDERED_AUDIO_FOLDER
+from logger import setup_logger
 from reapy import reascript_api as RPR
 from scipy.io.wavfile import write
 
-from logger import setup_logger
-
-AUTOSAVE_INTERVAL = 5
-
-logging = setup_logger("Plugin renderer")
-df = pd.DataFrame()
 
 
-def get_arguments():
-    parser = argparse.ArgumentParser()
+log = setup_logger("Plugin renderer")
 
-    parser.add_argument(
-        "-m",
-        "--mode",
-        dest="value_generation_mode",
-        type=str,
-        default="preset",
-        help="Select preset generation mode. If set to 'preset', iterate through available presets; if set to 'random', generate random values for each parameter. Default: 'preset'.",
-    )
+class DataHandler:
+    """Manages dataframe and CSV operations"""
+    def __init__(self, dataset_name):
+        self.dataset_name = dataset_name
+        self.df = pd.DataFrame()
+        self.counter = 0
+        
+    def add_record(self, record):
+        """Add record with autosave handling"""
+        self.df = pd.concat([self.df, pd.DataFrame([record])], ignore_index=True)
+        self.counter += 1
+        
+        if self.counter % AUTOSAVE_INTERVAL == 0:
+            self._save()
+            self.df = pd.DataFrame()
+            
+    def final_save(self):
+        """Final dataset save"""
+        if not self.df.empty:
+            self._save()
+            
+    def _save(self):
+        """Internal save implementation"""
+        if not os.path.exists(DATASET_FOLDER):
+            os.makedirs(DATASET_FOLDER)
+            
+        filepath = os.path.join(DATASET_FOLDER, "%s.csv" % self.dataset_name)
+        self.df.to_csv(filepath, mode='a', header=not os.path.exists(filepath), index=False)
+    
 
-    parser.add_argument(
-        "-i",
-        "--iterations",
-        dest="no_iterations",
-        type=int,
-        default=1,
-        help="Specify the number of random batches of parameter values to generate. This option is only available when --mode is set to 'random'. Default: 1.",
-    )
-
-    parser.add_argument(
-        "-d",
-        "--device_id",
-        dest="device_id",
-        type=int,
-        default=0,
-        help="Specify Blackhole as the audio input device. Default: 0.",
-    )
-
-    parser.add_argument(
-        "-f",
-        "--folder",
-        dest="folder",
-        type=str,
-        default="d",
-        help="Name of the subfolder to store rendered presets. Default: 'data'",
-    )
-
-    parser.add_argument(
-        "-n",
-        "--dataset_filename",
-        dest="dataset_filename",
-        type=str,
-        default="dataset",
-        help="Set the name of .csv, containing the values of rendered presets. Default: 'dataset'.",
-    )
-
-    parser.add_argument(
-        "-s", "--samplerate", dest="samplerate", type=int, default=48000, help="Set sampling rate. Default: 48000"
-    )
-
-    parser.add_argument(
-        "-b", "--blocksize", dest="blocksize", type=int, default=1024, help="Set blocksize in samples. Default: 1024."
-    )
-
-    parser.add_argument(
-        "-t",
-        "--silence_thresh",
-        dest="silence_thresh",
-        type=float,
-        default=1e-6,
-        help="Adjust the silence threshold to prevent the recording of silent audio files. Default: 1e-6.",
-    )
-
-    args = parser.parse_args()
-
-    try:
-        if args.value_generation_mode not in ["preset", "random"]:
-            raise ValueError("Invalid mode. Mode should be either 'preset' or 'random'.")
-        if args.value_generation_mode == "preset" and args.no_iterations != 1:
-            raise ValueError("Iterations argument is only available if mode is set to 'random'.")
-        if args.value_generation_mode == "random" and args.no_iterations < 1:
-            raise ValueError("The number of parameters batches to be generated must be at least 1.")
-    except ValueError as e:
-        logging.error(str(e))
-        exit(1)
-
-    return args
+def _handle_interrupt(signum, frame, data_handler):
+    log.info("Process interrupted! Saving partial data...")
+    data_handler.final_save()
+    exit(1)
 
 
-class Recorder:
-    def __init__(self, device_id, samplerate, blocksize, silence_thresh, folder):
-        self.device_id = device_id
-        self.samplerate = samplerate
-        self.blocksize = blocksize
-        self.silence_thresh = silence_thresh
+class AudioRecorder:
+    """Handles audio recording operations"""
+    def __init__(self, folder, silence_thresh):
         self.folder = folder
-
+        self.silence_thresh = silence_thresh
         self.stream = None
         self.recording = np.empty((0, 2), dtype=np.float32)
+        self.device_id = self._select_device()
+        
+    def _select_device(self):
+        """Interactive device selection"""
+        devices = sd.query_devices()
+        
+        print("\n=== Available Audio Devices ===")
+        for i, dev in enumerate(devices):
+            print("[%d] %s (Inputs: %d)" % (i, dev["name"], dev["max_input_channels"]))
+            
+        while True:
+            try:
+                choice = int(input("\nEnter device ID: "))
+                if 0 <= choice < len(devices):
+                    if devices[choice]["max_input_channels"] > 0:
+                        log.info("Selected device: %s", devices[choice]["name"])
+                        return choice
+                    print("Error: Device has no inputs!")
+                else:
+                    print("Error: Invalid ID!")
+            except ValueError:
+                print("Error: Numbers only!")
 
-        # create directory and sudirectory if they do not exist
-        self.filepath = os.path.join("audio", self.folder)
-        if not os.path.exists(self.filepath):
-            os.makedirs(self.filepath)
-
-    def callback(self, indata, frames, time, status):
-        self.recording = np.concatenate((self.recording, indata), axis=0)
-
-    def is_silent(self):
-        energy = np.sum(self.recording**2)
-        return energy < self.silence_thresh
-
+    def _is_silent(self):
+        """Check recording energy"""
+        return np.sum(self.recording**2) < self.silence_thresh
+        
     def start_recording(self):
-        logging.info("Recording starts...")
+        """Start audio capture"""
         self.recording = np.empty((0, 2), dtype=np.float32)
         self.stream = sd.InputStream(
-            callback=self.callback,
-            channels=2,
-            samplerate=self.samplerate,
             device=self.device_id,
-            blocksize=self.blocksize,
+            channels=NUM_CHANNELS,
+            samplerate=SAMPLERATE,
+            blocksize=BLOCKSIZE,
+            callback=self._audio_callback
         )
         self.stream.start()
-
+        
     def stop_recording(self):
-        if self.stream is not None:
-            logging.info("Record stops.")
+        """Stop and save recording"""
+        if self.stream:
             self.stream.stop()
             self.stream.close()
             self.stream = None
+            
+        if not self._is_silent():
+            normalized_audio = self._normalize_audio(self.recording)
 
-            if not self.is_silent():
-                # generate a timestamp for filename
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}.wav"
-                full_path = os.path.join(self.filepath, filename)
-                logging.info(f"Writing audio at {full_path}")
-                write(full_path, self.samplerate, self.recording)
+            os.makedirs(os.path.join(RENDERED_AUDIO_FOLDER, self.folder), exist_ok=True)
+            filename = "%s.wav" % datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            full_path = os.path.join(RENDERED_AUDIO_FOLDER, self.folder, filename)
+            write(full_path, SAMPLERATE, normalized_audio)
+            return filename
+        return None
+    
+    def _normalize_audio(self, audio_data):
+        if audio_data.size == 0:
+            return audio_data
+        
+        # Estimate peak value
+        peak = np.max(np.abs(audio_data))
+        if peak == 0:
+            return audio_data # prevent division by 0
+        
+        # Estimate scale factor for target dBFS
+        target_linear = 10 ** (TARGET_dBFS / 20)
+        scale_factor = target_linear / peak
 
-                # return filename for use in main()
-                return filename
-            else:
-                logging.info(f"Silence detected, nothing to save on disk!")
+        # Apply normalization with clipping prevention
+        return np.clip(audio_data * scale_factor, -1.0, 1.0)
+        
+    def _audio_callback(self, indata, frames, time, status):
+        """Sounddevice callback"""
+        self.recording = np.concatenate((self.recording, indata))
 
-        if self.stream is None:
-            logging.info("No active stream to stop.")
+# ======================
+# MAIN FUNCTION (LAST)
+# ======================
 
-
-def save_to_csv(df, name):
-    # create data folder if it does not exist
-    if not os.path.exists("data"):
-        os.makedirs("data")
-
-    # generate a timestamp for file name
-    filepath = f"rendered_presets_{name}.csv"
-
-    # check if file already exists
-    file_exists = os.path.isfile(os.path.join("data", filepath))
-
-    # append dataframe to csv file
-    df.to_csv(os.path.join("data", filepath), mode="a", header=not file_exists, index=False)
-
-
-def signal_handler(sig, frame):
-    global df
-    args = get_arguments()
-
-    logging.info(f"Abort process and save dataframe...")
-    dataset_filename = args.dataset_filename
-
-    save_to_csv(df, dataset_filename)
-    exit(0)
-
-
-signal.signal(signal.SIGINT, signal_handler)
-
-
-def main():
-    args = get_arguments()
-    mode = args.value_generation_mode
-    no_iterations = args.no_iterations
-    device_id = args.device_id
-    folder = args.folder
-    dataset_filename = args.dataset_filename
-    samplerate = args.samplerate
-    blocksize = args.blocksize
-    silence_thresh = args.silence_thresh
-
-    # Link and get current project
+def main(render_mode, 
+        directory, 
+        dataset_filename, 
+        silence_thresh,
+        no_iterations):
+    
+    """Primary entry point for rendering operations"""
+    # Initialize core components
+    data_handler = DataHandler(dataset_filename)
+    recorder = AudioRecorder(directory, silence_thresh)
+    
+    # REAPER connection
     reapy.connect()
     project = reapy.Project()
-
-    # Get track and plugin
     track = project.tracks[0]
     plugin = track.fxs[0]
 
-    # Create an instance of Dataframe and Recorder
-    global df
-    recorder = Recorder(device_id, samplerate, blocksize, silence_thresh, folder)
-
-    # preset mode: use if factory presets are available
-    if mode == "preset":
-        # Get preset no. and set it to 0 to start from there
-        num_presets = plugin.n_presets
-        plugin.preset = 0
-
-        # init an empty dataframe to store the values at each iteration
-        df = pd.DataFrame()
-
-        for i in range(num_presets):
-            print(f"n preset: {i}")
-            plugin.preset = i
-            name = plugin.preset
-
-            # init a dict to store parameters values
-            param_values = {"name": name}
-            logging.info(f"Preset: {name}")
-
-            # get and log all parameters' values for the current preset
-            for j in range(plugin.n_params):
-                param = plugin.params[j]
-                param_value = RPR.TrackFX_GetParam(track.id, plugin.index, j, 0.0, 1.0)
-                param_values[param.name] = param_value[0]
-                logging.info(f"Parameter {j}: {param.name}, Value: {param_value[0]}")  # get only current value
-
-            project.cursor_position = 0
-
-            RPR.CSurf_OnPlay()
-            recorder.start_recording()
-
-            time.sleep(2)
-
-            RPR.CSurf_OnStop()
-            filename = recorder.stop_recording()
-
-            param_values["file"] = filename
-            df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
-
-            if (i + 1) % AUTOSAVE_INTERVAL == 0:
-                save_to_csv(df, dataset_filename)
-                # init an empty dataframe to store a new batch of values once you saved it to a disk
-                df = pd.DataFrame()
-
-        # call save_to_csv to save data if n_iterations is not a multiple of AUTOSAVE_INTERVAL
-        save_to_csv(df, dataset_filename)
-
-    # random mode: use to generate random preset values if factory presets are not available
-    elif mode == "random":
-        # init an empty dataframe to store the values at each iteration
-        df = pd.DataFrame()
-
-        for _ in range(no_iterations):
-            param_values = {}
-
-            for j in range(plugin.n_params):
-                param = plugin.params[j]
-                random_value = random.uniform(0.0, 1.0)
-                RPR.TrackFX_SetParam(track.id, plugin.index, j, random_value)
-                param_values[param.name] = random_value
-                logging.info(f"Parameter {j}: {param.name}, Value: {random_value}")
-
-            project.cursor_position = 0
-
-            RPR.CSurf_OnPlay()
-            recorder.start_recording()
-
-            time.sleep(2)
-
-            RPR.CSurf_OnStop()
-            filename = recorder.stop_recording()
-
-            # if the recording is not silent, add a new row to the df
-            if filename is not None:
-                param_values["name"] = "name_" + filename.replace(".wav", "")
-                param_values["file"] = filename
-                df = pd.concat([df, pd.DataFrame([param_values])], ignore_index=True)
-
-                # autosave each 5 rendered presets
-                if (i + 1) % AUTOSAVE_INTERVAL == 0:
-                    save_to_csv(df, dataset_filename)
-                    # init an empty dataframe to store a new batch of values once you saved it to a disk
-                    df = pd.DataFrame()
-
-        # call save_to_csv to save data if n_iterations is not a multiple of AUTOSAVE_INTERVAL
-        save_to_csv(df, dataset_filename)
-
-
-if __name__ == "__main__":
-    main()
-
-# TODO:
-# 1. use reapy.inside_reaper()
-# 2. make multithread (queue + threading)
-# 3. set time.sleep(1)
+    signal.signal(signal.SIGINT, lambda s, f: _handle_interrupt(s, f, data_handler))
+    
+    try:
+        # Preset mode logic
+        if render_mode == "preset":
+            num_presets = plugin.n_presets
+            for preset_idx in range(num_presets):
+                plugin.preset = preset_idx
+                param_values = {"name": plugin.preset}
+                
+                # Get parameters
+                for param_idx in range(plugin.n_params):
+                    param = plugin.params[param_idx]
+                    value = RPR.TrackFX_GetParam(track.id, plugin.index, param_idx, 0.0, 1.0)[0]
+                    param_values[param.name] = value
+                    log.info("Parameter %d: %s, Value: %s", 
+                            param_idx, param.name, value)
+                
+                # Record audio
+                track.project.cursor_position = 0
+                RPR.CSurf_OnPlay()
+                recorder.start_recording()
+                time.sleep(2)
+                RPR.CSurf_OnStop()
+                filename = recorder.stop_recording()
+                
+                # Save data
+                if filename:
+                    param_values["file"] = filename
+                    data_handler.add_record(param_values)
+        
+        # Random mode logic        
+        else:
+            for _ in range(no_iterations):
+                param_values = {}
+                
+                # Generate parameters
+                for param_idx in range(plugin.n_params):
+                    param = plugin.params[param_idx]
+                    rand_val = random.uniform(0.0, 1.0)
+                    RPR.TrackFX_SetParam(track.id, plugin.index, param_idx, rand_val)
+                    param_values[param.name] = rand_val
+                    log.info("Parameter %d: %s, Value: %s", 
+                            param_idx, param.name, rand_val)
+                
+                # Record audio
+                track.project.cursor_position = 0
+                RPR.CSurf_OnPlay()
+                recorder.start_recording()
+                time.sleep(2)
+                RPR.CSurf_OnStop()
+                filename = recorder.stop_recording()
+                
+                # Save data
+                if filename:
+                    param_values.update({
+                        "name": "random_%s" % filename.replace(".wav", ""),
+                        "file": filename
+                    })
+                    data_handler.add_record(param_values)
+                    
+    finally:
+        data_handler.final_save()
+        recorder.stop_recording()

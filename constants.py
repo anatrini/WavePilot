@@ -1,3 +1,13 @@
+# Renderer params
+NUM_CHANNELS = 2
+SAMPLERATE = 48000
+BLOCKSIZE = 1024
+AUTOSAVE_INTERVAL = 5
+TARGET_dBFS = -3.0
+DATASET_FOLDER = "data"
+RENDERED_AUDIO_FOLDER = "audio"
+
+# Dataset float numbers resolution
 DECIMAL_PLACES = 4
 
 LOG_FOLDER = "./logs"
@@ -96,5 +106,6 @@ N_TRIALS_RBF = 300
 
 # GUI communication params
 IP_ADDRESS = "127.0.0.1"
-IN_PORT = 9100
-OUT_PORT = 9101
+SEND_PORT = 9100
+RECEIVE_PORT = 9101
+FORWARD_PORT = 9110

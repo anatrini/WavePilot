@@ -9,30 +9,6 @@ from logger import setup_logger
 from utils import load_osc_addresses
 
 
-# def get_arguments():
-
-#     parser = argparse.ArgumentParser()
-
-#     parser.add_argument("-f", "--filepath",
-#                         dest="filepath",
-#                         type=str,
-#                         required=True,
-#                         help="Path to the JSON file containing the OSC addresses.")
-
-#     parser.add_argument("-r", "--receive_port",
-#                         dest="receive_port",
-#                         type=int,
-#                         default=9109,
-#                         help="Port to receive OSC messages from external sources.")
-
-#     parser.add_argument("-s", "--send_port", 
-#                         dest="send_port", 
-#                         type=int, default=9110, 
-#                         help="Port to send OSC messages to REAPER.")
-
-#     return parser.parse_args()
-
-
 logging = setup_logger("OSC Forwarder")
 data_queue = queue.Queue()
 
@@ -59,12 +35,6 @@ def receive_osc_params(unused_addr, *args):
 
 
 def main(filepath):
-
-    # args = get_arguments()
-
-    # filepath = args.filepath
-    # receive_port = args.receive_port
-    # send_port = args.send_port
 
     # Load OSC addresses from the specified file
     osc_addresses = load_osc_addresses(filepath)
@@ -93,10 +63,6 @@ def main(filepath):
     except KeyboardInterrupt:
         logging.info("Shutting down server.")
         server.shutdown()
-
-
-# if __name__ == "__main__":
-#     main()
 
 
 ### receive on 9109

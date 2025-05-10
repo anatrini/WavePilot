@@ -1,4 +1,3 @@
-import argparse
 import optuna
 from multiprocessing import cpu_count
 
@@ -20,43 +19,6 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 log = setup_logger('OptimizationLogger', file=True)
 log_progress = setup_logger('ProgressLogger', file=False)
-
-
-def get_arguments():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-f', '--filepath',
-                        dest='filepath',
-                        type=str,
-                        required=True,
-                        help='Dataset of the presets to be reduced.')
-
-    parser.add_argument('-n', '--num_entries',
-                        dest='num_entries',
-                        type=int,
-                        default=None,
-                        help='Number of random entries to select from the dataset.')
-
-    parser.add_argument('-d', '--disable_split',
-                        dest='disable_split',
-                        action='store_false',
-                        help='Disable train/test split and use the entire dataset for both training and validation. Default split enabled.')
-    
-    parser.add_argument('-t', '--test_size',
-                        dest='test_size',
-                        type=float,
-                        default=0.2,
-                        help='Train test split size, only available if -d flag is not provided. Default size 0.2.')
-    
-    parser.add_argument('-m', '--mask_columns',
-                        dest='mask_columns',
-                        type=str,
-                        nargs='+',  # Permette di passare una lista di stringhe
-                        default=None,
-                        help='List of parameter names to be masked (excluded) from the dataset.')
-
-    return parser.parse_args()
-
 
 
 # Load data
@@ -255,16 +217,10 @@ def run_training(best_params_train, df_train):
     return reducer_train.vae()
 
 
-def main():
-
-    args = get_arguments()
-    filepath = args.filepath
-    num_entries = args.num_entries
-    test_size = args.test_size
-    mask_columns = args.mask_columns
+def main(filepath, num_entries, test_size, disable_split, mask_columns):
 
     df = load_data(filepath, num_entries, mask_columns)
-    df_train, df_test = train_test_split(df, test_size=test_size, random_state=TRAIN_TEST_SPLIT_RANDOM_SEED) if args.disable_split else (df, df)
+    df_train, df_test = train_test_split(df, test_size=test_size, random_state=TRAIN_TEST_SPLIT_RANDOM_SEED) if disable_split else (df, df)
 
     optimizer = Optimizer(df_train, df_test)
 
@@ -278,7 +234,3 @@ def main():
 
     log.info("Best VAE Parameters: %s | Validation error: %.10f", best_vae_params, optimizer.study_vae.best_value)
     log.info("Best RBF Parameters: %s | Validation distance: %.10f", best_rbf_params, optimizer.study_rbf.best_value)
-
-if __name__ == "__main__":
-    main()
-

@@ -1,15 +1,11 @@
-import argparse
-import asyncio
 import time
 from threading import Thread
 
-#import torch
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from pythonosc import udp_client
-#from torch import nn
 
-from constants import IP_ADDRESS, IN_PORT, OUT_PORT
+from constants import IP_ADDRESS, SEND_PORT, RECEIVE_PORT
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
@@ -20,24 +16,7 @@ from visualizer import Visualize
 
 
 
-log = setup_logger("Main VAE")
-
-
-def get_arguments():
-    parser = argparse.ArgumentParser(description="Train a Variational Autoencoder (VAE) for preset reduction.")
-
-    # Dataset (Obbligatorio)
-    parser.add_argument("-f", "--filepath", dest="filepath", type=str, help="Dataset of presets to be reduced.")
-
-    # Modello pre-addestrato (Opzionale)
-    parser.add_argument("-p", "--pretrained-model", dest="pretrained_model", type=str, default=None, help="Pretrained model file.")
-
-    # Sessione di ottimizzazione
-    parser.add_argument("-o", "--optimizer-session", dest="optimizer_session", type=str, default=None, help="Log file of a previous optimization session.")
-
-    parser.add_argument("-s", "--save-model-path", dest="save_model_path", help="If set save model to this path after training.")
-
-    return parser.parse_args()
+log = setup_logger("VAE and Interpolator")
 
 
 def run_flask(app, socketio, reduced_data):
@@ -52,20 +31,15 @@ def run_flask(app, socketio, reduced_data):
     socketio.run(app)
 
 
-async def main():
-    args = get_arguments()
+async def main(filepath, pretrained_model_path, optimizer_session, save_model_path):
+
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*")
-    osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, OUT_PORT)
+    osc_client = udp_client.SimpleUDPClient(IP_ADDRESS, RECEIVE_PORT)
 
     start_time = time.time()
 
-    filepath = args.filepath
-    pretrained_model_path = args.pretrained_model
-    optimizer_session = args.optimizer_session
-    save_model_path = args.save_model_path
-
-    # Check combinazioni valide
+    # Check valid combinations
     if not filepath:
         log.error("You must provide a dataset file with --filepath.")
         return
@@ -141,7 +115,7 @@ async def main():
         flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
         flask_thread.start()
 
-        await visualizer.run(IP_ADDRESS, IN_PORT, interpolator, osc_client)
+        await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
 
     except FileNotFoundError as e:
         log.error("File not found: %s", e)
@@ -149,7 +123,3 @@ async def main():
     except Exception as e:
         log.error("Unhandled error: %s", e, exc_info=True)
         exit(1)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

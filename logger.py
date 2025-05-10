@@ -1,11 +1,13 @@
 import logging
 import os
 import time
+
+from constants import LOG_FOLDER
 from logging.handlers import QueueHandler
 
 
 def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
-    folder_path = "logs/"
+    folder_path = LOG_FOLDER
 
     try:
         if not os.path.exists(folder_path):

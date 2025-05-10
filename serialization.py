@@ -32,12 +32,12 @@ def load_model(filepath):
     vae_params = params["vae"]
     rbf_params = params["rbf"]
 
-    activation = get_activation_function(vae_params["activation_function"])
+    activation_function = get_activation_function(vae_params["activation_function"])
     model = VAE(
         input_dim=vae_params["input_dim"],
         n_layers=vae_params["n_layers"],
         layer_dim=vae_params["layer_dim"],
-        activation=activation
+        activation=activation_function
     )
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()

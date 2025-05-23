@@ -24,7 +24,7 @@ class DataLoader:
         self.filepath = filepath
         self.mask_columns = set(mask_columns) if mask_columns else None
 
-    def load_presets(self):
+    def load_presets(self, return_type='np'):
         """
         Load the dataset from a CSV file, remove non-numeric columns,
         columns with all NaN values, and the 'ID' column;
@@ -44,9 +44,14 @@ class DataLoader:
             logging.info('Dataset loaded with shape %s', df.shape)
 
             df = self._preprocess_dataframe(df)
-
             logging.info("Final dataset shape after preprocessing: %s", df.shape)
-            return df.to_numpy(dtype=np.float32)
+
+            if return_type == 'np':
+                return df.to_numpy(dtype=np.float32)
+            elif return_type == 'df':
+                return df
+            else:
+                raise ValueError("Return type must be 'np' for numpy or 'df' for pandas dataframe!")
 
         except Exception as e:
             raise ValueError("Error loading file: %s", e)

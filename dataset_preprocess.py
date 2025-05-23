@@ -6,6 +6,7 @@ import plotly.express as px
 from constants import DECIMAL_PLACES
 from data import DataLoader
 from logger import setup_logger
+from sklearn.decomposition import PCA
 
 logging = setup_logger("Dataset preprocessor")
 
@@ -73,6 +74,63 @@ class DatasetPreprocessor:
             logging.info(f"Constant columns found: {constant_columns}")
         else:
             logging.info("No constant columns found.")
+
+    def identify_low_variance_features(self, threshold=0.01):
+        variances = self.df.var()
+        low_variance = variances[variances < threshold].index.tolist()
+        logging.info(f"Low-variance features (threshold={threshold}): {low_variance}")
+        return low_variance
+    
+    def find_highly_correlated_features(self, threshold=0.95):
+        corr_matrix = self.df.corr().abs()
+        # Crea una maschera triangolare superiore (k=1 per escludere la diagonale)
+        mask = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
+        upper = corr_matrix.where(mask)  # Applica la maschera
+        # Trova colonne con almeno un valore sopra la soglia
+        correlated = [col for col in upper.columns if any(upper[col] > threshold)]
+        logging.info(f"Highly correlated features (threshold={threshold}): {correlated}")
+        return correlated
+    
+
+
+    def perform_pca_analysis(self, n_components=None, variance_threshold=0.95):
+        """
+        Analisi PCA per identificare ridondanze e dimensione intrinseca dei dati.
+    
+        :param n_components: Numero di componenti da visualizzare (default: None)
+        :param variance_threshold: Soglia di varianza cumulativa (default: 0.95)
+        """
+        # Seleziona solo colonne numeriche
+        numeric_data = self.df.select_dtypes(include='number')
+    
+        # Calcola tutte le componenti se non specificato
+        if n_components is None:
+            n_components = min(numeric_data.shape[1], 20)
+    
+        # Inizializza e addestra la PCA
+        pca = PCA(n_components=n_components)
+        pca.fit(numeric_data)
+    
+        # Calcola la varianza cumulativa
+        cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
+    
+        # Plot varianza cumulativa
+        fig = px.line(
+            x=range(1, n_components + 1),
+            y=cumulative_variance,
+            title=f"Varianza Spiegata (soglia {variance_threshold*100}%)",
+            labels={'x': 'Componenti', 'y': 'Varianza Cumulativa'}
+        )
+        fig.add_hline(y=variance_threshold, line_dash="dash", line_color="red")
+        fig.show()
+    
+        # Verifica se la soglia è raggiungibile
+        if np.max(cumulative_variance) < variance_threshold:
+            n_components_for_threshold = "Soglia non raggiunta"
+        else:
+            n_components_for_threshold = np.argmax(cumulative_variance >= variance_threshold) + 1
+            logging.info(f"Componenti necessarie per {variance_threshold*100}% varianza: {n_components_for_threshold}")
+
 
     def generate_correlation_heatmap(self):
         numeric_columns = self.df.select_dtypes(include="number").columns
@@ -167,6 +225,11 @@ class DatasetPreprocessor:
         self.round_decimals()
         self.drop_duplicates()
         self.check_constant_columns()
+
+        self.identify_low_variance_features()
+        self.find_highly_correlated_features()
+        self.perform_pca_analysis()
+
         self.generate_correlation_heatmap()
         self.generate_boxplot()
         self.generate_variance_plot()
@@ -181,7 +244,7 @@ def main():
     decimal_places = args.decimal_places
 
     loader = DataLoader(filepath)
-    df = loader.load_presets()
+    df = loader.load_presets(return_type='df')
     logging.info(df.head())
 
     preprocessor = DatasetPreprocessor(

@@ -11,7 +11,7 @@ import pandas as pd
 import reapy
 import sounddevice as sd
 
-from constants import NUM_CHANNELS, SAMPLERATE, BLOCKSIZE, AUTOSAVE_INTERVAL, TARGET_dBFS, DATASET_FOLDER, RENDERED_AUDIO_FOLDER
+from constants import NUM_CHANNELS, SAMPLERATE, BLOCKSIZE, AUTOSAVE_INTERVAL, TARGET_dBFS, DATASET_FOLDER, RENDERED_AUDIO_FOLDER, RECORDING_LENGTH
 from logger import setup_logger
 from reapy import reascript_api as RPR
 from scipy.io.wavfile import write
@@ -182,7 +182,7 @@ def main(render_mode,
                 track.project.cursor_position = 0
                 RPR.CSurf_OnPlay()
                 recorder.start_recording()
-                time.sleep(2)
+                time.sleep(RECORDING_LENGTH)
                 RPR.CSurf_OnStop()
                 filename = recorder.stop_recording()
                 
@@ -209,7 +209,7 @@ def main(render_mode,
                 track.project.cursor_position = 0
                 RPR.CSurf_OnPlay()
                 recorder.start_recording()
-                time.sleep(2)
+                time.sleep(RECORDING_LENGTH)
                 RPR.CSurf_OnStop()
                 filename = recorder.stop_recording()
                 

@@ -6,6 +6,7 @@ AUTOSAVE_INTERVAL = 5
 TARGET_dBFS = -3.0
 DATASET_FOLDER = "data"
 RENDERED_AUDIO_FOLDER = "audio"
+RECORDING_LENGTH = 2 # recording length in seconds
 
 # Dataset float numbers resolution
 DECIMAL_PLACES = 4

@@ -8,11 +8,11 @@ DATASET_FOLDER = "data"
 RENDERED_AUDIO_FOLDER = "audio"
 RECORDING_LENGTH = 2 # recording length in seconds
 
-# Dataset float numbers resolution
+# Preprocess settings
 DECIMAL_PLACES = 5
-
-# Variance threshold for preprocessing PCA
-VARIANCE_THRESHOLD = 0.95
+LOW_VARIANCE_THRESHOLD = 0.01
+CORRELATION_THRESHOLD = 0.95
+PCA_VARIANCE_THRESHOLD = 0.95
 
 LOG_FOLDER = "./logs"
 

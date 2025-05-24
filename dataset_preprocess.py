@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import plotly.express as px
 
-from constants import DECIMAL_PLACES, VARIANCE_THRESHOLD
+from constants import DECIMAL_PLACES, LOW_VARIANCE_THRESHOLD, CORRELATION_THRESHOLD, PCA_VARIANCE_THRESHOLD
 from data import DataLoader
 from logger import setup_logger
 from sklearn.decomposition import PCA
@@ -60,7 +60,6 @@ class DatasetPreprocessor:
             logging.info(f"Rounding decimals to {self.decimal_places} places...")
             # Detect if normalization is needed
             self.df = np.round(self.df, decimals=self.decimal_places)
-
         else:
             logging.info("No rounding specified. Skipping this step.")
 
@@ -75,13 +74,13 @@ class DatasetPreprocessor:
         else:
             logging.info("No constant columns found.")
 
-    def identify_low_variance_features(self, threshold=0.01):
+    def identify_low_variance_features(self, threshold=LOW_VARIANCE_THRESHOLD):
         variances = self.df.var()
         low_variance = variances[variances < threshold].index.tolist()
         logging.info(f"Low-variance features (threshold={threshold}): {low_variance}")
         return low_variance
     
-    def find_highly_correlated_features(self, threshold=0.95):
+    def find_highly_correlated_features(self, threshold=CORRELATION_THRESHOLD):
         corr_matrix = self.df.corr().abs()
         # Crea una maschera triangolare superiore (k=1 per escludere la diagonale)
         mask = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
@@ -91,7 +90,7 @@ class DatasetPreprocessor:
         logging.info(f"Highly correlated features (threshold={threshold}): {correlated}")
         return correlated
     
-    def perform_pca_analysis(self, n_components=None, variance_threshold=VARIANCE_THRESHOLD):
+    def perform_pca_analysis(self, n_components=None, variance_threshold=PCA_VARIANCE_THRESHOLD):
         """
         Perform PCA analysis to identify feature redundancy and intrinsic dataset dimensionality.
     
@@ -213,7 +212,7 @@ class DatasetPreprocessor:
     def save_dataset(self):
         if self.output:
             logging.info("Saving preprocessed dataset to {self.output}...")
-            self.df.to_csv(self.output, index=False, float_format="%.4f")
+            self.df.to_csv(self.output, index=False, float_format="%.5f")
         else:
             logging.info("No output file specified. Skipping save.")
 

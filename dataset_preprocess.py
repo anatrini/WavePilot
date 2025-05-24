@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import plotly.express as px
 
-from constants import DECIMAL_PLACES
+from constants import DECIMAL_PLACES, VARIANCE_THRESHOLD
 from data import DataLoader
 from logger import setup_logger
 from sklearn.decomposition import PCA
@@ -91,46 +91,43 @@ class DatasetPreprocessor:
         logging.info(f"Highly correlated features (threshold={threshold}): {correlated}")
         return correlated
     
-
-
-    def perform_pca_analysis(self, n_components=None, variance_threshold=0.95):
+    def perform_pca_analysis(self, n_components=None, variance_threshold=VARIANCE_THRESHOLD):
         """
-        Analisi PCA per identificare ridondanze e dimensione intrinseca dei dati.
+        Perform PCA analysis to identify feature redundancy and intrinsic dataset dimensionality.
     
-        :param n_components: Numero di componenti da visualizzare (default: None)
-        :param variance_threshold: Soglia di varianza cumulativa (default: 0.95)
+        :param n_components: Number of principal components to analyze (default: None)
+        :param variance_threshold: Cumulative explained variance threshold (default: 0.95)
         """
-        # Seleziona solo colonne numeriche
+        # Select numerical columns only
         numeric_data = self.df.select_dtypes(include='number')
     
-        # Calcola tutte le componenti se non specificato
+        # Auto-detect component count if not specified
         if n_components is None:
-            n_components = min(numeric_data.shape[1], 20)
+            n_components = numeric_data.shape[1]
     
-        # Inizializza e addestra la PCA
+        # Initialize and train PCA
         pca = PCA(n_components=n_components)
         pca.fit(numeric_data)
     
-        # Calcola la varianza cumulativa
+        # Calculate cumulative explained variance
         cumulative_variance = np.cumsum(pca.explained_variance_ratio_)
     
-        # Plot varianza cumulativa
+        # Create variance plot
         fig = px.line(
             x=range(1, n_components + 1),
             y=cumulative_variance,
-            title=f"Varianza Spiegata (soglia {variance_threshold*100}%)",
-            labels={'x': 'Componenti', 'y': 'Varianza Cumulativa'}
+            title=f"Explained Variance (Threshold: {variance_threshold*100}%)",
+            labels={'x': 'Principal Components', 'y': 'Cumulative Variance'}
         )
         fig.add_hline(y=variance_threshold, line_dash="dash", line_color="red")
         fig.show()
     
-        # Verifica se la soglia è raggiungibile
+        # Check threshold achievability
         if np.max(cumulative_variance) < variance_threshold:
-            n_components_for_threshold = "Soglia non raggiunta"
+            n_components_for_threshold = "Threshold not reached!"
         else:
             n_components_for_threshold = np.argmax(cumulative_variance >= variance_threshold) + 1
-            logging.info(f"Componenti necessarie per {variance_threshold*100}% varianza: {n_components_for_threshold}")
-
+            logging.info(f"Components required for {variance_threshold*100}% variance: {n_components_for_threshold}")
 
     def generate_correlation_heatmap(self):
         numeric_columns = self.df.select_dtypes(include="number").columns
@@ -234,6 +231,7 @@ class DatasetPreprocessor:
         self.generate_boxplot()
         self.generate_variance_plot()
         self.save_dataset()
+
 
 
 def main():

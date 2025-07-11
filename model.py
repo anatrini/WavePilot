@@ -3,10 +3,10 @@ import torch
 from torch import nn, optim
 from functools import partial
 
-from constants import TORCH_MANUAL_SEED, LOSS_EPSILON
-from utils import get_device
+from constants import LOSS_EPSILON, GLOBAL_SEED
+from utils import get_device, set_global_seeds
 
-torch.manual_seed(TORCH_MANUAL_SEED)
+set_global_seeds(GLOBAL_SEED)
 
 
 class VAE(nn.Module):
@@ -53,7 +53,7 @@ class VAE(nn.Module):
         decoder_layers.append(nn.Sigmoid())  
         self.decoder = nn.Sequential(*decoder_layers)
 
-        # Init weights
+        # Init weights for deterministic reproducibility
         self.apply(self._init_weights)
 
 

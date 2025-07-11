@@ -2,28 +2,33 @@ from multiprocessing import cpu_count
 
 import numpy as np
 import optuna
+from optuna.samplers import TPESampler
+from optuna.storages import RDBStorage
+
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import mahalanobis
-#from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from constants import (
-    ENTRY_SELECTION_RANDOM_SEED,
     N_TRIALS_RBF,
     N_TRIALS_VAE,
-    OPTUNA_RANDOM_SEED,
+    GLOBAL_SEED,
     RBF_FIXED_EPSILON_KERNELS,
     RBF_MIN_DEGREE,
     RBF_PARAM_RANGES,
     VAE_PARAM_RANGES,
 )
+
 from data import DataLoader
 from dispatcher import SUGGEST_DISPATCH
 from logger import setup_logger
 from model import VectorReducer
-from utils import get_activation_function
+from utils import get_activation_function, set_global_seeds
 
 
+
+
+set_global_seeds(GLOBAL_SEED)
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -37,7 +42,7 @@ def load_data(filepath, num_entries=None, mask_columns=None):
     df = loader.load_presets()
 
     if num_entries:
-        np.random.seed(ENTRY_SELECTION_RANDOM_SEED)
+        #np.random.seed(ENTRY_SELECTION_RANDOM_SEED)
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
 
@@ -187,8 +192,6 @@ class Optimizer:
     # There's no train test split
     # Model performance are evaluated on the entire dataset
     def __init__(self, df):
-        #self.df_train = df_train
-        #self.df_test = df_test
         self.df = df
         self.study_vae = None
         self.study_rbf = None
@@ -210,9 +213,38 @@ class Optimizer:
 
 
     def optimize_vae(self, n_trials=N_TRIALS_VAE):
+        # Config a reproducible sampler
+        sampler = TPESampler(
+            seed=GLOBAL_SEED,
+            n_startup_trials=10,
+            consider_prior=True,
+            prior_weight=1.0
+        )
+
+        # Set storage
+        storage = RDBStorage(
+            url="sqlite:///wavepilot_vae.db",
+            engine_kwargs={"connect_args": {"timeout": 30}}
+            )
+
+        self.study_vae = optuna.create_study(
+            direction="minimize", 
+            sampler=sampler,
+            storage=storage,
+            study_name="wavepilot_vae_study",
+            load_if_exists=True
+            )
+
+        # Setup progress callback
         pbar = TQDMProgressBar(n_trials)
-        self.study_vae = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=OPTUNA_RANDOM_SEED))
-        self.study_vae.optimize(self.objective_vae, n_trials=n_trials, n_jobs=cpu_count(), callbacks=[pbar])
+
+        # Execute optimization
+        self.study_vae.optimize(
+            self.objective_vae, 
+            n_trials=n_trials, 
+            n_jobs=cpu_count(), 
+            callbacks=[pbar],
+            show_progress_bar=True)
 
         best_params = self.study_vae.best_params
         return best_params
@@ -236,13 +268,36 @@ class Optimizer:
         return validation_distance
 
     def optimize_rbf(self, original_data, reduced_data, n_trials=N_TRIALS_RBF):
+
+        sampler = TPESampler(
+            seed=GLOBAL_SEED,
+            n_startup_trials=5,
+            consider_prior=True,
+            prior_weight=1.0
+        )
+
+        storage = RDBStorage(
+            url="sqlite:///wavepilot_rbf.db",
+            engine_kwargs={"connect_args": {"timeout": 30}}
+        )
+
+        self.study_rbf = optuna.create_study(
+            direction="minimize", 
+            sampler=sampler,
+            storage=storage,
+            study_name="wavepilot_rbf_study",
+            load_if_exists=True
+            )
+
         pbar = TQDMProgressBar(n_trials)
-        self.study_rbf = optuna.create_study(direction="minimize", sampler=optuna.samplers.TPESampler(seed=OPTUNA_RANDOM_SEED))
+
         self.study_rbf.optimize(
             lambda trial: self.objective_rbf(trial, original_data, reduced_data),
             n_trials=n_trials,
             n_jobs=cpu_count(),
-            callbacks=[pbar])
+            callbacks=[pbar],
+            show_progress_bar=True
+            )
 
         best_params = self.study_rbf.best_params
         return best_params

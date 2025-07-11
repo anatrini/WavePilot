@@ -16,13 +16,11 @@ PCA_VARIANCE_THRESHOLD = 0.95
 
 LOG_FOLDER = "./logs"
 
-LATENT_SPACE_SIZE = 3 # overwritten by latent_dim
-TORCH_MANUAL_SEED = 12
+#LATENT_SPACE_SIZE = 3 # overwritten by latent_dim
+#TORCH_MANUAL_SEED = 12
 
 # Random seeds for reproducibility
-OPTUNA_RANDOM_SEED = 56
-ENTRY_SELECTION_RANDOM_SEED = 297
-#TRAIN_TEST_SPLIT_RANDOM_SEED = 42
+GLOBAL_SEED = 56
 
 # VAE parameter ranges, structured by type
 LOSS_EPSILON = 1e-08 # to prevent numerical instability

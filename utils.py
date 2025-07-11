@@ -1,5 +1,7 @@
 import ast
 import json
+import os
+import random
 
 import numpy as np
 import pandas as pd
@@ -24,6 +26,21 @@ def get_device() -> torch.device:
 
 device = get_device()
 print(f"Using device: {device}")
+
+def set_global_seeds(seed):
+    # Set all seeds to ensure reproducibility
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+    torch.use_deterministic_algorithms(True)
 
 
 def load_osc_addresses(file_path):

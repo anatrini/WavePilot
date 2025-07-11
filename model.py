@@ -37,7 +37,6 @@ class VAE(nn.Module):
         # Similar for the decoder, but in reverse
         decoder_layers = []
         layer_dims.reverse()  # Reverse the layer dimensions
-        #layer_dims = [self.output_dim] + layer_dims[:-1]
         layer_dims = [latent_dim] + layer_dims[:-1]
 
         for i in range(n_layers):
@@ -80,7 +79,7 @@ class VAE(nn.Module):
                 nn.init.zeros_(module.bias)
 
     def reparametrize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar) 
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
@@ -123,12 +122,11 @@ class VectorReducer:
 
         else:
             # Training from scratch
-
             self.model = VAE(
-                input_dim=self.df.shape[1], 
+                input_dim=self.df.shape[1],
                 latent_dim=latent_dim,
-                n_layers=n_layers, 
-                layer_dim=layer_dim, 
+                n_layers=n_layers,
+                layer_dim=layer_dim,
                 activation=activation,
                 dropout_rate=dropout_rate
                 ).to(self.device)
@@ -139,13 +137,10 @@ class VectorReducer:
             self.annealing_epochs = annealing_epochs
             self.criterion = nn.MSELoss()
             self.optimizer = optim.Adam(
-                self.model.parameters(), 
+                self.model.parameters(),
                 lr=learning_rate, 
                 weight_decay=weight_decay
                 )
-
-    #def kl_divergence(self, mu, logvar):
-    #    return -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     def compute_loss(self, data, epoch, compute_gradients=False):
         if isinstance(data, np.ndarray):
@@ -162,9 +157,6 @@ class VectorReducer:
         kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
         kl_per_sample = torch.sum(kl_per_dim, dim=1)
         kl_loss = torch.mean(torch.clamp(kl_per_sample, min=self.kl_threshold))
-        # kl_loss = self.kl_divergence(mu, logvar)
-        # mse_loss = (output - data).pow(2).mean()
-        # loss = recon_loss + (kl_loss * self.kl_beta) + (mse_loss * self.mse_beta)
 
         # KL annealing
         if epoch < self.annealing_epochs:

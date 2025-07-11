@@ -46,9 +46,6 @@ def load_data(filepath, num_entries=None, mask_columns=None):
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
 
-        #original_df = pd.DataFrame(df)
-        #original_df.to_csv('./data_original.csv', index=True)
-
         log_progress.info("Randomly selected %d entries from the dataset", num_entries)
         log_progress.info("Selected indices from dataset: %s", selected_idx)
     else:
@@ -228,7 +225,7 @@ class Optimizer:
             )
 
         self.study_vae = optuna.create_study(
-            direction="minimize", 
+            direction="minimize",
             sampler=sampler,
             storage=storage,
             study_name="wavepilot_vae_study",

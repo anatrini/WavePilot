@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torch import nn, optim
+from functools import partial
 
 from constants import TORCH_MANUAL_SEED, LOSS_EPSILON
 from utils import get_device
@@ -57,8 +58,24 @@ class VAE(nn.Module):
 
 
     def _init_weights(self, module):
+        activation_strategies = {
+            nn.ELU: partial(nn.init.kaiming_normal_, nonlinearity='relu'),
+            nn.GELU: partial(nn.init.kaiming_normal_, nonlinearity='relu'),
+            nn.LeakyReLU: partial(nn.init.kaiming_normal_, nonlinearity='leaky_relu', a=0.01),
+            nn.Sigmoid: partial(nn.init.xavier_normal_, gain=nn.init.calculate_gain('sigmoid'))
+        }
+
         if isinstance(module, nn.Linear):
-            nn.init.kaiming_normal_(module.weight)
+            activation_fn = None
+            next_layers = list(module.children())
+            if next_layers and isinstance(next_layers[0], tuple(activation_strategies.keys())):
+                activation_fn = type(next_layers[0])
+            
+            if activation_fn in activation_strategies:
+                activation_strategies[activation_fn](module.weight)
+            else:
+                nn.init.xavier_normal_(module.weight)
+
             if module.bias is not None:
                 nn.init.zeros_(module.bias)
 

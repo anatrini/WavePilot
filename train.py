@@ -77,7 +77,11 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
                 layer_dim=vae_params["layer_dim"],
                 activation=get_activation_function(vae_params["activation_function"]),
                 kl_beta=vae_params["kl_beta"],
-                mse_beta=vae_params["mse_beta"],
+                recon_alpha=vae_params["recon_alpha"],
+                dropout_rate=vae_params["dropout_rate"],
+                latent_dim=vae_params["latent_dim"],
+                kl_threshold=vae_params["kl_threshold"],
+                annealing_epochs=vae_params["annealing_epochs"]
             )
 
             reducer.train_vae(vae_params["num_epochs"])

@@ -3,7 +3,7 @@ NUM_CHANNELS = 2
 SAMPLERATE = 48000
 BLOCKSIZE = 1024
 AUTOSAVE_INTERVAL = 5
-TARGET_dBFS = -3.0
+TARGET_DBFS = -3.0
 DATASET_FOLDER = "data"
 RENDERED_AUDIO_FOLDER = "audio"
 RECORDING_LENGTH = 2 # recording length in seconds
@@ -16,15 +16,17 @@ PCA_VARIANCE_THRESHOLD = 0.95
 
 LOG_FOLDER = "./logs"
 
-LATENT_SPACE_SIZE = 3
+LATENT_SPACE_SIZE = 3 # overwritten by latent_dim
 TORCH_MANUAL_SEED = 12
 
 # Random seeds for reproducibility
 OPTUNA_RANDOM_SEED = 56
-ENTRY_SELECTION_RANDOM_SEED = 38
-TRAIN_TEST_SPLIT_RANDOM_SEED = 42
+ENTRY_SELECTION_RANDOM_SEED = 297
+#TRAIN_TEST_SPLIT_RANDOM_SEED = 42
 
 # VAE parameter ranges, structured by type
+LOSS_EPSILON = 1e-08 # to prevent numerical instability
+
 VAE_PARAM_RANGES = {
     "num_epochs": {
         "type": "categorical",
@@ -49,7 +51,7 @@ VAE_PARAM_RANGES = {
     },
     "layer_dim": {
         "type": "categorical",
-        "values": [64, 128]
+        "values": [16, 32, 64]
     },
     "activation_function": {
         "type": "categorical",
@@ -61,11 +63,32 @@ VAE_PARAM_RANGES = {
         "high": 0.5,
         "log": False
     },
-    "mse_beta": {
+    "recon_alpha": {
         "type": "float",
-        "low": 0.1,
-        "high": 1.0,
+        "low": 1.0,
+        "high": 5.0,
         "log": False
+    },
+    "dropout_rate": {
+        "type": "float",
+        "low": 0.0,
+        "high": 0.4,
+        "log": False
+    },
+    "latent_dim": {
+        "type": "categorical",
+        "values": [2, 3, 4]
+    },
+    "kl_threshold": {
+        "type": "float",
+        "low": 0.01,
+        "high": 0.1,
+        "log": True
+    },
+    "annealing_epochs": {
+        "type": "int",
+        "low": 10,
+        "high": 30
     }
 }
 
@@ -74,17 +97,18 @@ RBF_PARAM_RANGES = {
     "smoothing": {
         "type": "float",
         "low": 0.5,
-        "high": 1.0,
+        "high": 2.0,
         "log": False
     },
     "kernel": {
         "type": "categorical",
-        "values": ["linear", "thin_plate_spline", "cubic", "inverse_quadratic"]
+        #"values": ["linear", "thin_plate_spline", "cubic", "inverse_quadratic", "gaussian"]
+        "values": ["thin_plate_spline", "cubic", "inverse_quadratic", "linear"]
     },
     "epsilon": {
         "type": "float",
-        "low": 1.5,
-        "high": 3.0,
+        "low": 0.5,
+        "high": 2.0,
         "log": False
     },
     "degree": {

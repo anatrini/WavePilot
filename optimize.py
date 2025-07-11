@@ -1,18 +1,28 @@
-import optuna
 from multiprocessing import cpu_count
 
 import numpy as np
+import optuna
 from scipy.interpolate import RBFInterpolator
-from scipy.spatial.distance import euclidean
-from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import mahalanobis
+#from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from constants import OPTUNA_RANDOM_SEED, ENTRY_SELECTION_RANDOM_SEED, TRAIN_TEST_SPLIT_RANDOM_SEED, VAE_PARAM_RANGES, RBF_PARAM_RANGES, RBF_MIN_DEGREE, RBF_FIXED_EPSILON_KERNELS, N_TRIALS_VAE, N_TRIALS_RBF
+from constants import (
+    ENTRY_SELECTION_RANDOM_SEED,
+    N_TRIALS_RBF,
+    N_TRIALS_VAE,
+    OPTUNA_RANDOM_SEED,
+    RBF_FIXED_EPSILON_KERNELS,
+    RBF_MIN_DEGREE,
+    RBF_PARAM_RANGES,
+    VAE_PARAM_RANGES,
+)
 from data import DataLoader
 from dispatcher import SUGGEST_DISPATCH
 from logger import setup_logger
 from model import VectorReducer
 from utils import get_activation_function
+
 
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -30,6 +40,10 @@ def load_data(filepath, num_entries=None, mask_columns=None):
         np.random.seed(ENTRY_SELECTION_RANDOM_SEED)
         selected_idx = np.random.choice(df.shape[0], size=num_entries, replace=False)
         df = df[selected_idx]
+
+        #original_df = pd.DataFrame(df)
+        #original_df.to_csv('./data_original.csv', index=True)
+
         log_progress.info("Randomly selected %d entries from the dataset", num_entries)
         log_progress.info("Selected indices from dataset: %s", selected_idx)
     else:
@@ -38,7 +52,7 @@ def load_data(filepath, num_entries=None, mask_columns=None):
     return df
 
 
-def train_and_validate(n_epochs, params, original_train, original_test):
+def train_and_validate(n_epochs, params, original_df):
     try:
         learning_rate = params['learning_rate']
         weight_decay = params['weight_decay']
@@ -46,23 +60,31 @@ def train_and_validate(n_epochs, params, original_train, original_test):
         layer_dim = params['layer_dim']
         activation_name = params['activation_function']
         kl_beta = params['kl_beta']
-        mse_beta = params['mse_beta']
+        recon_alpha = params['recon_alpha']
+        dropout_rate = params['dropout_rate']
+        latent_dim = params['latent_dim']
+        kl_threshold = params['kl_threshold']
+        annealing_epochs = params['annealing_epochs']
 
         activation = get_activation_function(activation_name)
 
         reducer = VectorReducer(
-            original_train,
+            original_df,
             learning_rate,
             weight_decay,
             n_layers,
             layer_dim,
             activation,
             kl_beta,
-            mse_beta
+            recon_alpha,
+            dropout_rate,
+            latent_dim,
+            kl_threshold,
+            annealing_epochs
         )
 
         reducer.train_vae(n_epochs)
-        validation_error = reducer.compute_loss(original_test, compute_gradients=False)
+        validation_error = reducer.compute_loss(original_df, epoch=0, compute_gradients=False)
         reducer.move_to_cpu()
 
         return validation_error, params, reducer.model
@@ -103,12 +125,36 @@ def interpolate_and_validate(params, original_data, reduced_data, min_degree, fi
         )
 
         interpolated_data = interpolator(reduced_data)
-        distances = [
-            euclidean(original, interpolated)
-            for original, interpolated in zip(original_data, interpolated_data)
-        ]
 
-        validation_distance = np.mean(distances)
+        cov_matrix = np.cov(original_data, rowvar=False)
+        try:
+            inv_cov = np.linalg.inv(cov_matrix)
+        except np.linalg.LinAlgError:
+            try:
+                inv_cov = np.linalg.pinv(cov_matrix)
+            except Exception as e:
+                log_progress.warning("Fallback to identity matrix: %s", str(e))
+                inv_cov = np.eye(original_data.shape[1])
+
+        # Estimate distance with fallback
+        distances = []
+        for i in range(len(original_data)):
+            try:
+                d = mahalanobis(original_data[i], interpolated_data[i], inv_cov)
+            except Exception as e:
+                log_progress.warning("Mahalanobis failed, using Euclidean: %s", str(e))
+                d = np.linalg.norm(original_data[i] - interpolated_data[i])
+            distances.append(d)
+
+        # Add penalty for out of range values
+        out_of_bounds = np.sum((interpolated_data < 0) | (interpolated_data > 1))
+        penalty = out_of_bounds / interpolated_data.size
+        mean_distance = np.mean(distances)
+        validation_distance = mean_distance + 30 * (penalty ** 1.5)
+
+        #log_progress.info(f"Config: kernel={kernel}, smoothing={smoothing}, epsilon={epsilon}")
+        #log_progress.info(f"Mean distance: {mean_distance:.4f}, Penalty: {penalty:.4f}, Total: {validation_distance:.4f}")
+
         return validation_distance, params
 
     except np.linalg.LinAlgError:
@@ -126,7 +172,7 @@ def interpolate_and_validate(params, original_data, reduced_data, min_degree, fi
     except Exception as e:
         log_progress.error("Unexpected error in interpolate_and_validate: %s", e, exc_info=True)
         return float('inf'), params
-    
+
 
 class TQDMProgressBar:
     def __init__(self, total_trials):
@@ -137,9 +183,13 @@ class TQDMProgressBar:
 
 
 class Optimizer:
-    def __init__(self, df_train, df_test):
-        self.df_train = df_train
-        self.df_test = df_test
+    # Since dataset are meant to be fairly small (< 150 samples)
+    # There's no train test split
+    # Model performance are evaluated on the entire dataset
+    def __init__(self, df):
+        #self.df_train = df_train
+        #self.df_test = df_test
+        self.df = df
         self.study_vae = None
         self.study_rbf = None
 
@@ -153,8 +203,7 @@ class Optimizer:
         validation_error, _, _ = train_and_validate(
             params['num_epochs'],
             params,
-            self.df_train,
-            self.df_test
+            self.df
         )
 
         return validation_error
@@ -210,22 +259,25 @@ def run_training(best_params_train, df_train):
         best_params_train["layer_dim"],
         get_activation_function(best_params_train["activation_function"]),
         best_params_train["kl_beta"],
-        best_params_train["mse_beta"]
+        best_params_train["recon_alpha"],
+        best_params_train["dropout_rate"],
+        best_params_train["latent_dim"],
+        best_params_train["kl_threshold"],
+        best_params_train["annealing_epochs"]
     )
 
     reducer_train.train_vae(best_params_train["num_epochs"])
     return reducer_train.vae()
 
 
-def main(filepath, num_entries, test_size, disable_split, mask_columns):
+def main(filepath, num_entries, mask_columns):
 
     df = load_data(filepath, num_entries, mask_columns)
-    df_train, df_test = train_test_split(df, test_size=test_size, random_state=TRAIN_TEST_SPLIT_RANDOM_SEED) if disable_split else (df, df)
 
-    optimizer = Optimizer(df_train, df_test)
+    optimizer = Optimizer(df)
 
     best_vae_params = optimizer.optimize_vae()
-    reduced_data, reconstructed_data = run_training(best_vae_params, df_train)
+    reduced_data, reconstructed_data = run_training(best_vae_params, df)
 
     best_rbf_params = optimizer.optimize_rbf(reduced_data, reconstructed_data)
 

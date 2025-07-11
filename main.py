@@ -26,16 +26,16 @@ def parse_arguments():
                         default=None,
                         help="Number of random entries to select from the dataset.")
 
-    optimize_parser.add_argument("-d", "--disable_split",
-                        dest="disable_split",
-                        action="store_false",
-                        help="Disable train/test split and use the entire dataset for both training and validation. Default split enabled.")
+    # optimize_parser.add_argument("-d", "--disable_split",
+    #                     dest="disable_split",
+    #                     action="store_false",
+    #                     help="Disable train/test split and use the entire dataset for both training and validation. Default split enabled.")
     
-    optimize_parser.add_argument("-t", "--test_size",
-                        dest="test_size",
-                        type=float,
-                        default=0.2,
-                        help="Train test split size, only available if -d flag is not provided. Default size 0.2.")
+    # optimize_parser.add_argument("-t", "--test_size",
+    #                     dest="test_size",
+    #                     type=float,
+    #                     default=0.2,
+    #                     help="Train test split size, only available if -d flag is not provided. Default size 0.2.")
     
     optimize_parser.add_argument("-m", "--mask_columns",
                         dest="mask_columns",
@@ -47,22 +47,22 @@ def parse_arguments():
 
     # Train parser
     train_parser = subparsers.add_parser("train", help="Run training pipeline")
-    train_parser.add_argument("-f", "--filepath", 
-                        dest="filepath", 
+    train_parser.add_argument("-f", "--filepath",
+                        dest="filepath",
                         type=str,
-                        required=True, 
+                        required=True,
                         help="Dataset of presets to be reduced.")
 
-    train_parser.add_argument("-p", "--pretrained-model", 
-                        dest="pretrained_model", 
-                        type=str, 
-                        default=None, 
+    train_parser.add_argument("-p", "--pretrained-model",
+                        dest="pretrained_model",
+                        type=str,
+                        default=None,
                         help="Pretrained model file.")
 
-    train_parser.add_argument("-o", "--optimizer-session", 
-                        dest="optimizer_session", 
-                        type=str, 
-                        default=None, 
+    train_parser.add_argument("-o", "--optimizer-session",
+                        dest="optimizer_session",
+                        type=str,
+                        default=None,
                         help="Log file of a previous optimization session.")
 
     train_parser.add_argument("-s", "--save-model-path", 
@@ -82,8 +82,8 @@ async def main():
         optimize_main(
             filepath=args.filepath,
             num_entries=args.num_entries,
-            test_size=args.test_size,
-            disable_split=args.disable_split,
+            #test_size=args.test_size,
+            #disable_split=args.disable_split,
             mask_columns=args.mask_columns)
 
     elif args.mode == "train":

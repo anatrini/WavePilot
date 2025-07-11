@@ -2,11 +2,16 @@ import argparse
 
 import numpy as np
 import plotly.express as px
+from sklearn.decomposition import PCA
 
-from constants import DECIMAL_PLACES, LOW_VARIANCE_THRESHOLD, CORRELATION_THRESHOLD, PCA_VARIANCE_THRESHOLD
+from constants import (
+    CORRELATION_THRESHOLD,
+    DECIMAL_PLACES,
+    LOW_VARIANCE_THRESHOLD,
+    PCA_VARIANCE_THRESHOLD,
+)
 from data import DataLoader
 from logger import setup_logger
-from sklearn.decomposition import PCA
 
 logging = setup_logger("Dataset preprocessor")
 

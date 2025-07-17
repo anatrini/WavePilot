@@ -49,7 +49,7 @@ class VAE(nn.Module):
 
 
         decoder_layers.append(nn.Linear(layer_dims[-1], input_dim))  # Add a final layer to match the input dimension
-        decoder_layers.append(nn.Sigmoid())  
+        decoder_layers.append(nn.Sigmoid())
         self.decoder = nn.Sequential(*decoder_layers)
 
         # Init weights for deterministic reproducibility
@@ -138,7 +138,7 @@ class VectorReducer:
             self.criterion = nn.MSELoss()
             self.optimizer = optim.Adam(
                 self.model.parameters(),
-                lr=learning_rate, 
+                lr=learning_rate,
                 weight_decay=weight_decay
                 )
 
@@ -191,3 +191,16 @@ class VectorReducer:
         self.model = self.model.to("cpu")
         if self.df is not None:
             self.df = self.df.to("cpu")
+
+    def reconstruction_accuracy(self, threshold=0.03):
+        # Estimate params' percentage recostructed within an error threshold
+        with torch.no_grad():
+            _, _, reconstructed = self.model(self.df)
+            diff = torch.abs(reconstructed - self.df)
+            accuracy = (diff < threshold).float().mean().item()
+            return accuracy
+
+    def get_latent_points(self):
+        with torch.no_grad():
+            mu, _, _ = self.model(self.df)
+            return mu.cpu().numpy()

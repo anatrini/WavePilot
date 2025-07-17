@@ -26,10 +26,6 @@ from model import VectorReducer
 from utils import get_activation_function, set_global_seeds
 
 
-
-
-set_global_seeds(GLOBAL_SEED)
-
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 log = setup_logger('OptimizationLogger', file=True)
@@ -319,22 +315,32 @@ def run_training(best_params_train, df_train):
     )
 
     reducer_train.train_vae(best_params_train["num_epochs"])
-    return reducer_train.vae()
+    #return reducer_train.vae()
+    return reducer_train
 
 
 def main(filepath, num_entries, mask_columns):
 
+    set_global_seeds(GLOBAL_SEED)
     df = load_data(filepath, num_entries, mask_columns)
 
     optimizer = Optimizer(df)
 
     best_vae_params = optimizer.optimize_vae()
-    reduced_data, reconstructed_data = run_training(best_vae_params, df)
+    #reduced_data, reconstructed_data = run_training(best_vae_params, df)
+    reducer = run_training(best_vae_params, df)
+
+    accuracy = reducer.reconstruction_accuracy(threshold=0.03)
+    latent_points = reducer.get_latent_points()
+
+    reduced_data, reconstructed_data = reducer.vae()
 
     best_rbf_params = optimizer.optimize_rbf(reduced_data, reconstructed_data)
 
+    log_progress.info("VAE Reconstruction Accuracy: %.2f%%", accuracy * 100)
     log_progress.info("Best VAE Parameters: %s", best_vae_params)
     log_progress.info("Best RBF Parameters: %s", best_rbf_params)
 
-    log.info("Best VAE Parameters: %s | Validation error: %.10f", best_vae_params, optimizer.study_vae.best_value)
-    log.info("Best RBF Parameters: %s | Validation distance: %.10f", best_rbf_params, optimizer.study_rbf.best_value)
+    log.info("VAE Reconstruction Accuracy: %.2f%% | Threshold: 3%%", accuracy * 100)
+    log.info("Best VAE Parameters: %s | Validation error: %.6f", best_vae_params, optimizer.study_vae.best_value)
+    log.info("Best RBF Parameters: %s | Validation distance: %.6f", best_rbf_params, optimizer.study_rbf.best_value)

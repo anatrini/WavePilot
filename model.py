@@ -1,206 +1,363 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
+
+import math
 import numpy as np
 import torch
-from torch import nn, optim
-from functools import partial
+from torch import nn
+from torch.nn import functional as F
 
-from constants import LOSS_EPSILON, GLOBAL_SEED
-from utils import get_device, set_global_seeds
-
-set_global_seeds(GLOBAL_SEED)
+from utils import to_tensor, compute_hidden_dims, get_device
 
 
-class VAE(nn.Module):
-    def __init__(self, input_dim, latent_dim, n_layers, layer_dim, activation, dropout_rate):
-        
-        super(VAE, self).__init__()
-        encoder_layers = []
-        layer_dims = [input_dim]
 
-        for i in range(n_layers):
-            encoder_layers.append(nn.Linear(layer_dims[-1], layer_dim))
-            encoder_layers.append(activation)
+# ============================================================
+# VAE deterministico per massima ricostruzione (overfitting)
+# ============================================================
 
-            # Add dropout after activation (but last layer)
-            if i < n_layers - 1 and dropout_rate > 0:
-                encoder_layers.append(nn.Dropout(dropout_rate))
+class DeterministicVAE(nn.Module):
+    """
+    VAE configured to MAXIMIZE reconstruction on micro datasets.
+    Key choices:
+      - Deterministic by default: uses z = mu in forward (no sampling noise).
+      - Optional KL with a tiny weight (default ~0): does not force latent spread.
+      - Decoder ends with Sigmoid: outputs are kept in [0, 1] to match normalized data.
+      - No dropout, no weight decay: overfitting is desired.
+    """
 
-            layer_dims.append(layer_dim)  # Save the layer dimension
-            if i < n_layers - 1:  # Decrease the size of the next layer only if it's not the last layer
-                layer_dim = layer_dim // 2
+    def __init__(
+        self,
+        input_dim: int,
+        latent_dim: int = 3,
+        hidden_dims: Optional[List[int]] = None,
+        kl_beta: float = 0.0,              # ~0: do not penalize "memorization" capacity
+        deterministic: bool = True,        # z = mu during both training and evaluation
+        input_noise_std: float = 0.0,      # keep 0 by default to avoid hurting reconstruction
+    ):
+        super().__init__()
+        assert 2 <= latent_dim <= 4, "Latent dimensionality must be between 2 and 4."
 
-        self.encoder = nn.Sequential(*encoder_layers)
+        self.input_dim = input_dim
+        self.latent_dim = latent_dim
+        self.kl_beta = float(kl_beta)
+        self.deterministic = bool(deterministic)
+        self.input_noise_std = float(input_noise_std)
 
-        #self.output_dim = LATENT_SPACE_SIZE
-        self.fc_mu = nn.Linear(layer_dims[-1], latent_dim)
-        self.fc_var = nn.Linear(layer_dims[-1], latent_dim)
+        self.activation = nn.SiLU()
 
-        # Similar for the decoder, but in reverse
-        decoder_layers = []
-        layer_dims.reverse()  # Reverse the layer dimensions
-        layer_dims = [latent_dim] + layer_dims[:-1]
+        # Architecture:
+        # To maximize reconstruction with very few samples, keep the MLP fairly capacious
+        # but not excessively deep. Defaults target 30–120 features with two reasonable hidden layers.
+        if hidden_dims is None:
+            hidden_dims = compute_hidden_dims(
+                input_dim=input_dim,
+                latent_dim=latent_dim,
+                width_scale=1.0,
+                depth=2,
+                round_to=8
+            )
 
-        for i in range(n_layers):
-            decoder_layers.append(nn.Linear(layer_dims[i], layer_dims[i + 1]))
-            decoder_layers.append(activation)
+        # Encoder: input -> ... -> (mu, logvar)
+        enc_layers = []
+        prev = input_dim
+        for h in hidden_dims:
+            enc_layers += [nn.Linear(prev, h), self.activation]
+            prev = h
+        self.encoder_backbone = nn.Sequential(*enc_layers)
+        self.fc_mu = nn.Linear(prev, latent_dim)
+        self.fc_logvar = nn.Linear(prev, latent_dim)
 
-            # Add dropout after activation (but last layer)
-            if i < n_layers - 1 and dropout_rate > 0:
-                decoder_layers.append(nn.Dropout(dropout_rate))
+        # Decoder: z -> ... -> x_hat (Sigmoid to enforce [0,1] range)
+        dec_layers = []
+        prev = latent_dim
+        for h in reversed(hidden_dims):
+            dec_layers += [nn.Linear(prev, h), self.activation]
+            prev = h
+        dec_layers += [nn.Linear(prev, input_dim), nn.Sigmoid()]
+        self.decoder = nn.Sequential(*dec_layers)
 
+        self._init_weights()
 
-        decoder_layers.append(nn.Linear(layer_dims[-1], input_dim))  # Add a final layer to match the input dimension
-        decoder_layers.append(nn.Sigmoid())
-        self.decoder = nn.Sequential(*decoder_layers)
+    def _init_weights(self):
+        # Kaiming initialization for stability and strong fitting capacity
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
+                if m.bias is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0.0
+                    nn.init.uniform_(m.bias, -bound, bound)
 
-        # Init weights for deterministic reproducibility
-        self.apply(self._init_weights)
+    def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        h = self.encoder_backbone(x)
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
+        return mu, logvar
 
-
-    def _init_weights(self, module):
-        activation_strategies = {
-            nn.ELU: partial(nn.init.kaiming_normal_, nonlinearity='relu'),
-            nn.GELU: partial(nn.init.kaiming_normal_, nonlinearity='relu'),
-            nn.LeakyReLU: partial(nn.init.kaiming_normal_, nonlinearity='leaky_relu', a=0.01),
-            nn.Sigmoid: partial(nn.init.xavier_normal_, gain=nn.init.calculate_gain('sigmoid'))
-        }
-
-        if isinstance(module, nn.Linear):
-            activation_fn = None
-            next_layers = list(module.children())
-            if next_layers and isinstance(next_layers[0], tuple(activation_strategies.keys())):
-                activation_fn = type(next_layers[0])
-            
-            if activation_fn in activation_strategies:
-                activation_strategies[activation_fn](module.weight)
-            else:
-                nn.init.xavier_normal_(module.weight)
-
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-
-    def reparametrize(self, mu, logvar):
+    def reparameterize(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        if self.deterministic:
+            return mu
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def forward(self, x):
-        encoded = self.encoder(x)
-        mu = self.fc_mu(encoded)
-        logvar = self.fc_var(encoded)
-        z = self.reparametrize(mu, logvar)
-        decoded = self.decoder(z)
-        return mu, logvar, decoded
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
+        return self.decoder(z)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Optional input noise (disabled by default); keep outputs in [0,1]
+        if self.input_noise_std > 0.0 and self.training:
+            x = x + torch.randn_like(x) * self.input_noise_std
+            x = x.clamp(0.0, 1.0)  # restiamo nel range
+        mu, logvar = self.encode(x)
+        z = self.reparameterize(mu, logvar)
+        x_hat = self.decode(z)
+        return x_hat, mu, logvar
+
+    @staticmethod
+    def loss_function(
+        x: torch.Tensor,
+        x_hat: torch.Tensor,
+        mu: torch.Tensor,
+        logvar: torch.Tensor,
+        kl_beta: float = 0.0,
+        per_feature_weights: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Reconstruction term: plain MSE (optionally per-feature weighted in a numerically stable way).
+        KL term: optional, weighted by kl_beta (default 0).
+
+        KL equivalences:
+          Implemented:  -0.5 * E[ 1 + logvar - mu^2 - exp(logvar) ]
+          Common form:   0.5 * E[ mu^2 + exp(logvar) - logvar - 1 ]
+          (They are algebraically identical.)
+        """
+        if per_feature_weights is None:
+            recon = F.mse_loss(x_hat, x, reduction="mean")
+        else:
+            # Normalize weights so their sum equals feature_dim (keeps scale similar to plain MSE)
+            w = per_feature_weights / (per_feature_weights.sum() / per_feature_weights.numel())
+            recon = ((x_hat - x) ** 2 * w).mean()
+
+        # KL(q(z|x) || N(0, I)), averaged over the batch (mean reduction)
+        kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
+        loss = recon + kl_beta * kl
+        return loss, recon, kl
+
+
+# ============================================================
+# Wrapper "VectorReducer": API pronta per il tuo flusso
+# ============================================================
+
+@dataclass
+class TrainConfig:
+    epochs: int = 2000                 # molti passi: dobbiamo MEMORIZZARE
+    lr: float = 1e-3                   # Adam senza weight decay
+    batch_size: int = 0                # 0 => "full batch" (tutto il dataset insieme)
+    grad_clip: Optional[float] = 1.0   # clipping per evitare spike (utile con pochi campioni)
+    patience: Optional[int] = None     # None => niente early stopping (overfitting desiderato)
+    kl_beta: float = 0.0               # di default disattivo la KL
+    deterministic: bool = True         # z = mu sempre (coerente con massima ricostruzione)
+    input_noise_std: float = 0.0       # disattivo di default
+    activation: str = "silu"
+    hidden_dims: Optional[List[int]] = None
+    per_feature_weights: Optional[np.ndarray] = None  # opzionale: pesatura stabile
 
 
 class VectorReducer:
+    """
+    Orchestrates:
+      - construction and training of the (quasi) deterministic VAE
+      - extraction of latent codes μ (to be used later with RBF interpolation)
+      - deterministic reconstruction and reconstruction metrics
+    """
+
     def __init__(
         self,
-        df,
-        learning_rate=None,
-        weight_decay=None,
-        n_layers=None,
-        layer_dim=None,
-        activation=None,
-        kl_beta=None,
-        recon_alpha=None,
-        dropout_rate=None,
-        latent_dim=None,
-        kl_threshold=None,
-        annealing_epochs=None,
-        pretrained_model=None
+        data: Union[np.ndarray, torch.Tensor],
+        latent_dim: int = 3,
+        hidden_dims: Optional[List[int]] = None,
+        device: Optional[torch.device] = None,
     ):
-        
-        self.device = get_device()
-        self.df = torch.tensor(df).float().to(self.device)
+        assert 2 <= latent_dim <= 4, "Latent dimensionality must be between 2 and 4."
+        self.device = device or get_device()
 
-        if pretrained_model is not None:
-            self.model = pretrained_model.to(self.device)
-            self.model.eval()
-            self.optimizer = None
-            self.kl_beta = None
-            self.recon_alpha = None
+        # Expect [N, D] tensor in [0,1]; convert to FloatTensor on the target device
+        self.X = to_tensor(data, self.device)  # shape: [N, D], normalizzata 0..1
+        assert self.X.ndim == 2, "Input data must be [num_samples, num_features]."
 
+        self.num_samples, self.num_features = self.X.shape
+        self.latent_dim = latent_dim
+        self.hidden_dims = hidden_dims  # may be None: will be computed by policy
+
+        self.model: Optional[DeterministicVAE] = None
+        self.best_state: Optional[dict] = None
+        self.per_feature_weights_t: Optional[torch.Tensor] = None
+
+    # --------------------------------------------------------
+
+    def _build_model(self, cfg: TrainConfig):
+        """Build the DeterministicVAE with either explicit hidden_dims or
+           auto-computed ones via compute_hidden_dims policy.
+        """
+        if cfg.hidden_dims is None:
+            hd = compute_hidden_dims(
+                input_dim=self.num_features,
+                latent_dim=self.latent_dim,
+                width_scale=getattr(cfg, "width_scale", 1.0),
+                depth=getattr(cfg, "depth", 2),
+                round_to=getattr(cfg, "round_to", 8)
+            )
         else:
-            # Training from scratch
-            self.model = VAE(
-                input_dim=self.df.shape[1],
-                latent_dim=latent_dim,
-                n_layers=n_layers,
-                layer_dim=layer_dim,
-                activation=activation,
-                dropout_rate=dropout_rate
-                ).to(self.device)
+            hd = cfg.hidden_dims
 
-            self.recon_alpha = recon_alpha
-            self.kl_beta = kl_beta
-            self.kl_threshold = kl_threshold
-            self.annealing_epochs = annealing_epochs
-            self.criterion = nn.MSELoss()
-            self.optimizer = optim.Adam(
-                self.model.parameters(),
-                lr=learning_rate,
-                weight_decay=weight_decay
+        self.model = DeterministicVAE(
+            input_dim=self.num_features,
+            latent_dim=self.latent_dim,
+            hidden_dims=hd,
+            kl_beta=cfg.kl_beta,
+            deterministic=cfg.deterministic,
+            input_noise_std=cfg.input_noise_std,
+        ).to(self.device)
+
+        # Optional per-feature weights (stable weighting: clip tiny values, normalization in loss)
+        if cfg.per_feature_weights is not None:
+            w = np.asarray(cfg.per_feature_weights, dtype=np.float32).reshape(-1)
+            assert w.shape[0] == self.num_features, "Per_feature_weights must match num_features!"
+            w = np.clip(w, 1e-6, None)
+            self.per_feature_weights_t = torch.from_numpy(w).to(self.device)
+        else:
+            self.per_feature_weights_t = None
+
+    # --------------------------------------------------------
+
+    def fit(self, cfg: Optional[TrainConfig] = None):
+        """
+        Train the model to overfit (by design) the small dataset.
+        Best checkpoint is tracked by reconstruction loss and restored at the end.
+        """
+        cfg = cfg or TrainConfig()
+
+        if self.model is None:
+            self._build_model(cfg)
+
+        model = self.model
+        model.train()
+
+        # Optimizer: Adam (no weight decay) to avoid impeding pure fitting
+        opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+
+        # Full-batch by default (N ≤ 100 typical). Otherwise clamp to N.
+        if cfg.batch_size and cfg.batch_size > 0:
+            batch_size = min(cfg.batch_size, self.num_samples)
+        else:
+            batch_size = self.num_samples
+
+        best_recon = float("inf")
+        patience_counter = 0
+
+        for epoch in range(1, cfg.epochs + 1):
+            # Simple manual batching: sufficient for tiny datasets
+            perm = torch.randperm(self.num_samples, device=self.device)
+            epoch_loss = 0.0
+            epoch_recon = 0.0
+            epoch_kl = 0.0
+            nb = 0
+
+            for start in range(0, self.num_samples, batch_size):
+                idx = perm[start:start + batch_size]
+                batch = self.X[idx]
+
+                x_hat, mu, logvar = model(batch)
+                loss, recon, kl = model.loss_function(
+                    x=batch, x_hat=x_hat, mu=mu, logvar=logvar,
+                    kl_beta=model.kl_beta,
+                    per_feature_weights=self.per_feature_weights_t,
                 )
 
-    def compute_loss(self, data, epoch, compute_gradients=False):
-        if isinstance(data, np.ndarray):
-            data = torch.tensor(data).float()
-        data = data.to(self.device)
+                opt.zero_grad(set_to_none=True)
+                loss.backward()
 
-        mu, logvar, output = self.model(data)
+                if cfg.grad_clip is not None and cfg.grad_clip > 0:
+                    nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
 
-        # Reconstruction loss with weight
-        recon_loss = self.criterion(output, data) + LOSS_EPSILON
-        weighted_recon = self.recon_alpha * recon_loss
+                opt.step()
 
-        # KL divergence with free bits
-        kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
-        kl_per_sample = torch.sum(kl_per_dim, dim=1)
-        kl_loss = torch.mean(torch.clamp(kl_per_sample, min=self.kl_threshold))
+                epoch_loss += loss.item()
+                epoch_recon += recon.item()
+                epoch_kl += kl.item()
+                nb += 1
 
-        # KL annealing
-        if epoch < self.annealing_epochs:
-            kl_weight = (epoch / self.annealing_epochs) * self.kl_beta
-        else:
-            kl_weight = self.kl_beta
+            # Average over mini-batches (usually 1)
+            epoch_recon /= max(1, nb)
 
-        # Total loss
-        total_loss = weighted_recon + kl_weight * kl_loss
+            # Track the best state based on mean reconstruction loss
+            if epoch_recon < best_recon - 1e-10:
+                best_recon = epoch_recon
+                self.best_state = {
+                    "model": {k: v.detach().clone() for k, v in model.state_dict().items()},
+                    "recon": best_recon,
+                    "epoch": epoch,
+                }
+                patience_counter = 0
+            else:
+                patience_counter += 1
 
-        if compute_gradients:
-            self.optimizer.zero_grad()
-            total_loss.backward()
-            self.optimizer.step()
+            # Optional early stopping (disabled by default; overfitting is desired)
+            if cfg.patience is not None and patience_counter >= cfg.patience:
+                break
 
-        return total_loss.item()
+        # Restore best weights to guarantee the best reconstruction achieved
+        if self.best_state is not None:
+            self.model.load_state_dict(self.best_state["model"])
 
-    def train_vae(self, epochs):
-        if self.df is None:
-            raise ValueError("Training data not available (df is None). Cannot train model.")
-        for epoch in range(epochs):
-            self.compute_loss(self.df, epoch, compute_gradients=True)
+        self.model.eval()
 
-    def vae(self):
-        if self.df is None:
-            raise ValueError("Dataset not available (df is None). Cannot compute latent representation.")
-        with torch.no_grad():
-            mu, _, decoded = self.model(self.df.to(self.device))
-        return mu.cpu().numpy(), decoded.cpu().numpy()
+    # --------------------------------------------------------
 
-    def move_to_cpu(self):
-        self.model = self.model.to("cpu")
-        if self.df is not None:
-            self.df = self.df.to("cpu")
+    @torch.no_grad()
+    def transform(self, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
+        """
+        Returns deterministic latent codes (μ) for the provided samples.
+        These are exactly what you will feed into the RBF interpolator later on.
+        """
+        assert self.model is not None, "Model is not trained."
+        X = self.X if data is None else to_tensor(data, self.device)
+        mu, _ = self.model.encode(X)
+        return mu.cpu().numpy()
 
-    def reconstruction_accuracy(self, threshold=0.03):
-        # Estimate params' percentage recostructed within an error threshold
-        with torch.no_grad():
-            _, _, reconstructed = self.model(self.df)
-            diff = torch.abs(reconstructed - self.df)
-            accuracy = (diff < threshold).float().mean().item()
-            return accuracy
+    @torch.no_grad()
+    def reconstruct(self, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> np.ndarray:
+        """
+        Deterministic recostrunction (decoder(mu)).
+        """
+        assert self.model is not None, "Model is not trained."
+        X = self.X if data is None else to_tensor(data, self.device)
+        mu, _ = self.model.encode(X)
+        X_hat = self.model.decode(mu)
+        return X_hat.cpu().numpy()
 
-    def get_latent_points(self):
-        with torch.no_grad():
-            mu, _, _ = self.model(self.df)
-            return mu.cpu().numpy()
+    @torch.no_grad()
+    def reconstruction_mse(self, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
+        """
+        Mean MSE on [0,1]. With normalized data, this is a reliable measure of reconstruction quality.
+        """
+        assert self.model is not None, "Model is not trained."
+        X = self.X if data is None else to_tensor(data, self.device)
+        X_hat = to_tensor(self.reconstruct(X), self.device)
+        return F.mse_loss(X_hat, X, reduction="mean").item()
+
+    @torch.no_grad()
+    def reconstruction_accuracy(self, threshold: float = 0.03, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
+        """
+        Percentage of element-wise matches: |x_hat - x| < threshold.
+        threshold=0.03 is reasonable for data in [0,1]; adjust as needed.
+        """
+        assert self.model is not None, "Modello non addestrato."
+        X = self.X if data is None else to_tensor(data, self.device)
+        X_hat = to_tensor(self.reconstruct(X), self.device)
+        diff = (X_hat - X).abs()
+        return (diff < threshold).float().mean().item() * 100.0

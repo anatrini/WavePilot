@@ -1,20 +1,106 @@
 import ast
+import hashlib
 import json
 import os
 import random
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import torch
-from torch import nn
 
 from logger import setup_logger
 
 logging = setup_logger("Utils Logger")
 
+# ----------------------- Tensor utilities ----------------------- #
+def to_tensor(x: Union[np.ndarray, torch.Tensor], device: torch.device) -> torch.Tensor:
+    """Convert to torch.FloatTensor on the used device"""
+    if isinstance(x, np.ndarray):
+        return torch.from_numpy(x.astype(np.float32)).to(device)
+    return x.to(device).float()
 
-# Set GPU device if available according to OS
+
+# ----------------------- Architecture helpers ----------------------- #
+def round_to_multiple(n: int, base: int) -> int:
+    """Arrotonda n al multiplo più vicino di 'base' (>= base)."""
+    if base <= 1:
+        return n
+    return max(base, int(round(n / base) * base))
+
+def compute_hidden_dims(
+    input_dim: int,
+    latent_dim: int,
+    width_scale: float = 1.0,  # >0
+    depth: int = 2,            # {1,2,3}
+    round_to: int = 8,         # multiplo per stabilità
+    min_hidden: int = 32,
+    max_hidden: int = 2048
+) -> list[int]:
+    """
+    Calcola hidden layers 'a imbuto' per MLP encoder/decoder in base a D e latente.
+    Depth controlla quante hidden usare, width_scale la capacità globale.
+    """
+    depth = int(max(1, min(3, depth)))
+
+    base_h1 = max(input_dim, 64)
+    base_h2 = max(int(0.25 * (input_dim + 8 * latent_dim)), 32)
+    base_h3 = max(int(0.5 * (base_h2 + 4 * latent_dim)), 32)
+
+    def clamp_round(v: float) -> int:
+        v = int(v * width_scale)
+        v = max(min_hidden, min(max_hidden, v))
+        return round_to_multiple(v, round_to)
+
+    h1 = clamp_round(base_h1)
+    h2 = clamp_round(base_h2)
+    h3 = clamp_round(base_h3)
+
+    if depth == 1:
+        return [h1]
+    elif depth == 2:
+        return [h1, h2]
+    else:
+        # monotonia decrescente per evitare "espansioni"
+        h2 = min(h2, h1)
+        h3 = min(h3, h2)
+        return [h1, h2, h3]
+    
+
+
+class LatentScaler:
+    """
+    Z-score scaler for latent coordinates:
+    - fit(): stores per-dimension mean (mu) and std (sigma)
+    - transform(): (Z - mu) / sigma with safe epsilon on sigma
+    - inverse_transform(): Z' * sigma + mu
+    """
+    def __init__(self, eps: float = 1e-12):
+        self.mu = None
+        self.sigma = None
+        self.eps = float(eps)
+
+    def fit(self, Z: np.ndarray):
+        Z = np.asarray(Z, dtype=np.float64)
+        self.mu = Z.mean(axis=0, keepdims=True)
+        sigma = Z.std(axis=0, keepdims=True)
+        self.sigma = np.where(sigma < self.eps, 1.0, sigma)
+        return self
+
+    def transform(self, Z: np.ndarray) -> np.ndarray:
+        assert self.mu is not None and self.sigma is not None, "Call fit() first."
+        Z = np.asarray(Z, dtype=np.float64)
+        return (Z - self.mu) / self.sigma
+
+    def inverse_transform(self, Zs: np.ndarray) -> np.ndarray:
+        assert self.mu is not None and self.sigma is not None, "Call fit() first."
+        Zs = np.asarray(Zs, dtype=np.float64)
+        return Zs * self.sigma + self.mu
+
+
+# ----------------------- Runtime & Reproducibility ----------------------- #
+    # Set GPU device if available according to OS
 def get_device() -> torch.device:
     if torch.cuda.is_available():
         return torch.device("cuda")
@@ -23,12 +109,12 @@ def get_device() -> torch.device:
     else:
         return torch.device("cpu")
 
+#device = get_device()
+#print(f"Using device: {device}")
 
-device = get_device()
-print(f"Using device: {device}")
 
-def set_global_seeds(seed):
     # Set all seeds to ensure reproducibility
+def set_global_seeds(seed):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -43,6 +129,7 @@ def set_global_seeds(seed):
     torch.use_deterministic_algorithms(True)
 
 
+# ----------------------- File I/O & Parsing ----------------------- #
 def load_osc_addresses(file_path):
     try:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -92,27 +179,6 @@ def get_hyperparams_from_log(log_file):
     return params
 
 
-# Get activation function module from string
-def get_activation_function(activation_name):
-    activation_functions = {
-        "ReLU": nn.ReLU(),
-        "LeakyReLU": nn.LeakyReLU(),
-        "Sigmoid": nn.Sigmoid(),
-        "ELU": nn.ELU(),
-        "GELU": nn.GELU(),
-    }
-    return activation_functions.get(activation_name, None)
-
-
-def select_random_entries(input_csv, ouput_csv, n):
-    df = pd.read_csv(input_csv)
-    df["ID"] = range(1, len(df) + 1)
-    df.to_csv(input_csv, index=False)
-
-    df_sample = df.sample(n)
-    df_sample.to_csv(ouput_csv, index=False)
-
-
 def remove_duplicate_lines(file_path):
     """Removes duplicate lines from a log file while preserving order."""
     seen_lines = set()
@@ -128,6 +194,24 @@ def remove_duplicate_lines(file_path):
         file.writelines(unique_lines)
 
 
+# ----------------------- Search space versioning ----------------------- #
+def space_fingerprint(space: dict) -> str:
+    # Hash dict of the search space for optimization
+    payload = json.dumps(space, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:8]
+
+
+# ----------------------- Dataset helpers ----------------------- #
+def select_random_entries(input_csv, ouput_csv, n):
+    df = pd.read_csv(input_csv)
+    df["ID"] = range(1, len(df) + 1)
+    df.to_csv(input_csv, index=False)
+
+    df_sample = df.sample(n)
+    df_sample.to_csv(ouput_csv, index=False)
+
+
+# ----------------------- Visualization ----------------------- #
 def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     reconstruction_error = np.mean(np.square(original_data - reconstructed_data), axis=1)
     average_error = np.mean(reconstruction_error)
@@ -140,11 +224,12 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     fig = go.Figure(
         data=[
             go.Scatter3d(
-                x=x, y=y, z=z, mode="markers", marker=dict(size=5, color=reconstruction_error, colorscale="Viridis")
-            )
-        ]
-    )
-
+                x=x, 
+                y=y, 
+                z=z, 
+                mode="markers", 
+                marker=dict(size=5, color=reconstruction_error, colorscale="Viridis"))])
+    
     fig.update_layout(
         title="3D Scatter Plot of Reconstruction Error",
         scene=dict(xaxis_title="X", yaxis_title="Y", zaxis_title="Reconstruction Error"),

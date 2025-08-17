@@ -1,19 +1,20 @@
 import time
 from threading import Thread
 
+import numpy as np
 from flask import Flask, jsonify, render_template
 from flask_socketio import SocketIO
 from pythonosc import udp_client
+from scipy.spatial.distance import pdist
 
-from constants import IP_ADDRESS, SEND_PORT, RECEIVE_PORT
+from constants import IP_ADDRESS, SEND_PORT, RECEIVE_PORT, RBF_FIXED_EPSILON_KERNELS
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
-from model import VectorReducer
+from model import VectorReducer, TrainConfig
 from serialization import load_model, save_model
-from utils import get_activation_function, get_hyperparams_from_log
+from utils import get_hyperparams_from_log, LatentScaler
 from visualizer import Visualize
-
 
 
 log = setup_logger("VAE and Interpolator")
@@ -39,7 +40,7 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
 
     start_time = time.time()
 
-    # Check valid combinations
+    # Basic CLI validation
     if not filepath:
         log.error("You must provide a dataset file with --filepath.")
         return
@@ -54,70 +55,100 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
     original_data = loader.load_presets()
 
     try:
-        reduced_data = None
-        reconstructed_data = None
+        # --- Build / load VAE ---
+        rbf_params = None
 
         if pretrained_model_path:
-            # CASE 1: Load pretrained model (.pt), extract params from checkpoint
-            model, vae_params, rbf_params = load_model(pretrained_model_path)
-            reducer = VectorReducer(df=original_data, pretrained_model=model)
-            reduced_data, reconstructed_data = reducer.vae()
+            # Case 1: load pretrained checkpoint
+            model, vae_params, rbf_package = load_model(pretrained_model_path)
+            rbf_params = rbf_package.get("params", {})
 
-        elif optimizer_session:
-            # CASE 2: Train from optimizer log
+            reducer = VectorReducer(original_data, latent_dim=vae_params["latent_dim"])
+            reducer.model = model.to(reducer.device)
+            reducer.model.eval()
+
+        else:
+            # Case 2: train from optimiser log
             full_params = get_hyperparams_from_log(optimizer_session)
             vae_params = full_params["vae"]
             rbf_params = full_params["rbf"]
 
-            reducer = VectorReducer(
-                df=original_data,
-                learning_rate=vae_params["learning_rate"],
-                weight_decay=vae_params["weight_decay"],
-                n_layers=vae_params["n_layers"],
-                layer_dim=vae_params["layer_dim"],
-                activation=get_activation_function(vae_params["activation_function"]),
-                kl_beta=vae_params["kl_beta"],
-                recon_alpha=vae_params["recon_alpha"],
-                dropout_rate=vae_params["dropout_rate"],
-                latent_dim=vae_params["latent_dim"],
-                kl_threshold=vae_params["kl_threshold"],
-                annealing_epochs=vae_params["annealing_epochs"]
+            reducer = VectorReducer(original_data, latent_dim=vae_params["latent_dim"])
+
+            cfg = TrainConfig(
+                epochs=vae_params["max_epochs"],
+                lr=vae_params["learning_rate"],
+                kl_beta=vae_params.get("kl_beta", 0.0),
+                deterministic=True,
+                hidden_dims=None,
+                grad_clip=vae_params.get("grad_clip", 1.0),
+                batch_size=vae_params.get("batch_size", 0),
             )
+            # Hidden-dims policy knobs
+            setattr(cfg, "width_scale", vae_params["width_scale"])
+            setattr(cfg, "depth",       vae_params["depth"])
+            setattr(cfg, "round_to",    vae_params["round_to"])
 
-            reducer.train_vae(vae_params["num_epochs"])
-            reduced_data, reconstructed_data = reducer.vae()
+            reducer.fit(cfg)
 
-            # Save model if requested
-            if save_model_path:
-                save_model(
-                    model=reducer.model,
-                    vae_params={
-                        "input_dim": original_data.shape[1],
-                        "n_layers": vae_params["n_layers"],
-                        "layer_dim": vae_params["layer_dim"],
-                        "activation_function": vae_params["activation_function"]
-                    },
-                    rbf_params=rbf_params,
-                    filepath=save_model_path
-                )
+        # --- Deterministic latent (μ) ---
+        reduced_data = reducer.transform()
 
-        # Initialize interpolator with RBF params
+        # --- External latent normalisation (z-score) ---
+        NORMALISE_LATENT = True
+        if NORMALISE_LATENT:
+            scaler = LatentScaler().fit(reduced_data)
+            Z_std = scaler.transform(reduced_data)
+        else:
+            scaler = None
+            Z_std = reduced_data
+
+        # --- Geometry for epsilon: median pairwise distance in the fitting space ---
+        if Z_std.shape[0] >= 2:
+            dvec = pdist(Z_std, metric="euclidean")
+            median_dist = float(np.median(dvec)) if dvec.size > 0 else 1.0
+        else:
+            median_dist = 1.0
+
+        # --- Compute epsilon (fixed for some kernels; relative otherwise) ---
+        kernel = rbf_params["kernel"]
+        epsilon = rbf_params.get("epsilon")
+        if epsilon is None:
+            epsilon_scale = rbf_params["epsilon_scale"]
+            epsilon = 1.0 if kernel in RBF_FIXED_EPSILON_KERNELS else max(1e-12, float(epsilon_scale) * median_dist)
+
+        # --- Instantiate interpolator on the SAME latent space used for the visualiser ---
         interpolator = RBFInterpolation(
-            reduced_data,
-            reconstructed_data,
+            Z_std,                         # latent fitting space (z-scored if NORMALISE_LATENT=True)
+            original_data,                 # targets in [0,1]
             rbf_params["smoothing"],
-            rbf_params["kernel"],
-            rbf_params["epsilon"],
-            rbf_params["degree"]
+            kernel,
+            epsilon,
+            degree=rbf_params["degree"]
         )
 
-        visualizer = Visualize(reduced_data, app, socketio)
+        # The visualiser must see the same latent space used to fit the RBF
+        visualizer = Visualize(Z_std, app, socketio)
 
         elapsed_time = time.time() - start_time
         log.info("Training and setup completed in %.2f seconds.", elapsed_time)
 
-        flask_thread = Thread(target=run_flask, args=(app, socketio, reduced_data))
+        flask_thread = Thread(target=run_flask, args=(app, socketio, Z_std))
         flask_thread.start()
+
+        # Optional: save consolidated checkpoint when training from optimiser session
+        if (not pretrained_model_path) and save_model_path:
+            save_model(
+                reducer=reducer,
+                vae_params=vae_params,
+                rbf_params=rbf_params,
+                filepath=save_model_path,
+                latent_scaler=scaler,
+                rbf_interpolator=None,   # your RBFInterpolation wraps SciPy internally
+                Z_std=Z_std,
+                original_data=original_data,
+                median_dist=median_dist
+            )
 
         await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
 

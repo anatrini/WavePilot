@@ -82,8 +82,6 @@ async def main():
         optimize_main(
             filepath=args.filepath,
             num_entries=args.num_entries,
-            #test_size=args.test_size,
-            #disable_split=args.disable_split,
             mask_columns=args.mask_columns)
 
     elif args.mode == "train":

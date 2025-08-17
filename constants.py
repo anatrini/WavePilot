@@ -9,7 +9,10 @@ RENDERED_AUDIO_FOLDER = "audio"
 RECORDING_LENGTH = 2 # recording length in seconds
 
 # Preprocess settings
-DECIMAL_PLACES = 5
+BIAS_INIT = 1e-03
+NOISE_MAGNITUDE = 2e-03
+NOISE_FILTER = 0.3
+DECIMAL_PLACES = 6
 LOW_VARIANCE_THRESHOLD = 0.01
 CORRELATION_THRESHOLD = 0.95
 PCA_VARIANCE_THRESHOLD = 0.95
@@ -23,70 +26,47 @@ LOG_FOLDER = "./logs"
 GLOBAL_SEED = 56
 
 # VAE parameter ranges, structured by type
-LOSS_EPSILON = 1e-08 # to prevent numerical instability
+LATENT_EXPANSION_FACTOR = 8
+LOSS_EPSILON = 1e-8 # to prevent numerical instability
 
 VAE_PARAM_RANGES = {
-    "num_epochs": {
-        "type": "categorical",
-        "values": [50, 100]
-    },
     "learning_rate": {
         "type": "float",
-        "low": 1e-5,
-        "high": 1e-2,
+        "low": 3e-4,
+        "high": 3e-3,
         "log": True
-    },
-    "weight_decay": {
-        "type": "float",
-        "low": 1e-6,
-        "high": 1e-4,
-        "log": True
-    },
-    "n_layers": {
-        "type": "int",
-        "low": 1,
-        "high": 2
-    },
-    "layer_dim": {
-        "type": "categorical",
-        "values": [16, 32, 64]
-    },
-    "activation_function": {
-        "type": "categorical",
-        "values": ["ELU", "GELU", "LeakyReLU"]
     },
     "kl_beta": {
         "type": "float",
-        "low": 0.01,
-        "high": 0.5,
-        "log": False
-    },
-    "recon_alpha": {
-        "type": "float",
-        "low": 1.0,
-        "high": 5.0,
-        "log": False
-    },
-    "dropout_rate": {
-        "type": "float",
-        "low": 0.0,
-        "high": 0.4,
-        "log": False
+        "low": 1e-12,
+        "high": 1e-7,
+        "log": True
     },
     "latent_dim": {
         "type": "categorical",
         "values": [2, 3, 4]
     },
-    "kl_threshold": {
-        "type": "float",
-        "low": 0.01,
-        "high": 0.1,
-        "log": True
+    "max_epochs": {
+        "type": "categorical",
+        "values": [2000, 5000]
     },
-    "annealing_epochs": {
-        "type": "int",
-        "low": 10,
-        "high": 30
+    "width_scale": {
+        "type": "float",
+        "low": 0.5,
+        "high": 4.0,
+        "log": False
+    },
+    "depth": {
+        "type": "categorical",
+        "values": [1, 2, 3]
+    },
+    "round_to": {
+        "type": "categorical",
+        "values": [8, 16, 32]
+    },
+    "grad_clip": {
+        "type": "categorical",
+        "values": [None, 0.5, 1.0, 2.0]
     }
 }
 
@@ -94,19 +74,18 @@ VAE_PARAM_RANGES = {
 RBF_PARAM_RANGES = {
     "smoothing": {
         "type": "float",
-        "low": 0.5,
-        "high": 2.0,
-        "log": False
+        "low": 1e-8,
+        "high": 1e-2,
+        "log": True
     },
     "kernel": {
         "type": "categorical",
-        #"values": ["linear", "thin_plate_spline", "cubic", "inverse_quadratic", "gaussian"]
-        "values": ["thin_plate_spline", "cubic", "inverse_quadratic", "linear"]
+        "values": ["gaussian","thin_plate_spline", "cubic", "inverse_quadratic", "linear"]
     },
-    "epsilon": {
+    "epsilon_scale": {
         "type": "float",
         "low": 0.5,
-        "high": 2.0,
+        "high": 3.0,
         "log": False
     },
     "degree": {
@@ -124,7 +103,14 @@ RBF_MIN_DEGREE = {
     "cubic": 1
 }
 
+# Degree is forced to -1 (no polynomial queue)
+RBF_DEGREE_LOCK = {
+    "gaussian": -1,
+    "inverse_quadratic": -1
+}
+
 RBF_FIXED_EPSILON_KERNELS = ["linear", "thin_plate_spline", "cubic"]
+
 
 # Number of trials for optimization
 N_TRIALS_VAE = 500

@@ -105,9 +105,12 @@ def train_and_validate(trial, params, original_df):
         #     torch.cuda.empty_cache()
 
         return val_mse, params
+    
+    except optuna.TrialPruned:
+        raise
 
     except Exception as e:
-        log_progress.error("Error during VAE optimization: %s", e, exc_info=True)
+        log_progress.error("Unexpected error during VAE optimization: %s", e, exc_info=True)
         return float('inf'), params
 
 

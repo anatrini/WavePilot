@@ -28,6 +28,8 @@ GLOBAL_SEED = 56
 # VAE parameter ranges, structured by type
 LATENT_EXPANSION_FACTOR = 8
 LOSS_EPSILON = 1e-8 # to prevent numerical instability
+SEARCH_EPOCHS = 600
+FINAL_EPOCHS = 4000
 
 VAE_PARAM_RANGES = {
     "learning_rate": {
@@ -46,10 +48,10 @@ VAE_PARAM_RANGES = {
         "type": "categorical",
         "values": [2, 3, 4]
     },
-    "max_epochs": {
-        "type": "categorical",
-        "values": [2000, 5000]
-    },
+    # "max_epochs": {
+    #     "type": "categorical",
+    #     "values": [2000, 5000]
+    # },
     "width_scale": {
         "type": "float",
         "low": 0.5,

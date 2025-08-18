@@ -5,6 +5,7 @@ from typing import List, Optional, Tuple, Union
 
 import math
 import numpy as np
+import optuna
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -132,7 +133,7 @@ class DeterministicVAE(nn.Module):
         KL equivalences:
           Implemented:  -0.5 * E[ 1 + logvar - mu^2 - exp(logvar) ]
           Common form:   0.5 * E[ mu^2 + exp(logvar) - logvar - 1 ]
-          (They are algebraically identical.)
+          (Algebraically identical)
         """
         if per_feature_weights is None:
             recon = F.mse_loss(x_hat, x, reduction="mean")
@@ -234,7 +235,10 @@ class VectorReducer:
 
     # --------------------------------------------------------
 
-    def fit(self, cfg: Optional[TrainConfig] = None):
+    def fit(self, 
+            cfg: Optional[TrainConfig] = None,
+            trial: Optional[optuna.trial.Trial] = None,
+            prune_every: int = 50):
         """
         Train the model to overfit (by design) the small dataset.
         Best checkpoint is tracked by reconstruction loss and restored at the end.
@@ -293,6 +297,12 @@ class VectorReducer:
 
             # Average over mini-batches (usually 1)
             epoch_recon /= max(1, nb)
+
+            # Pruning
+            if trial is not None and (epoch % prune_every==0):
+                trial.report(epoch_recon, step=epoch)
+                if trial.should_prune():
+                    raise optuna.TrialPruned()
 
             # Track the best state based on mean reconstruction loss
             if epoch_recon < best_recon - 1e-10:

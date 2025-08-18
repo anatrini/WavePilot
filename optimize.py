@@ -2,18 +2,21 @@ from multiprocessing import cpu_count
 
 import numpy as np
 import optuna
+from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
-from optuna.storages import RDBStorage
+#from optuna.storages import RDBStorage
 
 import torch  # to decide n_jobs when GPU/MPS is present
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import mahalanobis, pdist
-from tqdm import tqdm
+#from tqdm import tqdm
 
 from constants import (
     N_TRIALS_RBF,
     N_TRIALS_VAE,
     GLOBAL_SEED,
+    SEARCH_EPOCHS,
+    FINAL_EPOCHS,
     RBF_FIXED_EPSILON_KERNELS,
     RBF_MIN_DEGREE,
     RBF_DEGREE_LOCK,
@@ -55,7 +58,7 @@ def load_data(filepath, num_entries=None, mask_columns=None):
 # -----------------------------
 # VAE: training + evaluation
 # -----------------------------
-def train_and_validate(params, original_df):
+def train_and_validate(trial, params, original_df):
     """
     API:
       - build VectorReducer with the chosen latent_dim
@@ -68,17 +71,17 @@ def train_and_validate(params, original_df):
         lr          = params['learning_rate']
         kl_beta     = params['kl_beta']
         latent_dim  = params['latent_dim']
-        max_epochs  = params['max_epochs']
+        #max_epochs  = params['max_epochs']
         width_scale = params['width_scale']
         depth       = params['depth']
         round_to    = params['round_to']
         grad_clip   = params['grad_clip']
         batch_size  = params.get('batch_size', 0) # --> 0 is full batch
 
-        reducer = VectorReducer(original_df, latent_dim=latent_dim)
+        reducer = VectorReducer(original_df, latent_dim=latent_dim, device=torch.device("cpu"))
 
         cfg = TrainConfig(
-            epochs=max_epochs,
+            epochs=SEARCH_EPOCHS,
             lr=lr,
             kl_beta=kl_beta,
             deterministic=True,        # z = mu
@@ -91,15 +94,15 @@ def train_and_validate(params, original_df):
         setattr(cfg, "depth", depth)
         setattr(cfg, "round_to", round_to)
 
-        reducer.fit(cfg)
+        reducer.fit(cfg, trial=trial, prune_every=50)
 
         # Objective: deterministic reconstruction MSE on the whole set
         val_mse = reducer.reconstruction_mse()
 
         # Avoid GPU memory accumulation across trials
-        del reducer
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # del reducer
+        # if torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
 
         return val_mse, params
 
@@ -211,12 +214,12 @@ def interpolate_and_validate(
 # -----------------------------
 # TQDM progress callback
 # -----------------------------
-class TQDMProgressBar:
-    def __init__(self, total_trials):
-        self.pbar = tqdm(total=total_trials)
+# class TQDMProgressBar:
+#     def __init__(self, total_trials):
+#         self.pbar = tqdm(total=total_trials)
 
-    def __call__(self, study, trial):
-        self.pbar.update(1)
+#     def __call__(self, study, trial):
+#         self.pbar.update(1)
 
 
 # -----------------------------
@@ -241,8 +244,11 @@ class Optimizer:
             name: SUGGEST_DISPATCH[config["type"]](trial, name, config)
             for name, config in VAE_PARAM_RANGES.items()
         }
-        val_mse, _ = train_and_validate(params, self.df)
-        return val_mse
+        try:
+            val_mse, _ = train_and_validate(trial, params, self.df)
+            return val_mse
+        except optuna.TrialPruned:
+            raise
 
     def optimize_vae(self, n_trials=N_TRIALS_VAE):
         # Reproducible sampler
@@ -254,30 +260,31 @@ class Optimizer:
         )
 
         # Storage
-        storage = RDBStorage(
-            url="sqlite:///wavepilot_vae.db",
-            engine_kwargs={"connect_args": {"timeout": 30}}
-        )
+        # storage = RDBStorage(
+        #     url="sqlite:///wavepilot_vae.db",
+        #     engine_kwargs={"connect_args": {"timeout": 30}}
+        # )
 
+        pruner = MedianPruner(n_min_trials=20, n_warmup_steps=100)
         suffix = space_fingerprint(VAE_PARAM_RANGES)
         self.study_vae = optuna.create_study(
             direction="minimize",
             sampler=sampler,
-            storage=storage,
-            study_name=f"wavepilot_vae_{suffix}",
-            load_if_exists=True
+            pruner=pruner,
+            storage=None,
+            study_name=f"wavepilot_vae_{suffix}"
         )
 
-        pbar = TQDMProgressBar(n_trials)
+        #pbar = TQDMProgressBar(n_trials)
 
         # With GPU/MPS, keep trials serial to avoid contention
-        n_jobs = 1 if (torch.cuda.is_available() or torch.backends.mps.is_available()) else cpu_count()
+        #n_jobs = 1 if (torch.cuda.is_available() or torch.backends.mps.is_available()) else cpu_count()
 
         self.study_vae.optimize(
             self.objective_vae,
             n_trials=n_trials,
-            n_jobs=n_jobs,
-            callbacks=[pbar],
+            n_jobs=cpu_count(),
+            #callbacks=[pbar],
             show_progress_bar=True
         )
 
@@ -316,18 +323,17 @@ class Optimizer:
             prior_weight=1.0
         )
 
-        storage = RDBStorage(
-            url="sqlite:///wavepilot_rbf.db",
-            engine_kwargs={"connect_args": {"timeout": 30}}
-        )
+        # storage = RDBStorage(
+        #     url="sqlite:///wavepilot_rbf.db",
+        #     engine_kwargs={"connect_args": {"timeout": 30}}
+        # )
 
         suffix = space_fingerprint(RBF_PARAM_RANGES)
         self.study_rbf = optuna.create_study(
             direction="minimize",
             sampler=sampler,
-            storage=storage,
-            study_name=f"wavepilot_rbf_{suffix}",
-            load_if_exists=True
+            storage=None,
+            study_name=f"wavepilot_rbf_{suffix}"
         )
 
         # --- Prepare the latent space used for RBF fitting ---
@@ -346,14 +352,14 @@ class Optimizer:
             median_dist = 1.0
         self.rbf_median_dist_ = median_dist
 
-        pbar = TQDMProgressBar(n_trials)
+        #pbar = TQDMProgressBar(n_trials)
 
         # CPU-bound, safe to parallelise
         self.study_rbf.optimize(
             lambda trial: self.objective_rbf(trial, original_data, Z_std, median_dist),
             n_trials=n_trials,
             n_jobs=cpu_count(),
-            callbacks=[pbar],
+            #callbacks=[pbar],
             show_progress_bar=True
         )
 
@@ -371,7 +377,7 @@ def run_training(best_params_train, df_train):
     reducer = VectorReducer(df_train, latent_dim=best_params_train["latent_dim"])
 
     cfg = TrainConfig(
-        epochs=best_params_train["max_epochs"],
+        epochs=FINAL_EPOCHS,
         lr=best_params_train["learning_rate"],
         kl_beta=best_params_train["kl_beta"],
         deterministic=True,

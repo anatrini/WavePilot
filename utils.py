@@ -76,7 +76,7 @@ class LatentScaler:
     - transform(): (Z - mu) / sigma with safe epsilon on sigma
     - inverse_transform(): Z' * sigma + mu
     """
-    def __init__(self, eps: float = 1e-12):
+    def __init__(self, eps: float=1e-12):
         self.mu = None
         self.sigma = None
         self.eps = float(eps)

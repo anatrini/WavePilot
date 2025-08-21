@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from multiprocessing import current_process
 
 from constants import LOG_FOLDER
 from logging.handlers import QueueHandler
@@ -21,11 +22,13 @@ def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
 
     logger = logging.getLogger(name)
     logger.setLevel(level)
+    logger.propagate = False
 
     # Config handlers if not already configured
-    if not logger.hasHandlers():
+    if not logger.handlers:
         if log_queue:
             queue_handler = QueueHandler(log_queue)
+            queue_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
             logger.addHandler(queue_handler)
         else:
             console_handler = logging.StreamHandler()
@@ -33,11 +36,13 @@ def setup_logger(name, log_queue=None, level=logging.INFO, file=False):
             logger.addHandler(console_handler)
 
         # Add file handler only if required and not already present
-        if file and not any(isinstance(h, logging.FileHandler) for h in logger.handlers):
-            now = time.time()
-            timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now))
-            file_handler = logging.FileHandler(f"logs/reduction_info_{timestamp}.log")
-            file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-            logger.addHandler(file_handler)
+        if file and current_process().name == "MainProcess":
+            has_file_handler = any(isinstance(h, logging.FileHandler) for h in logger.handlers)
+            if not has_file_handler:
+                now = time.time()
+                timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime(now))
+                file_handler = logging.FileHandler(f"logs/reduction_info_{timestamp}.log")
+                file_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+                logger.addHandler(file_handler)
 
     return logger

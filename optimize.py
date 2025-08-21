@@ -1,15 +1,16 @@
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import cpu_count
 
 import numpy as np
 import optuna
-from optuna.pruners import MedianPruner
+#from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
 #from optuna.storages import RDBStorage
 
 import torch  # to decide n_jobs when GPU/MPS is present
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import mahalanobis, pdist
-#from tqdm import tqdm
+from tqdm import tqdm
 
 from constants import (
     N_TRIALS_RBF,
@@ -58,60 +59,93 @@ def load_data(filepath, num_entries=None, mask_columns=None):
 # -----------------------------
 # VAE: training + evaluation
 # -----------------------------
-def train_and_validate(trial, params, original_df):
-    """
-    API:
-      - build VectorReducer with the chosen latent_dim
-      - create TrainConfig with updated hyperparameters
-      - fit on the full dataset (overfitting is desired)
-      - return deterministic reconstruction MSE (to minimise)
-    """
-    try:
-        # --- Hyperparameters from the updated search space ---
-        lr          = params['learning_rate']
-        kl_beta     = params['kl_beta']
-        latent_dim  = params['latent_dim']
-        #max_epochs  = params['max_epochs']
-        width_scale = params['width_scale']
-        depth       = params['depth']
-        round_to    = params['round_to']
-        grad_clip   = params['grad_clip']
-        batch_size  = params.get('batch_size', 0) # --> 0 is full batch
+# def train_and_validate(trial, params, original_df):
+#     """
+#     API:
+#       - build VectorReducer with the chosen latent_dim
+#       - create TrainConfig with updated hyperparameters
+#       - fit on the full dataset (overfitting is desired)
+#       - return deterministic reconstruction MSE (to minimise)
+#     """
+#     try:
+#         # --- Hyperparameters from the updated search space ---
+#         lr          = params['learning_rate']
+#         kl_beta     = params['kl_beta']
+#         latent_dim  = params['latent_dim']
+#         #max_epochs  = params['max_epochs']
+#         width_scale = params['width_scale']
+#         depth       = params['depth']
+#         round_to    = params['round_to']
+#         grad_clip   = params['grad_clip']
+#         batch_size  = params.get('batch_size', 0) # --> 0 is full batch
 
-        reducer = VectorReducer(original_df, latent_dim=latent_dim, device=torch.device("cpu"))
+#         reducer = VectorReducer(original_df, latent_dim=latent_dim, device=torch.device("cpu"))
 
-        cfg = TrainConfig(
-            epochs=SEARCH_EPOCHS,
-            lr=lr,
-            kl_beta=kl_beta,
-            deterministic=True,        # z = mu
-            hidden_dims=None,          # let policy compute_hidden_dims decide
-            grad_clip=grad_clip,
-            batch_size=batch_size,
-        )
-        # Policy knobs for hidden_dims
-        setattr(cfg, "width_scale", width_scale)
-        setattr(cfg, "depth", depth)
-        setattr(cfg, "round_to", round_to)
+#         cfg = TrainConfig(
+#             epochs=SEARCH_EPOCHS,
+#             lr=lr,
+#             kl_beta=kl_beta,
+#             deterministic=True,        # z = mu
+#             hidden_dims=None,          # let policy compute_hidden_dims decide
+#             grad_clip=grad_clip,
+#             batch_size=batch_size,
+#         )
+#         # Policy knobs for hidden_dims
+#         setattr(cfg, "width_scale", width_scale)
+#         setattr(cfg, "depth", depth)
+#         setattr(cfg, "round_to", round_to)
 
-        reducer.fit(cfg, trial=trial, prune_every=50)
+#         reducer.fit(cfg, trial=trial, prune_every=50)
 
-        # Objective: deterministic reconstruction MSE on the whole set
-        val_mse = reducer.reconstruction_mse()
+#         # Objective: deterministic reconstruction MSE on the whole set
+#         val_mse = reducer.reconstruction_mse()
 
-        # Avoid GPU memory accumulation across trials
-        # del reducer
-        # if torch.cuda.is_available():
-        #     torch.cuda.empty_cache()
-
-        return val_mse, params
+#         return val_mse, params
     
-    except optuna.TrialPruned:
-        raise
+#     except optuna.TrialPruned:
+#         raise
 
-    except Exception as e:
-        log_progress.error("Unexpected error during VAE optimization: %s", e, exc_info=True)
-        return float('inf'), params
+#     except Exception as e:
+#         log_progress.error("Unexpected error during VAE optimization: %s", e, exc_info=True)
+#         return float('inf'), params
+
+
+def train_and_validate(params, df, trial_number):
+    """
+    Esegue un singolo trial VAE in un worker di ProcessPool in modo deterministico.
+    - Fissa il seed per-trial: GLOBAL_SEED + trial_number
+    - Allena su CPU
+    - Ritorna la metrica di ricostruzione (float)
+    """
+    set_global_seeds(GLOBAL_SEED + int(trial_number))
+
+    lr          = params["learning_rate"]
+    kl_beta     = params["kl_beta"]
+    latent_dim  = params["latent_dim"]
+    width_scale = params["width_scale"]
+    depth       = params["depth"]
+    round_to    = params["round_to"]
+    grad_clip   = params.get("grad_clip", 1.0)
+    batch_size  = params.get("batch_size", 0)  # 0 = full-batch
+
+    reducer = VectorReducer(df, latent_dim=latent_dim, device=torch.device("cpu"))
+
+    cfg = TrainConfig(
+        epochs=SEARCH_EPOCHS,
+        lr=lr,
+        kl_beta=kl_beta,
+        deterministic=True,
+        hidden_dims=None,
+        grad_clip=grad_clip,
+        batch_size=batch_size,
+    )
+    setattr(cfg, "width_scale", width_scale)
+    setattr(cfg, "depth",       depth)
+    setattr(cfg, "round_to",    round_to)
+
+    reducer.fit(cfg)  # NIENTE pruning qui (determinismo)
+    return reducer.reconstruction_mse()
+
 
 
 # -----------------------------
@@ -217,12 +251,12 @@ def interpolate_and_validate(
 # -----------------------------
 # TQDM progress callback
 # -----------------------------
-# class TQDMProgressBar:
-#     def __init__(self, total_trials):
-#         self.pbar = tqdm(total=total_trials)
+class TQDMProgressBar:
+    def __init__(self, total_trials):
+        self.pbar = tqdm(total=total_trials)
 
-#     def __call__(self, study, trial):
-#         self.pbar.update(1)
+    def __call__(self, study, trial):
+        self.pbar.update(1)
 
 
 # -----------------------------
@@ -262,37 +296,70 @@ class Optimizer:
             prior_weight=1.0
         )
 
-        # Storage
-        # storage = RDBStorage(
-        #     url="sqlite:///wavepilot_vae.db",
-        #     engine_kwargs={"connect_args": {"timeout": 30}}
-        # )
+        try:
+            suffix = space_fingerprint(VAE_PARAM_RANGES)
+            study_name = f"wavepilot_vae_{suffix}"
+        except Exception:
+            study_name = "wavepilot_vae_study"
 
-        pruner = MedianPruner(n_min_trials=20, n_warmup_steps=100)
-        suffix = space_fingerprint(VAE_PARAM_RANGES)
         self.study_vae = optuna.create_study(
             direction="minimize",
             sampler=sampler,
-            pruner=pruner,
             storage=None,
-            study_name=f"wavepilot_vae_{suffix}"
+            study_name=study_name
         )
 
-        #pbar = TQDMProgressBar(n_trials)
+        set_global_seeds(GLOBAL_SEED)
 
-        # With GPU/MPS, keep trials serial to avoid contention
-        #n_jobs = 1 if (torch.cuda.is_available() or torch.backends.mps.is_available()) else cpu_count()
+        # Batch paramters
+        max_workers = max(1, cpu_count())
 
-        self.study_vae.optimize(
-            self.objective_vae,
-            n_trials=n_trials,
-            n_jobs=cpu_count(),
-            #callbacks=[pbar],
-            show_progress_bar=True
-        )
+        total = n_trials
+        i = 0
+        pbar = tqdm(total=total, desc="DVAE HPO", leave=True)
 
-        best_params = self.study_vae.best_params
-        return best_params
+        try:
+            while i < total:
+                # Ask for a batch (deterministic order)
+                batch = []
+                for _ in range(min(max_workers, total - i)):
+                    trial = self.study_vae.ask()
+                    params = {
+                        name: SUGGEST_DISPATCH[config["type"]](trial, name, config)
+                        for name, config in VAE_PARAM_RANGES.items()
+                    }
+                    batch.append((trial, params))
+                
+                # Parallel execution
+                results = [None] * len(batch)
+                with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                    future_to_idx = {}
+                    for idx, (trial, params) in enumerate(batch):
+                        fut = ex.submit(
+                            train_and_validate,
+                            params,
+                            self.df,
+                            trial.number
+                        )
+                        future_to_idx[fut] = idx
+
+                    # Progress bar when a worker ends
+                    for fut in as_completed(future_to_idx.keys()):
+                        idx = future_to_idx[fut]
+                        results[idx] = fut.result()
+                        pbar.update(1)
+
+                # tell in batch order
+                for (trial, _), value in zip(batch, results):
+                    self.study_vae.tell(trial, value)
+
+                i += len(batch)
+
+        finally:
+            pbar.close()
+
+        return self.study_vae.best_params 
+
 
     def objective_rbf(self, trial, original_data, Z_std, median_dist):
         """Optuna objective for RBF: minimise validation distance (Mahalanobis + penalty)."""

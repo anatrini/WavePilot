@@ -12,7 +12,9 @@ from torch.nn import functional as F
 
 from utils import to_tensor, compute_hidden_dims, get_device
 
+# from constants import(
 
+# )
 
 # ============================================================
 # VAE deterministico per massima ricostruzione (overfitting)

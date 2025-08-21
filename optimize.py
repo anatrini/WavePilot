@@ -22,6 +22,7 @@ from constants import (
     RBF_MIN_DEGREE,
     RBF_DEGREE_LOCK,
     RBF_PARAM_RANGES,
+    RECON_ACCURACY_THRESHOLD,
     VAE_PARAM_RANGES,
 )
 
@@ -92,7 +93,7 @@ def train_and_validate(params, df, trial_number):
     setattr(cfg, "depth",       depth)
     setattr(cfg, "round_to",    round_to)
 
-    reducer.fit(cfg)  # NIENTE pruning qui (determinismo)
+    reducer.fit(cfg)  # No pruning (deterministic)
     return reducer.reconstruction_mse()
 
 
@@ -422,9 +423,8 @@ def main(filepath, num_entries=None, mask_columns=None):
     reducer = run_training(best_vae_params, df)
 
     # Deterministic metrics and artefacts
-    accuracy = reducer.reconstruction_accuracy(threshold=0.03)  # already in percentage
+    accuracy = reducer.reconstruction_accuracy(threshold=RECON_ACCURACY_THRESHOLD)  # already in percentage
     latent_points = reducer.transform()                         # μ to feed RBF
-    # reconstructed_data = reducer.reconstruct()                # optional inspection
 
     # ---- RBF hyperparameter search on (optionally normalised) latent space ----
     best_rbf_params = optimizer.optimize_rbf(

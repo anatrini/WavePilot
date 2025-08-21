@@ -91,10 +91,6 @@ VAE_PARAM_RANGES = {
         "type": "categorical",
         "values": [2, 3, 4]
     },
-    # "max_epochs": {
-    #     "type": "categorical",
-    #     "values": [2000, 5000]
-    # },
     "width_scale": {
         "type": "float",
         "low": 0.5,
@@ -160,7 +156,7 @@ RBF_DEGREE_LOCK = {
 # Kernels that ignore epsilon in SciPy
 RBF_FIXED_EPSILON_KERNELS = ["linear", "thin_plate_spline", "cubic"]
 
-# RBF evaluation helpers (added)
+# RBF evaluation helpers
 RBF_OOB_PENALTY_WEIGHT = 30.0
 RBF_OOB_PENALTY_POWER = 1.5
 RBF_MEDIAN_DIST_FALLBACK = 1.0

@@ -59,57 +59,6 @@ def load_data(filepath, num_entries=None, mask_columns=None):
 # -----------------------------
 # VAE: training + evaluation
 # -----------------------------
-# def train_and_validate(trial, params, original_df):
-#     """
-#     API:
-#       - build VectorReducer with the chosen latent_dim
-#       - create TrainConfig with updated hyperparameters
-#       - fit on the full dataset (overfitting is desired)
-#       - return deterministic reconstruction MSE (to minimise)
-#     """
-#     try:
-#         # --- Hyperparameters from the updated search space ---
-#         lr          = params['learning_rate']
-#         kl_beta     = params['kl_beta']
-#         latent_dim  = params['latent_dim']
-#         #max_epochs  = params['max_epochs']
-#         width_scale = params['width_scale']
-#         depth       = params['depth']
-#         round_to    = params['round_to']
-#         grad_clip   = params['grad_clip']
-#         batch_size  = params.get('batch_size', 0) # --> 0 is full batch
-
-#         reducer = VectorReducer(original_df, latent_dim=latent_dim, device=torch.device("cpu"))
-
-#         cfg = TrainConfig(
-#             epochs=SEARCH_EPOCHS,
-#             lr=lr,
-#             kl_beta=kl_beta,
-#             deterministic=True,        # z = mu
-#             hidden_dims=None,          # let policy compute_hidden_dims decide
-#             grad_clip=grad_clip,
-#             batch_size=batch_size,
-#         )
-#         # Policy knobs for hidden_dims
-#         setattr(cfg, "width_scale", width_scale)
-#         setattr(cfg, "depth", depth)
-#         setattr(cfg, "round_to", round_to)
-
-#         reducer.fit(cfg, trial=trial, prune_every=50)
-
-#         # Objective: deterministic reconstruction MSE on the whole set
-#         val_mse = reducer.reconstruction_mse()
-
-#         return val_mse, params
-    
-#     except optuna.TrialPruned:
-#         raise
-
-#     except Exception as e:
-#         log_progress.error("Unexpected error during VAE optimization: %s", e, exc_info=True)
-#         return float('inf'), params
-
-
 def train_and_validate(params, df, trial_number):
     """
     Esegue un singolo trial VAE in un worker di ProcessPool in modo deterministico.
@@ -249,17 +198,6 @@ def interpolate_and_validate(
     except Exception as e:
         log_progress.error("Unexpected error in interpolate_and_validate: %s", e, exc_info=True)
         return float('inf'), params
-
-
-# -----------------------------
-# TQDM progress callback
-# -----------------------------
-# class TQDMProgressBar:
-#     def __init__(self, total_trials):
-#         self.pbar = tqdm(total=total_trials)
-
-#     def __call__(self, study, trial):
-#         self.pbar.update(1)
 
 
 # -----------------------------

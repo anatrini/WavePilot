@@ -1,4 +1,15 @@
+# ==============================
+# General / I/O / Logging
+# ==============================
+LOG_FOLDER = "./logs"
+
+# Random seeds for reproducibility
+GLOBAL_SEED = 56
+
+
+# ==============================
 # Renderer params
+# ==============================
 NUM_CHANNELS = 2
 SAMPLERATE = 48000
 BLOCKSIZE = 1024
@@ -6,9 +17,12 @@ AUTOSAVE_INTERVAL = 5
 TARGET_DBFS = -3.0
 DATASET_FOLDER = "data"
 RENDERED_AUDIO_FOLDER = "audio"
-RECORDING_LENGTH = 2 # recording length in seconds
+RECORDING_LENGTH = 2  # seconds
 
+
+# ==============================
 # Preprocess settings
+# ==============================
 BIAS_INIT = 1e-03
 NOISE_MAGNITUDE = 2e-03
 NOISE_FILTER = 0.3
@@ -17,19 +31,48 @@ LOW_VARIANCE_THRESHOLD = 0.01
 CORRELATION_THRESHOLD = 0.95
 PCA_VARIANCE_THRESHOLD = 0.95
 
-LOG_FOLDER = "./logs"
 
-#LATENT_SPACE_SIZE = 3 # overwritten by latent_dim
-#TORCH_MANUAL_SEED = 12
+# ==============================
+# Model / VAE defaults (added)
+# ==============================
+# Latent constraints used by assertions
+MIN_LATENT_DIM = 2
+MAX_LATENT_DIM = 4
 
-# Random seeds for reproducibility
-GLOBAL_SEED = 56
+# Normalised data range
+DATA_MIN = 0.0
+DATA_MAX = 1.0
 
-# VAE parameter ranges, structured by type
-LATENT_EXPANSION_FACTOR = 8
-LOSS_EPSILON = 1e-8 # to prevent numerical instability
+# Loss/regularisation helpers
+LOSS_EPSILON = 1e-8  # to prevent numerical instability
+DEFAULT_KL_BETA = 0.0
+DEFAULT_INPUT_NOISE_STD = 0.0  # keep zero to maximise reconstruction
+
+# Hidden dimension auto-layout fallbacks (used when hidden_dims is None)
+HIDDEN_WIDTH_SCALE_DEFAULT = 1.0
+HIDDEN_DEPTH_DEFAULT = 2
+HIDDEN_ROUND_TO_DEFAULT = 8
+
+# Training schedule
 SEARCH_EPOCHS = 600
 FINAL_EPOCHS = 4000
+
+# Training loop control
+PRUNE_ENABLED_DEFAULT = False
+PRUNE_EVERY_EPOCHS = 50
+BEST_IMPROVEMENT_EPS = 1e-10
+DEFAULT_BATCH_SIZE = 0        # 0 => full-batch on tiny datasets
+GRAD_CLIP_DEFAULT = 1.0
+PER_FEATURE_WEIGHT_MIN = 1e-6
+
+# Metrics
+RECON_ACCURACY_THRESHOLD = 0.03  # 3% on [0,1]
+
+
+# ==============================
+# VAE hyperparameter search space
+# ==============================
+LATENT_EXPANSION_FACTOR = 8
 
 VAE_PARAM_RANGES = {
     "learning_rate": {
@@ -72,7 +115,10 @@ VAE_PARAM_RANGES = {
     }
 }
 
-# RBF parameter ranges, structured by type
+
+# ==============================
+# RBF hyperparameter search space
+# ==============================
 RBF_PARAM_RANGES = {
     "smoothing": {
         "type": "float",
@@ -82,7 +128,7 @@ RBF_PARAM_RANGES = {
     },
     "kernel": {
         "type": "categorical",
-        "values": ["gaussian","thin_plate_spline", "cubic", "inverse_quadratic", "linear"]
+        "values": ["gaussian", "thin_plate_spline", "cubic", "inverse_quadratic", "linear"]
     },
     "epsilon_scale": {
         "type": "float",
@@ -111,14 +157,28 @@ RBF_DEGREE_LOCK = {
     "inverse_quadratic": -1
 }
 
+# Kernels that ignore epsilon in SciPy
 RBF_FIXED_EPSILON_KERNELS = ["linear", "thin_plate_spline", "cubic"]
 
+# RBF evaluation helpers (added)
+RBF_OOB_PENALTY_WEIGHT = 30.0
+RBF_OOB_PENALTY_POWER = 1.5
+RBF_MEDIAN_DIST_FALLBACK = 1.0
 
-# Number of trials for optimization
+# Latent normalisation default for RBF stage
+NORMALISE_LATENT_DEFAULT = True
+
+
+# ==============================
+# Optimisation budget
+# ==============================
 N_TRIALS_VAE = 500
 N_TRIALS_RBF = 300
 
-# GUI communication params
+
+# ==============================
+# GUI / OSC
+# ==============================
 IP_ADDRESS = "127.0.0.1"
 SEND_PORT = 9100
 RECEIVE_PORT = 9101

@@ -158,12 +158,15 @@ def interpolate_and_validate(
     median_dist,          # median pairwise distance in the same space as Z_std
     min_degree,
     fixed_epsilon_kernels,
-    degree_lock=None
+    degree_lock,
+    trial_number
 ):
     """
     Evaluate an RBF configuration by computing the mean Mahalanobis distance on training points,
     plus a penalty for out-of-bounds outputs in [0,1].
     """
+    set_global_seeds(GLOBAL_SEED + int(trial_number))
+
     try:
         smoothing     = params['smoothing']
         kernel        = params['kernel']
@@ -251,12 +254,12 @@ def interpolate_and_validate(
 # -----------------------------
 # TQDM progress callback
 # -----------------------------
-class TQDMProgressBar:
-    def __init__(self, total_trials):
-        self.pbar = tqdm(total=total_trials)
+# class TQDMProgressBar:
+#     def __init__(self, total_trials):
+#         self.pbar = tqdm(total=total_trials)
 
-    def __call__(self, study, trial):
-        self.pbar.update(1)
+#     def __call__(self, study, trial):
+#         self.pbar.update(1)
 
 
 # -----------------------------
@@ -375,7 +378,8 @@ class Optimizer:
             median_dist=median_dist,
             min_degree=RBF_MIN_DEGREE,
             fixed_epsilon_kernels=RBF_FIXED_EPSILON_KERNELS,
-            degree_lock=RBF_DEGREE_LOCK
+            degree_lock=RBF_DEGREE_LOCK,
+            trial_number=trial.number
         )
         return validation_distance
 
@@ -386,6 +390,8 @@ class Optimizer:
           - precompute the median pairwise distance in that space,
           - search epsilon via epsilon_scale × median_dist.
         """
+        set_global_seeds(GLOBAL_SEED)
+
         sampler = TPESampler(
             seed=GLOBAL_SEED,
             n_startup_trials=5,
@@ -393,18 +399,19 @@ class Optimizer:
             prior_weight=1.0
         )
 
-        # storage = RDBStorage(
-        #     url="sqlite:///wavepilot_rbf.db",
-        #     engine_kwargs={"connect_args": {"timeout": 30}}
-        # )
+        try:
+            suffix = space_fingerprint(RBF_PARAM_RANGES)
+            study_name = f"wavepilot_rbf_{suffix}"
+        except Exception:
+            study_name = "wavepilot_rbf_study"
 
-        suffix = space_fingerprint(RBF_PARAM_RANGES)
         self.study_rbf = optuna.create_study(
             direction="minimize",
             sampler=sampler,
             storage=None,
-            study_name=f"wavepilot_rbf_{suffix}"
+            study_name=study_name
         )
+
 
         # --- Prepare the latent space used for RBF fitting ---
         if normalise_latent:
@@ -422,14 +429,12 @@ class Optimizer:
             median_dist = 1.0
         self.rbf_median_dist_ = median_dist
 
-        #pbar = TQDMProgressBar(n_trials)
 
         # CPU-bound, safe to parallelise
         self.study_rbf.optimize(
             lambda trial: self.objective_rbf(trial, original_data, Z_std, median_dist),
             n_trials=n_trials,
-            n_jobs=cpu_count(),
-            #callbacks=[pbar],
+            n_jobs=1,
             show_progress_bar=True
         )
 

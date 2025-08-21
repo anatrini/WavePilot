@@ -235,7 +235,7 @@ class VectorReducer:
 
     # --------------------------------------------------------
 
-    def fit(self, 
+    def fit(self,
             cfg: Optional[TrainConfig] = None,
             trial: Optional[optuna.trial.Trial] = None,
             prune_every: int = 50):
@@ -298,7 +298,7 @@ class VectorReducer:
             # Average over mini-batches (usually 1)
             epoch_recon /= max(1, nb)
 
-            # Pruning
+            # Pruning (not in use)
             if trial is not None and (epoch % prune_every==0):
                 trial.report(epoch_recon, step=epoch)
                 if trial.should_prune():

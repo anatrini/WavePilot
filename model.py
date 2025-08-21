@@ -238,7 +238,8 @@ class VectorReducer:
     def fit(self,
             cfg: Optional[TrainConfig] = None,
             trial: Optional[optuna.trial.Trial] = None,
-            prune_every: int = 50):
+            enable_pruning: bool = False,
+            prune_every: Optional[int] = 50):
         """
         Train the model to overfit (by design) the small dataset.
         Best checkpoint is tracked by reconstruction loss and restored at the end.
@@ -299,10 +300,11 @@ class VectorReducer:
             epoch_recon /= max(1, nb)
 
             # Pruning (not in use)
-            if trial is not None and (epoch % prune_every==0):
-                trial.report(epoch_recon, step=epoch)
-                if trial.should_prune():
-                    raise optuna.TrialPruned()
+            if enable_pruning and (trial is not None) and (prune_every is not None) and (prune_every > 0):
+                if epoch % prune_every == 0:
+                    trial.report(epoch_recon, step=epoch)
+                    if trial.should_prune():
+                        raise optuna.TrialPruned()
 
             # Track the best state based on mean reconstruction loss
             if epoch_recon < best_recon - 1e-10:

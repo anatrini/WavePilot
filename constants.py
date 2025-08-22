@@ -46,6 +46,7 @@ DATA_MAX = 1.0
 # Loss/regularisation helpers
 LOSS_EPSILON = 1e-8  # to prevent numerical instability
 DEFAULT_KL_BETA = 0.0
+DEFAULT_LEARNING_RATE = 1e-3
 DEFAULT_INPUT_NOISE_STD = 0.0  # keep zero to maximise reconstruction
 
 # Hidden dimension auto-layout fallbacks (used when hidden_dims is None)
@@ -118,7 +119,7 @@ VAE_PARAM_RANGES = {
 RBF_PARAM_RANGES = {
     "smoothing": {
         "type": "float",
-        "low": 1e-8,
+        "low": 1e-7,
         "high": 1e-2,
         "log": True
     },

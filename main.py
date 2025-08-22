@@ -25,17 +25,6 @@ def parse_arguments():
                         type=int,
                         default=None,
                         help="Number of random entries to select from the dataset.")
-
-    # optimize_parser.add_argument("-d", "--disable_split",
-    #                     dest="disable_split",
-    #                     action="store_false",
-    #                     help="Disable train/test split and use the entire dataset for both training and validation. Default split enabled.")
-    
-    # optimize_parser.add_argument("-t", "--test_size",
-    #                     dest="test_size",
-    #                     type=float,
-    #                     default=0.2,
-    #                     help="Train test split size, only available if -d flag is not provided. Default size 0.2.")
     
     optimize_parser.add_argument("-m", "--mask_columns",
                         dest="mask_columns",

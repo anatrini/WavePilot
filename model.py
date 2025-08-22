@@ -12,9 +12,14 @@ from torch.nn import functional as F
 
 from utils import to_tensor, compute_hidden_dims, get_device
 
-# from constants import(
-
-# )
+from constants import (
+    MIN_LATENT_DIM, MAX_LATENT_DIM, DATA_MIN, DATA_MAX,
+    DEFAULT_KL_BETA, DEFAULT_LEARNING_RATE, DEFAULT_INPUT_NOISE_STD, FINAL_EPOCHS,
+    HIDDEN_WIDTH_SCALE_DEFAULT, HIDDEN_DEPTH_DEFAULT, HIDDEN_ROUND_TO_DEFAULT,
+    PRUNE_ENABLED_DEFAULT, PRUNE_EVERY_EPOCHS, BEST_IMPROVEMENT_EPS,
+    DEFAULT_BATCH_SIZE, GRAD_CLIP_DEFAULT, PER_FEATURE_WEIGHT_MIN,
+    RECON_ACCURACY_THRESHOLD
+)
 
 # ============================================================
 # VAE deterministico per massima ricostruzione (overfitting)
@@ -35,12 +40,12 @@ class DeterministicVAE(nn.Module):
         input_dim: int,
         latent_dim: int = 3,
         hidden_dims: Optional[List[int]] = None,
-        kl_beta: float = 0.0,              # ~0: do not penalize "memorization" capacity
+        kl_beta: float = DEFAULT_KL_BETA,              # ~0: do not penalize "memorization" capacity
         deterministic: bool = True,        # z = mu during both training and evaluation
-        input_noise_std: float = 0.0,      # keep 0 by default to avoid hurting reconstruction
+        input_noise_std: float = DEFAULT_INPUT_NOISE_STD,      # keep 0 by default to avoid hurting reconstruction
     ):
         super().__init__()
-        assert 2 <= latent_dim <= 4, "Latent dimensionality must be between 2 and 4."
+        assert MIN_LATENT_DIM <= latent_dim <= MAX_LATENT_DIM, "Latent dimensionality must be between 2 and 4."
 
         self.input_dim = input_dim
         self.latent_dim = latent_dim
@@ -57,9 +62,9 @@ class DeterministicVAE(nn.Module):
             hidden_dims = compute_hidden_dims(
                 input_dim=input_dim,
                 latent_dim=latent_dim,
-                width_scale=1.0,
-                depth=2,
-                round_to=8
+                width_scale=HIDDEN_WIDTH_SCALE_DEFAULT,
+                depth=HIDDEN_DEPTH_DEFAULT,
+                round_to=HIDDEN_ROUND_TO_DEFAULT
             )
 
         # Encoder: input -> ... -> (mu, logvar)
@@ -113,7 +118,7 @@ class DeterministicVAE(nn.Module):
         # Optional input noise (disabled by default); keep outputs in [0,1]
         if self.input_noise_std > 0.0 and self.training:
             x = x + torch.randn_like(x) * self.input_noise_std
-            x = x.clamp(0.0, 1.0)  # restiamo nel range
+            x = x.clamp(DATA_MIN, DATA_MAX)
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         x_hat = self.decode(z)
@@ -125,7 +130,7 @@ class DeterministicVAE(nn.Module):
         x_hat: torch.Tensor,
         mu: torch.Tensor,
         logvar: torch.Tensor,
-        kl_beta: float = 0.0,
+        kl_beta: float = DEFAULT_KL_BETA,
         per_feature_weights: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -157,17 +162,17 @@ class DeterministicVAE(nn.Module):
 
 @dataclass
 class TrainConfig:
-    epochs: int = 2000                 # molti passi: dobbiamo MEMORIZZARE
-    lr: float = 1e-3                   # Adam senza weight decay
-    batch_size: int = 0                # 0 => "full batch" (tutto il dataset insieme)
-    grad_clip: Optional[float] = 1.0   # clipping per evitare spike (utile con pochi campioni)
-    patience: Optional[int] = None     # None => niente early stopping (overfitting desiderato)
-    kl_beta: float = 0.0               # di default disattivo la KL
-    deterministic: bool = True         # z = mu sempre (coerente con massima ricostruzione)
-    input_noise_std: float = 0.0       # disattivo di default
+    epochs: int = FINAL_EPOCHS                            
+    lr: float = DEFAULT_LEARNING_RATE                      # Adam without weight decay
+    batch_size: int = DEFAULT_BATCH_SIZE                   # 0 => "full batch" (full dataset at once)
+    grad_clip: Optional[float] = GRAD_CLIP_DEFAULT         # clipping to prevent spikes
+    patience: Optional[int] = None                         # None => no early stopping (overfitting is desirable)
+    kl_beta: float = DEFAULT_KL_BETA                       # disabled by default
+    deterministic: bool = True                             # z = mu (deterministic)
+    input_noise_std: float = DEFAULT_INPUT_NOISE_STD       # disabled by default
     activation: str = "silu"
     hidden_dims: Optional[List[int]] = None
-    per_feature_weights: Optional[np.ndarray] = None  # opzionale: pesatura stabile
+    per_feature_weights: Optional[np.ndarray] = None       # optional: stable wieghting
 
 
 class VectorReducer:
@@ -185,7 +190,7 @@ class VectorReducer:
         hidden_dims: Optional[List[int]] = None,
         device: Optional[torch.device] = None,
     ):
-        assert 2 <= latent_dim <= 4, "Latent dimensionality must be between 2 and 4."
+        assert MIN_LATENT_DIM <= latent_dim <= MAX_LATENT_DIM, "Latent dimensionality must be between 2 and 4."
         self.device = device or get_device()
 
         # Expect [N, D] tensor in [0,1]; convert to FloatTensor on the target device
@@ -210,9 +215,9 @@ class VectorReducer:
             hd = compute_hidden_dims(
                 input_dim=self.num_features,
                 latent_dim=self.latent_dim,
-                width_scale=getattr(cfg, "width_scale", 1.0),
-                depth=getattr(cfg, "depth", 2),
-                round_to=getattr(cfg, "round_to", 8)
+                width_scale=getattr(cfg, "width_scale", HIDDEN_WIDTH_SCALE_DEFAULT),
+                depth=getattr(cfg, "depth", HIDDEN_DEPTH_DEFAULT),
+                round_to=getattr(cfg, "round_to", HIDDEN_ROUND_TO_DEFAULT)
             )
         else:
             hd = cfg.hidden_dims
@@ -230,7 +235,7 @@ class VectorReducer:
         if cfg.per_feature_weights is not None:
             w = np.asarray(cfg.per_feature_weights, dtype=np.float32).reshape(-1)
             assert w.shape[0] == self.num_features, "Per_feature_weights must match num_features!"
-            w = np.clip(w, 1e-6, None)
+            w = np.clip(w, PER_FEATURE_WEIGHT_MIN, None)
             self.per_feature_weights_t = torch.from_numpy(w).to(self.device)
         else:
             self.per_feature_weights_t = None
@@ -240,8 +245,8 @@ class VectorReducer:
     def fit(self,
             cfg: Optional[TrainConfig] = None,
             trial: Optional[optuna.trial.Trial] = None,
-            enable_pruning: bool = False,
-            prune_every: Optional[int] = 50):
+            enable_pruning: bool = PRUNE_ENABLED_DEFAULT,
+            prune_every: Optional[int] = PRUNE_EVERY_EPOCHS):
         """
         Train the model to overfit (by design) the small dataset.
         Best checkpoint is tracked by reconstruction loss and restored at the end.
@@ -309,7 +314,7 @@ class VectorReducer:
                         raise optuna.TrialPruned()
 
             # Track the best state based on mean reconstruction loss
-            if epoch_recon < best_recon - 1e-10:
+            if epoch_recon < best_recon - BEST_IMPROVEMENT_EPS:
                 best_recon = epoch_recon
                 self.best_state = {
                     "model": {k: v.detach().clone() for k, v in model.state_dict().items()},
@@ -348,7 +353,7 @@ class VectorReducer:
         """
         Deterministic recostrunction (decoder(mu)).
         """
-        assert self.model is not None, "Model is not trained."
+        assert self.model is not None, "Model is not trained!"
         X = self.X if data is None else to_tensor(data, self.device)
         mu, _ = self.model.encode(X)
         X_hat = self.model.decode(mu)
@@ -365,7 +370,7 @@ class VectorReducer:
         return F.mse_loss(X_hat, X, reduction="mean").item()
 
     @torch.no_grad()
-    def reconstruction_accuracy(self, threshold: float = 0.03, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
+    def reconstruction_accuracy(self, threshold: float = RECON_ACCURACY_THRESHOLD, data: Optional[Union[np.ndarray, torch.Tensor]] = None) -> float:
         """
         Percentage of element-wise matches: |x_hat - x| < threshold.
         threshold=0.03 is reasonable for data in [0,1]; adjust as needed.

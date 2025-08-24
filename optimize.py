@@ -154,10 +154,16 @@ def interpolate_and_validate(
             epsilon=epsilon,
             degree=degree
         )
+
         interpolated_data = interpolator(Z_std)
+        if not np.all(np.isfinite(interpolated_data)):
+            log_progress.warning("Non-finite interpolated_data; returning inf for this trial!")
+            return float('inf'), params
 
         # Mahalanobis with robust fallbacks
         cov_matrix = np.cov(original_data, rowvar=False)
+        cov_matrix = np.nan_to_num(cov_matrix, copy=False)
+        cov_matrix = cov_matrix + 1e-12 * np.eye(cov_matrix.shape[1])
         try:
             inv_cov = np.linalg.inv(cov_matrix)
         except np.linalg.LinAlgError:
@@ -182,6 +188,9 @@ def interpolate_and_validate(
         mean_distance = np.mean(distances)
 
         validation_distance = mean_distance + 30 * (penalty ** 1.5)
+        if not np.isfinite(validation_distance):
+            log_progress.warning("Non-finite validation_distance; returning inf for this trial.")
+            return float('inf'), params
         return validation_distance, params
 
     except np.linalg.LinAlgError:

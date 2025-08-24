@@ -7,17 +7,27 @@ from flask_socketio import SocketIO
 from pythonosc import udp_client
 from scipy.spatial.distance import pdist
 
-from constants import IP_ADDRESS, SEND_PORT, RECEIVE_PORT, RBF_FIXED_EPSILON_KERNELS
+from constants import (
+    IP_ADDRESS, SEND_PORT, RECEIVE_PORT, 
+    RBF_FIXED_EPSILON_KERNELS,
+    FINAL_EPOCHS,
+    NORMALISE_LATENT_DEFAULT,
+    GRAD_CLIP_DEFAULT,
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_KL_BETA,
+    GLOBAL_SEED
+)
+
 from data import DataLoader
 from interpolator import RBFInterpolation
 from logger import setup_logger
 from model import VectorReducer, TrainConfig
 from serialization import load_model, save_model
-from utils import get_hyperparams_from_log, LatentScaler
+from utils import get_hyperparams_from_log, LatentScaler, set_global_seeds
 from visualizer import Visualize
 
 
-log = setup_logger("VAE and Interpolator")
+log = setup_logger("DVAE and Interpolator")
 
 
 def run_flask(app, socketio, reduced_data):
@@ -33,6 +43,9 @@ def run_flask(app, socketio, reduced_data):
 
 
 async def main(filepath, pretrained_model_path, optimizer_session, save_model_path):
+
+    # Set global seed for reproducibility
+    set_global_seeds(GLOBAL_SEED)
 
     app = Flask(__name__)
     socketio = SocketIO(app, cors_allowed_origins="*")
@@ -67,6 +80,9 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             reducer.model = model.to(reducer.device)
             reducer.model.eval()
 
+            # If inthe checkpoint a latent scaler is available use it
+            latent_scaler_ckpt = rbf_package.get("latent_scaler", None)
+
         else:
             # Case 2: train from optimiser log
             full_params = get_hyperparams_from_log(optimizer_session)
@@ -76,13 +92,13 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             reducer = VectorReducer(original_data, latent_dim=vae_params["latent_dim"])
 
             cfg = TrainConfig(
-                epochs=vae_params["max_epochs"],
+                epochs=FINAL_EPOCHS,
                 lr=vae_params["learning_rate"],
-                kl_beta=vae_params.get("kl_beta", 0.0),
+                kl_beta=vae_params.get("kl_beta", DEFAULT_KL_BETA),
                 deterministic=True,
                 hidden_dims=None,
-                grad_clip=vae_params.get("grad_clip", 1.0),
-                batch_size=vae_params.get("batch_size", 0),
+                grad_clip=vae_params.get("grad_clip", GRAD_CLIP_DEFAULT),
+                batch_size=vae_params.get("batch_size", DEFAULT_BATCH_SIZE),
             )
             # Hidden-dims policy knobs
             setattr(cfg, "width_scale", vae_params["width_scale"])
@@ -90,18 +106,23 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             setattr(cfg, "round_to",    vae_params["round_to"])
 
             reducer.fit(cfg)
+            latent_scaler_ckpt = None
 
         # --- Deterministic latent (μ) ---
         reduced_data = reducer.transform()
 
         # --- External latent normalisation (z-score) ---
-        NORMALISE_LATENT = True
-        if NORMALISE_LATENT:
+        Z_std = reduced_data
+        scaler = None
+
+        if pretrained_model_path and (latent_scaler_ckpt is not None):
+            scaler = latent_scaler_ckpt
+            Z_std = scaler.transform(reduced_data)
+        elif NORMALISE_LATENT_DEFAULT:
             scaler = LatentScaler().fit(reduced_data)
             Z_std = scaler.transform(reduced_data)
-        else:
-            scaler = None
-            Z_std = reduced_data
+        
+        assert np.all(np.isfinite(Z_std)), "Non-finite values in Z_std."
 
         # --- Geometry for epsilon: median pairwise distance in the fitting space ---
         if Z_std.shape[0] >= 2:

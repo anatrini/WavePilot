@@ -119,8 +119,8 @@ VAE_PARAM_RANGES = {
 RBF_PARAM_RANGES = {
     "smoothing": {
         "type": "float",
-        "low": 1e-7,
-        "high": 1e-2,
+        "low": 1e-12,
+        "high": 1e-5,
         "log": True
     },
     "kernel": {

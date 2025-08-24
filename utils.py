@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import random
+import re
 from typing import Union
 
 import numpy as np
@@ -109,8 +110,6 @@ def get_device() -> torch.device:
     else:
         return torch.device("cpu")
 
-#device = get_device()
-#print(f"Using device: {device}")
 
 
     # Set all seeds to ensure reproducibility
@@ -147,34 +146,43 @@ def load_osc_addresses(file_path):
 
 def get_hyperparams_from_log(log_file):
     params = {}
+    pat_vae = re.compile(r"Best VAE Parameters:\s*(\{.*\})")
+    pat_rbf = re.compile(
+        r"Best RBF Parameters:\s*(\{.*\})"
+        r"(?:\s*\|\s*Validation\s+(?:distance|error):\s*([+\-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+\-]?\d+)?))?"
+    )
+
     try:
         with open(log_file, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+            for line in f:
+                m = pat_vae.search(line)
+                if m:
+                    try:
+                        params["vae"] = ast.literal_eval(m.group(1))
+                    except (SyntaxError, ValueError) as e:
+                        raise ValueError(f"Error parsing VAE params from line: {line}") from e
+                    continue
 
-        for line in lines:
-            # Extract the best hyperparameters for the VAE
-            if "Best VAE Parameters" in line:
-                try:
-                    params_str = line.split("Best VAE Parameters: ")[1].split(" |")[0]
-                    params["vae"] = ast.literal_eval(params_str)
-                except (IndexError, SyntaxError, ValueError) as e:
-                    raise ValueError(f"Error processing VAE parameters from line: {line}. Details: {e}") from e
-
-            # Extract the best hyperparameters for the interpolator
-            elif "Best RBF Parameters" in line:
-                try:
-                    params_str = line.split("Best RBF Parameters: ")[1].split(" |")[0]
-                    params["rbf"] = ast.literal_eval(params_str)
-                except (IndexError, SyntaxError, ValueError) as e:
-                    raise ValueError(f"Error processing interpolator parameters from line: {line}. Details: {e}") from e
+                m = pat_rbf.search(line)
+                if m:
+                    try:
+                        params["rbf"] = ast.literal_eval(m.group(1))
+                    except (SyntaxError, ValueError) as e:
+                        raise ValueError(f"Error parsing RBF params from line: {line}")
+                    # Validation distance (optional)
+                    if m.group(2) is not None:
+                        try:
+                            params["rbf_best_value"] = float(m.group(2))
+                        except ValueError:
+                            pass
 
     except FileNotFoundError as e:
         raise FileNotFoundError(f"The specified log file does not exist: {log_file}. Details: {e}") from e
     except IOError as e:
         raise IOError(f"Error reading the log file: {log_file}. Details: {e}") from e
 
-    if not params:
-        raise ValueError("No parameters found in the log file.")
+    if "vae" not in params and "rbf" not in params:
+        raise ValueError("No parameters found in the log file!")
 
     return params
 

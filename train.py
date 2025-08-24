@@ -105,7 +105,7 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             setattr(cfg, "depth",       vae_params["depth"])
             setattr(cfg, "round_to",    vae_params["round_to"])
 
-            reducer.fit(cfg)
+            reducer.fit(cfg, show_progress=True)
             latent_scaler_ckpt = None
 
         # --- Deterministic latent (μ) ---

@@ -9,11 +9,12 @@ import optuna
 import torch
 from torch import nn
 from torch.nn import functional as F
+from tqdm import tqdm
 
 from utils import to_tensor, compute_hidden_dims, get_device
 
 from constants import (
-    MIN_LATENT_DIM, MAX_LATENT_DIM, DATA_MIN, DATA_MAX,
+    MIN_LATENT_DIM, MAX_LATENT_DIM, DATA_MIN, DATA_MAX, DECIMAL_PLACES,
     DEFAULT_KL_BETA, DEFAULT_LEARNING_RATE, DEFAULT_INPUT_NOISE_STD, FINAL_EPOCHS,
     HIDDEN_WIDTH_SCALE_DEFAULT, HIDDEN_DEPTH_DEFAULT, HIDDEN_ROUND_TO_DEFAULT,
     PRUNE_ENABLED_DEFAULT, PRUNE_EVERY_EPOCHS, BEST_IMPROVEMENT_EPS,
@@ -246,7 +247,9 @@ class VectorReducer:
             cfg: Optional[TrainConfig] = None,
             trial: Optional[optuna.trial.Trial] = None,
             enable_pruning: bool = PRUNE_ENABLED_DEFAULT,
-            prune_every: Optional[int] = PRUNE_EVERY_EPOCHS):
+            prune_every: Optional[int] = PRUNE_EVERY_EPOCHS,
+            show_progress: bool = False
+            ):
         """
         Train the model to overfit (by design) the small dataset.
         Best checkpoint is tracked by reconstruction loss and restored at the end.
@@ -270,6 +273,8 @@ class VectorReducer:
 
         best_recon = float("inf")
         patience_counter = 0
+
+        pbar = tqdm(total=cfg.epochs, disable=not show_progress, desc="Training DVAE")
 
         for epoch in range(1, cfg.epochs + 1):
             # Simple manual batching: sufficient for tiny datasets
@@ -306,6 +311,10 @@ class VectorReducer:
             # Average over mini-batches (usually 1)
             epoch_recon /= max(1, nb)
 
+            if show_progress:
+                pbar.set_postfix(recon=f"{epoch_recon:.{DECIMAL_PLACES}f}")
+                pbar.update(1)
+
             # Pruning (not in use)
             if enable_pruning and (trial is not None) and (prune_every is not None) and (prune_every > 0):
                 if epoch % prune_every == 0:
@@ -328,6 +337,9 @@ class VectorReducer:
             # Optional early stopping (disabled by default; overfitting is desired)
             if cfg.patience is not None and patience_counter >= cfg.patience:
                 break
+
+        if show_progress:
+            pbar.close()
 
         # Restore best weights to guarantee the best reconstruction achieved
         if self.best_state is not None:

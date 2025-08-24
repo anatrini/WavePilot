@@ -412,7 +412,7 @@ def run_training(best_params_train, df_train):
     setattr(cfg, "depth",       best_params_train["depth"])
     setattr(cfg, "round_to",    best_params_train["round_to"])
 
-    reducer.fit(cfg)
+    reducer.fit(cfg, show_progress=True)
     return reducer
 
 

@@ -1,13 +1,16 @@
 # serialization.py
 from __future__ import annotations
 
-import torch
-import numpy as np
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+import numpy as np
+import torch
 
 from model import DeterministicVAE
 from utils import LatentScaler
 
+from constants import CHECKPOINTS_FOLDER, CHECKPOINT_EXTENSION
 
 CHECKPOINT_VERSION = "2.0"  # bump this if the checkpoint structure changes
 
@@ -89,7 +92,15 @@ def save_model(
         },
     }
 
-    torch.save(checkpoint, filepath)
+    out_path = Path(filepath)
+    if out_path.suffix == "":
+        out_path = out_path.with_suffix(CHECKPOINT_EXTENSION)
+    if out_path.parent == Path("") or str(out_path.parent) == ".":
+        out_path = Path(CHECKPOINTS_FOLDER) / out_path.name
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    torch.save(checkpoint, str(out_path))
 
 
 def load_model(

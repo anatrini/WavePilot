@@ -2,6 +2,8 @@
 # General / I/O / Logging
 # ==============================
 LOG_FOLDER = "./logs"
+CHECKPOINTS_FOLDER = "./checkpoints"
+CHECKPOINT_EXTENSION = ".pt"
 
 # Random seeds for reproducibility
 GLOBAL_SEED = 56

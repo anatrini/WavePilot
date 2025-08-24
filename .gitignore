@@ -10,5 +10,6 @@ output/*
 *.RPP
 Backups/*
 legacy/*
+checkpoints/*
 
 

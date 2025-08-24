@@ -2,8 +2,14 @@ from typing import Sequence
 
 import numpy as np
 from scipy.interpolate import RBFInterpolator
+from scipy.spatial import cKDTree
 
-from constants import RBF_FIXED_EPSILON_KERNELS  # kernels that ignore epsilon
+from constants import (
+    DATA_MIN, DATA_MAX,
+    NN_BLEND_ENABLED_DEFAULT, NN_BLEND_SCALE, NN_BLEND_POWER, NN_BLEND_ACTIVATION_THRESHOLD, 
+    RBF_FIXED_EPSILON_KERNELS
+    )
+
 from logger import setup_logger
 
 logging = setup_logger("Radial Basis Function Interpolator")
@@ -41,17 +47,20 @@ class RBFInterpolation:
         kernel: str,
         epsilon: float,
         *,
-        degree: int
+        degree: int,
+        nn_blend: bool = NN_BLEND_ENABLED_DEFAULT
     ):
         # Store core hyperparameters
+        self.reduced_data = reduced_data
+        self.original_data = original_data
         self.kernel = kernel
         self.smoothing = float(smoothing)
         self.degree = int(degree)
         self.epsilon = float(epsilon)
 
         # Validate and store latent/targets
-        Z = np.asarray(reduced_data, dtype=np.float64)
-        Y = np.asarray(original_data, dtype=np.float64)
+        Z = np.asarray(self.reduced_data, dtype=np.float64)
+        Y = np.asarray(self.original_data, dtype=np.float64)
         assert Z.ndim == 2, "reduced_data must be 2D of shape [N, d]."
         assert Y.ndim == 2, "original_data must be 2D of shape [N, D]."
         assert Z.shape[0] == Y.shape[0], "Latent and target data must have the same number of samples."
@@ -74,6 +83,17 @@ class RBFInterpolation:
             epsilon=self.epsilon,
             degree=self.degree,
         )
+
+        # Nearest-neighbour blending (navigation safety)
+        self._nn_blend_enabled = bool(nn_blend)
+        self._tree = cKDTree(self.reduced_data)
+        if Z.shape[0] >= 2:
+            dists, _ = self._tree.query(self.reduced_data, k=2)
+            med2 = float(np.median(dists[:,1]))
+            self._nn_med = med2 if np.isfinite(med2) and med2 > 0.0 else 1.0
+        else:
+            self._nn_med = 1.0
+        
 
     # ------------------- internal helpers -------------------
 
@@ -124,7 +144,26 @@ class RBFInterpolation:
         """
         x = self._to_latent_from_cursor(cursor_position)
         y = self.interpolator(x)
-        return np.clip(y, 0.0, 1.0)
+
+        # Numeric guard-rails if the RBF returns non-finite values, fall back to the nearest target
+        if not np.all(np.isfinite(y)):
+            _, idx = self._tree.query(x, k=1)
+            idx = int(idx) if np.ndim(idx) else idx
+            y = self.original_data[idx].reshape(1, -1)
+
+        # Optional NN-blend: soften behaviour near sparse/edge regions of the latent space
+        if self._nn_blend_enabled:
+            d, idx = self._tree.query(x, k=1)
+            d = float(d if np.ndim(d) == 0 else d[0])
+            idx = int(idx) if np.ndim(idx) else idx
+            d0 = max(NN_BLEND_ACTIVATION_THRESHOLD, self._nn_med * NN_BLEND_SCALE)
+            # Weight decays from 1 to 0 as distance grows
+            alpha = 1.0 if d <= d0 else float((d0 / d) ** NN_BLEND_POWER)
+            alpha = max(0.0, min(1.0, alpha))
+            y = alpha * y + (1.0 - alpha) * self.original_data[idx].reshape(1, -1)
+
+        y = np.clip(y, DATA_MIN, DATA_MAX)
+        return y
 
     def send_data(self, osc_client, cursor_position: Sequence[float]) -> None:
         """

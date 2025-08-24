@@ -182,3 +182,27 @@ IP_ADDRESS = "127.0.0.1"
 SEND_PORT = 9100
 RECEIVE_PORT = 9101
 FORWARD_PORT = 9110
+
+
+# ==============================
+# UX / Navigation
+# ==============================
+# Nearest-neighbour blending controls (post-RBF safety net)
+# ---------------------------------------------------------
+# NN_BLEND_SCALE:
+#   Multiplier for the median nearest-neighbour distance.
+#   Larger values (e.g. 2.0) make the blend activate later, only at the very edges;
+#   smaller values (e.g. 1.2) make it activate earlier, even in denser regions.
+#
+# NN_BLEND_POWER:
+#   Controls how sharply the blending weight decays with distance.
+#   1 = gentle (soft fade), 2 = moderate (recommended default), 3 = steep (hard switch).
+#
+# Adjust these only if latent navigation feels unstable:
+#   - Increase SCALE or POWER if you observe spikes near the borders.
+#   - Decrease SCALE or POWER if the interpolation feels too "sticky" to the nearest point.
+
+NN_BLEND_ENABLED_DEFAULT = True # Active by default to prevent spikes on latent space's borders
+NN_BLEND_SCALE = 1.5
+NN_BLEND_POWER = 2.0
+NN_BLEND_ACTIVATION_THRESHOLD = 1e-12

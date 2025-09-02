@@ -45,6 +45,10 @@ MAX_LATENT_DIM = 4
 DATA_MIN = 0.0
 DATA_MAX = 1.0
 
+# Visualization data range
+VIS_MIN = -1.0
+VIS_MAX = 1.0
+
 # Loss/regularisation helpers
 LOSS_EPSILON = 1e-8  # to prevent numerical instability
 DEFAULT_KL_BETA = 0.0

@@ -2,10 +2,13 @@ import time
 from threading import Thread
 
 import numpy as np
-from flask import Flask, jsonify, render_template
+from flask import Flask
 from flask_socketio import SocketIO
 from pythonosc import udp_client
 from scipy.spatial.distance import pdist
+
+from socket_handlers import cursor_move
+from web_routes import index_route, data_route
 
 from constants import (
     IP_ADDRESS, SEND_PORT, RECEIVE_PORT, 
@@ -30,15 +33,15 @@ from visualizer import Visualize
 log = setup_logger("DVAE and Interpolator")
 
 
-def run_flask(app, socketio, reduced_data):
-    @app.route("/")
-    def index():
-        return render_template("index.html")
+def run_flask(app, socketio, latent_data):
+    # Make latent data available to route handlers via current_app.config
+    app.config["LATENT_DATA"] = latent_data
 
-    @app.route("/data")
-    def get_data():
-        return jsonify(reduced_data.tolist())
+    # Register routes defined in web_routes.py
+    app.add_url_rule("/",     endpoint="index", view_func=index_route, methods=["GET"])
+    app.add_url_rule("/data", endpoint="data",  view_func=data_route,  methods=["GET"])
 
+    # Start web server + Socket.IO (in its own thread, as you already do)
     socketio.run(app)
 
 
@@ -55,13 +58,13 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
 
     # Basic CLI validation
     if not filepath:
-        log.error("You must provide a dataset file with --filepath.")
+        log.error("You must provide a dataset file with --filepath!")
         return
     if not (pretrained_model_path or optimizer_session):
-        log.error("You must specify either --pretrained-model or --optimizer-session.")
+        log.error("You must specify either --pretrained-model or --optimizer-session!")
         return
     if pretrained_model_path and optimizer_session:
-        log.error("You must specify only one between --pretrained-model or --optimizer-session.")
+        log.error("You must specify only one between --pretrained-model or --optimizer-session!")
         return
 
     loader = DataLoader(filepath)
@@ -70,18 +73,20 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
     try:
         # --- Build / load VAE ---
         rbf_params = None
+        latent_scaler_ckpt = None
 
         if pretrained_model_path:
             # Case 1: load pretrained checkpoint
             model, vae_params, rbf_package = load_model(pretrained_model_path)
             rbf_params = rbf_package.get("params", {})
+            latent_scaler_ckpt = rbf_package.get("latent_scaler", None)
 
             reducer = VectorReducer(original_data, latent_dim=vae_params["latent_dim"])
             reducer.model = model.to(reducer.device)
             reducer.model.eval()
 
-            # If inthe checkpoint a latent scaler is available use it
-            latent_scaler_ckpt = rbf_package.get("latent_scaler", None)
+            # If in the checkpoint a latent scaler is available use it
+            #latent_scaler_ckpt = rbf_package.get("latent_scaler", None)
 
         else:
             # Case 2: train from optimiser log
@@ -106,7 +111,7 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             setattr(cfg, "round_to",    vae_params["round_to"])
 
             reducer.fit(cfg, show_progress=True)
-            latent_scaler_ckpt = None
+            #latent_scaler_ckpt = None
 
         # --- Deterministic latent (μ) ---
         reduced_data = reducer.transform()
@@ -114,7 +119,6 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
         # --- External latent normalisation (z-score) ---
         Z_std = reduced_data
         scaler = None
-
         if pretrained_model_path and (latent_scaler_ckpt is not None):
             scaler = latent_scaler_ckpt
             Z_std = scaler.transform(reduced_data)
@@ -148,14 +152,24 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             degree=rbf_params["degree"]
         )
 
+        # Expose dependecies to socket.io handlers
+        app.config["INTERPOLATOR"] = interpolator
+        app.config["OSC_CLIENT"]   = osc_client
+
+        # Record the handler
+        socketio.on("cursor_move")(cursor_move)
+
         # The visualiser must see the same latent space used to fit the RBF
-        visualizer = Visualize(Z_std, app, socketio)
+        visualizer = Visualize(Z_std, socketio)
 
         elapsed_time = time.time() - start_time
         log.info("Training and setup completed in %.2f seconds.", elapsed_time)
 
+        # Start Flask in a separate thread
         flask_thread = Thread(target=run_flask, args=(app, socketio, Z_std))
         flask_thread.start()
+
+        await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
 
         # Optional: save consolidated checkpoint when training from optimiser session
         if (not pretrained_model_path) and save_model_path:
@@ -165,13 +179,11 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
                 rbf_params=rbf_params,
                 filepath=save_model_path,
                 latent_scaler=scaler,
-                rbf_interpolator=None,   # your RBFInterpolation wraps SciPy internally
+                rbf_interpolator=None,  
                 Z_std=Z_std,
                 original_data=original_data,
                 median_dist=median_dist
             )
-
-        await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
 
     except FileNotFoundError as e:
         log.error("File not found: %s", e)

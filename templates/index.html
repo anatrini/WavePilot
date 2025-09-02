@@ -1,37 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Preset Render Visualizer</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Preset Latent Visualiser</title>
 
-    <!-- Collegamento al file CSS esterno -->
-    <link rel="stylesheet" href="styles.css">
+  <!-- Styles -->
+  <link rel="stylesheet" href="/static/visualizer_style.css"/>
 
-    <!-- Include three.js library -->    
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.125.2/build/three.module.js",
-                "three/examples/jsm/controls/": "https://unpkg.com/three@0.125.2/examples/jsm/controls/",
-                "three-mesh-bvh": "https://unpkg.com/three-mesh-bvh@0.7.0/build/index.module.js"
-            }
-        }
-    </script>
-    <!-- Include Socket.IO library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+  <!-- Socket.IO -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- Plotly -->
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
 </head>
 
 <body>
-    <!-- Contenitore per il titolo -->
-    <div id="title-container">
-        <h1>Preset Renderer Visualization</h1>
+  <div id="title-container">
+    <h1>Preset Latent Visualiser</h1>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls">
+    <div class="control-row">
+      <!-- Input source -->
+      <label for="input-source">Input</label>
+      <select id="input-source" title="Select cursor control source">
+        <option value="osc" selected>OSC (device)</option>
+        <option value="keyboard">keyboard</option>
+      </select>
+
+      <!-- Point selector -->
+      <label for="point-select">Point</label>
+      <select id="point-select" title="Jump to a specific latent point">
+        <option value="">— select point —</option>
+      </select>
+
+      <!-- Axis mapping -->
+      <label for="axis-x">X</label>
+      <select id="axis-x"></select>
+      <label for="axis-y">Y</label>
+      <select id="axis-y"></select>
+      <label for="axis-z" class="z-only">Z</label>
+      <select id="axis-z" class="z-only"></select>
+
+      <!-- 4D slice controls (shown only when dim === 4) -->
+       <div id="slice-controls" class="control-row w-only" style="display:none;">
+        <label for="w-slider">W slice</label>
+        <input id="w-slider" type="range" min="-1" max="1" step="0.01" value="0">
+        <span id="w-value">0.00</span>
+       </div>
+
     </div>
+    <div class="hint">Click (Mouse mode) or drive via OSC (OSC mode). Selecting a point will move the cursor and interpolate.</div>
+  </div>
 
-    <!-- Contenitore per il canvas 3D -->
-    <div id="canvas-container"></div>
+  <!-- Plot container -->
+  <div id="plot-container"></div>
 
-    <!-- Include js script per visualizzare il grafico 3D -->
-    <script type="module" src="/static/graph_11.js"></script>
+  <!-- App -->
+  <script type="module" src="/static/plotly_viz.js"></script>
 </body>
 </html>

@@ -674,7 +674,7 @@ socket.on("cursor_update", (payload) => {
 
   drawPlot();
 
-  plotEl.on("plotly_relayout", (rev) => {
+  plotEl.on("plotly_relayout", (ev) => {
     if (ev && ev["scene_camera"]) {
         lastCamera = ev["scene_camera"];
     }

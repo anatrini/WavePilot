@@ -32,10 +32,13 @@ let boundsMin = [];
 let boundsMax = [];
 let axisNames = [];      // ["z0","z1","z2","z3"]
 let currentAxes = { x:0, y:1, z:2 };
-let inputSource = "osc"; // "osc" | "mouse"
+let inputSource = "keyboard"; // "osc" | "keyboard"
 let is3D = false;
 let cursorPoint = null;     // array length D
 let cursorTraceIndex = 1;   // set by drawPlot
+let uCurrent = [];
+let uTarget = [];
+let lastSendTs = 0;
 let sliceW0 = null;         // 4D slicing centre (latent coord along slice dim)
 let sliceDim = null;        // which latent dimension is used for slicing (4D only)
 let wValue = 0.0;
@@ -44,11 +47,21 @@ let localSeq = 0;
 let lastAppliedSeq = -1;
 let cursorGlowIdx = -1;
 let cursorDotIdx = -1;
+let lastCamera = null;
+
+
 
 // Keyboard step size
 const STEP_BASE =  0.03; // normal
 const STEP_FINE =  0.01; // alt
 const STEP_COARSE = 0.1; // shift
+
+// Cursor smoothing
+const LERP_ALPHA = 0.25;      // 0..1  (più alto = più reattivo, meno liscio)
+const SEND_INTERVAL_MS = 60;  // invio OSC/UI rate-limit
+const MOVE_EPS = 1e-3;        // soglia sotto la quale consideriamo fermo
+
+const clamp11 = v => Math.max(-1, Math.min(1, v));
 
 function currentStep(e) {
     if (e && e.shiftKey) return STEP_COARSE;
@@ -133,31 +146,31 @@ function applyUToCursor(u) {
 function handleKeyDown(e) {
   if (!keyNavEnabled || !cursorPoint) return;
 
-  // do not hijack typing in inputs
+  // non interferire con input/select/textarea
   const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
   if (tag === "input" || tag === "select" || tag === "textarea") return;
 
-  const step = currentStep(e);
+  const step = currentStep(e); // usa il tuo helper (Shift = coarse, ecc.)
   let used = false;
 
-  // u from current cursor
-  const u = buildUFromCursor(cursorPoint);
+  // u corrente ricavato dal marker visibile
+  const u = buildUFromCursor(cursorPoint); // restituisce [-1,1]^d
 
-  // X (←/→ or A/D)
+  // X (←/→ o A/D)
   if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
     u[currentAxes.x] = clamp(u[currentAxes.x] - step, -1, 1); used = true;
   } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
     u[currentAxes.x] = clamp(u[currentAxes.x] + step, -1, 1); used = true;
   }
 
-  // Y (↑/↓ or W/S)
+  // Y (↑/↓ o W/S)
   if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") {
     u[currentAxes.y] = clamp(u[currentAxes.y] + step, -1, 1); used = true;
   } else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") {
     u[currentAxes.y] = clamp(u[currentAxes.y] - step, -1, 1); used = true;
   }
 
-  // Z (PageUp/PageDown or E/Q) — only if present
+  // Z (PageUp/PageDown o E/Q) — solo se presente
   if (dim >= 3 && typeof currentAxes.z === "number") {
     if (e.key === "PageUp" || e.key === "e" || e.key === "E") {
       u[currentAxes.z] = clamp(u[currentAxes.z] + step, -1, 1); used = true;
@@ -166,7 +179,7 @@ function handleKeyDown(e) {
     }
   }
 
-  // W (4D slice via slider semantics) — [ / ]
+  // W (slice 4D) — tasti [ / ] ; aggiorna anche slider/readout per coerenza UI
   if (dim === 4 && sliceDim != null) {
     if (e.key === "]") {
       u[sliceDim] = clamp(u[sliceDim] + step, -1, 1); used = true;
@@ -174,24 +187,24 @@ function handleKeyDown(e) {
       u[sliceDim] = clamp(u[sliceDim] - step, -1, 1); used = true;
     }
     if (used) {
-      // keep slider/readout and plot split in sync
-      if (wSlider)  wSlider.value = String(u[sliceDim]);
-      if (wReadout) wReadout.textContent = u[sliceDim].toFixed(2);
-      sliceW0 = uToLatent(u[sliceDim], sliceDim);
-      drawPlot();
+      if (wSlider)  wSlider.value = String(u[sliceDim]);           // sync slider
+      if (wReadout) wReadout.textContent = Number(u[sliceDim]).toFixed(2); // sync label
+      // niente drawPlot() e niente sliceW0 qui: lo slicing segue il cursore in tickSmooth
     }
   }
 
   if (used) {
-    e.preventDefault(); // avoid page scroll with arrows
-    applyUToCursor(u);
-    lastAppliedSeq = localSeq;
+    e.preventDefault(); // evita lo scroll della pagina con le frecce
+    // *** NUOVO: aggiorna solo il target; il loop fa lerp + update + emit ***
+    uTarget = u.map(v => Math.max(-1, Math.min(1, v)));
+    // niente applyUToCursor(), niente send/emit, niente lastAppliedSeq qui
   }
 }
 
 function handleKeyUp(_e) {
-  // reserved for future use (custom repeats, etc.)
+  // lasciato intenzionalmente vuoto; utile in futuro per repeat custom
 }
+
 
 
 
@@ -426,6 +439,36 @@ function updateCursor(latentPoint) {
   }
 }
 
+function tickSmooth(ts) {
+  // lerp verso il bersaglio
+  let moved = false;
+  for (let i = 0; i < dim; i++) {
+    const prev = uCurrent[i];
+    const next = prev + LERP_ALPHA * (uTarget[i] - prev);
+    if (Math.abs(next - prev) > MOVE_EPS) moved = true;
+    uCurrent[i] = next;
+  }
+
+  if (moved) {
+    // sposta il marker nel sistema latente corrente
+    const lp = uCurrent.map((uu, j) => uToLatent(uu, j));
+    cursorPoint = lp;
+    if (dim === 4) applySliceFromLatent(cursorPoint);
+    updateCursor(cursorPoint);
+
+    // throttle invio evento al server
+    const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
+    if (now - lastSendTs >= SEND_INTERVAL_MS) {
+      localSeq += 1;
+      socket.emit("cursor_move", { u: [...uCurrent], origin: inputSource, seq: localSeq });
+      lastAppliedSeq = localSeq;   // preveniamo l'eco che sovrascrive
+      lastSendTs = now;
+    }
+  }
+  requestAnimationFrame(tickSmooth);
+}
+
+
 
 // Re-apply the slice (4D) given a new w0 (called on OSC updates or axis changes)
 function applySliceFromLatent(latentPoint) {
@@ -441,36 +484,42 @@ function applySliceFromLatent(latentPoint) {
   updateCursor(latentPoint); // keep cursor where it is
 }
 
-// Mouse click → move cursor (only when inputSource === "mouse")
+
+// Mouse click → set only the target; smoothing loop will move & send
 plotEl.addEventListener("plotly_click", (ev) => {
   if (inputSource !== "mouse") return;
   if (!ev || !ev.points || !ev.points.length) return;
 
   const p = ev.points[0];
 
-  if (!is3D) {
-    const latentPoint = Array.from({length: dim}, (_,i) => {
-      if (i === currentAxes.x) return p.x;
-      if (i === currentAxes.y) return p.y;
+  // Costruisci le coordinate latenti lp su tutte le d dimensioni
+  const lp = new Array(dim);
+  for (let i = 0; i < dim; i++) {
+    if (i === currentAxes.x) {
+      lp[i] = p.x;
+    } else if (i === currentAxes.y) {
+      lp[i] = p.y;
+    } else if (is3D && i === currentAxes.z) {
+      lp[i] = p.z;
+    } else {
       const lo = boundsMin[i], hi = boundsMax[i];
-      return 0.5 * (lo + hi);
-    });
-    cursorPoint = latentPoint;
-  } else {
-    const latentPoint = Array.from({length: dim}, (_,i) => {
-      if (i === currentAxes.x) return p.x;
-      if (i === currentAxes.y) return p.y;
-      if (i === currentAxes.z) return p.z;
-      const lo = boundsMin[i], hi = boundsMax[i];
-      return 0.5 * (lo + hi);
-    });
-    cursorPoint = latentPoint;
-    if (dim === 4) applySliceFromLatent(cursorPoint);
+      lp[i] = 0.5 * (lo + hi); // mid-point per le dimensioni non controllate
+    }
   }
 
-  updateCursor(cursorPoint);
-  sendCursor(cursorPoint);
+  // Se 4D, sincronizza lo slider con la W risultante (niente redraw qui)
+  if (dim === 4 && typeof sliceDim === "number") {
+    const uSlice = latentToU(lp[sliceDim], sliceDim);
+    if (wSlider)  wSlider.value = String(uSlice);
+    if (wReadout) wReadout.textContent = Number(uSlice).toFixed(2);
+  }
+
+  // Imposta il bersaglio in [-1,1]^d — sarà il loop a fare lerp + update + emit
+  const u = lp.map((val, j) => latentToU(val, j));
+  uTarget = u.map(v => clamp(v, -1, 1));
+
 });
+
 
 // Axis mapping controls
 function syncAxisSelectors() {
@@ -583,6 +632,13 @@ socket.on("cursor_update", (payload) => {
 
   buildAxisNames(dim);
   syncAxisSelectors();
+
+  // Set cursor initial position
+  uCurrent = new Array(dim).fill(0.0);
+  uTarget = new Array(dim).fill(0.0);
+
+  // Start smoothing animation
+  requestAnimationFrame(tickSmooth);
 
   if (dim === 4) {
     const used = new Set([currentAxes.x, currentAxes.y]);

@@ -282,7 +282,8 @@ function makeScatterTraces() {
       yaxis: { title: axisNames[axY] },
       margin: { t: 10, r: 10, b: 40, l: 40 },
       paper_bgcolor: BG_COLOR, // colour placeholder
-      plot_bgcolor: BG_COLOR   // colour placeholder
+      plot_bgcolor: BG_COLOR,  // colour placeholder
+      uirevision: "static"
     };
 
     return {
@@ -385,7 +386,9 @@ function makeScatterTraces() {
       xaxis: { title: axisNames[axX] },
       yaxis: { title: axisNames[axY] },
       zaxis: { title: axisNames[axZ] },
-      bgcolor: BG_COLOR // colour placeholder
+      bgcolor: BG_COLOR, // colour placeholder
+      uirevision: "static",
+      ...(lastCamera ? { camera: lastCamera } : {})
     },
     margin: { t: 10, r: 10, b: 10, l: 10 },
     paper_bgcolor: BG_COLOR // colour placeholder
@@ -670,6 +673,12 @@ socket.on("cursor_update", (payload) => {
   }
 
   drawPlot();
+
+  plotEl.on("plotly_relayout", (rev) => {
+    if (ev && ev["scene_camera"]) {
+        lastCamera = ev["scene_camera"];
+    }
+  });
 
   // Start cursor at first point (or centre if empty)
   if (latent.length > 0) {

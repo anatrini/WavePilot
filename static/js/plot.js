@@ -1,241 +1,226 @@
-// plot.js
+// /static/js/plot.js
 /* global Plotly */
 import { state, CONST, getColumn } from "./core.js";
-import { dom } from "./ui.js";
 
-export function makeScatterTraces() {
-  const axX = state.currentAxes.x;
-  const axY = state.currentAxes.y;
-  const axZ = state.currentAxes.z;
+/* ---------- util DOM per i contenitori ---------- */
+function els() {
+  const grid  = document.getElementById("plots");
+  const left  = document.getElementById("plot-left");
+  const right = document.getElementById("plot-right");
+  if (!grid)  throw new Error("#plots non trovato");
+  if (!left)  throw new Error("#plot-left non trovato");
+  if (!right) throw new Error("#plot-right non trovato");
+  return { grid, left, right };
+}
 
+/* ---------- layout modes ---------- */
+function setLayoutSingle({ bigMinHeightPx = 640 } = {}) {
+  const { grid, left, right } = els();
+  // 1 colonna, sinistro centrato e grande
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = "1fr";
+  grid.style.gap = "12px";
+
+  right.style.display = "none";        // nascondi completamente il destro
+  Plotly.purge(right);                  // libera eventuale grafico precedente
+
+  left.style.display = "block";
+  left.style.minHeight = bigMinHeightPx + "px";
+  left.style.margin = "0 auto";         // centra orizzontalmente
+}
+
+function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
+  const { grid, left, right } = els();
+  // 2 colonne affiancate
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = "1fr 1fr";
+  grid.style.gap = "12px";
+
+  left.style.display = "block";
+  right.style.display = "block";
+  left.style.minHeight  = smallMinHeightPx + "px";
+  right.style.minHeight = smallMinHeightPx + "px";
+  left.style.margin  = "0";
+  right.style.margin = "0";
+}
+
+/* ---------- tracce 2D / 3D ---------- */
+function scatter2D(axX, axY, cursorPoint) {
   const x = getColumn(state.latent, axX);
   const y = getColumn(state.latent, axY);
 
-  const cx = (state.cursorPoint && state.cursorPoint.length)
-    ? state.cursorPoint[axX]
-    : 0.5 * (state.boundsMin[axX] + state.boundsMax[axX]);
-  const cy = (state.cursorPoint && state.cursorPoint.length)
-    ? state.cursorPoint[axY]
-    : 0.5 * (state.boundsMin[axY] + state.boundsMax[axY]);
-  const cz = (typeof axZ === "number" && state.cursorPoint && state.cursorPoint.length)
-    ? state.cursorPoint[axZ]
-    : 0.0;
+  const cx = cursorPoint ? cursorPoint[axX] : 0.5 * (state.boundsMin[axX] + state.boundsMax[axX]);
+  const cy = cursorPoint ? cursorPoint[axY] : 0.5 * (state.boundsMin[axY] + state.boundsMax[axY]);
 
-  const traces = [];
-  let layout;
-  let is3DLocal = false;
+  const pts = {
+    type: "scattergl",
+    mode: "markers",
+    x, y,
+    marker: { size: 3, color: CONST.MARKER_COLOR },
+    name: "anchors",
+  };
+  const glow = {
+    type: "scattergl",
+    mode: "markers",
+    x: [cx], y: [cy],
+    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
+    hoverinfo: "skip",
+    showlegend: false,
+  };
+  const dot = {
+    type: "scattergl",
+    mode: "markers",
+    x: [cx], y: [cy],
+    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
+    hoverinfo: "skip",
+    showlegend: false,
+  };
 
-  if (state.dim === 2) {
-    const pts2d = {
-      type: "scattergl",
-      mode: "markers",
-      x, y,
-      marker: {
-        size: 3,
-        color: CONST.MARKER_COLOR
-      },
-      name: "anchors"
-    };
+  const layout = {
+    dragmode: "pan",
+    hovermode: "closest",
+    xaxis: { title: state.axisNames[axX] },
+    yaxis: { title: state.axisNames[axY] },
+    margin: { t: 10, r: 10, b: 40, l: 40 },
+    paper_bgcolor: CONST.BG_COLOR,
+    plot_bgcolor: CONST.BG_COLOR,
+    uirevision: "static",
+  };
 
-    const cursorGlow2d = {
-      type: "scattergl",
-      mode: "markers",
-      x: [cx], y: [cy],
-      marker: {
-        size: CONST.CURSOR_GLOW_SIZE,
-        opacity: CONST.CURSOR_GLOW_OPACITY,
-        color: CONST.CURSOR_GLOW_COLOR
-      },
-      hoverinfo: "skip",
-      showlegend: false
-    };
+  return { traces: [pts, glow, dot], layout, glowIdx: 1, dotIdx: 2 };
+}
 
-    const cursorDot2d = {
-      type: "scattergl",
-      mode: "markers",
-      x: [cx], y: [cy],
-      marker: {
-        size: CONST.CURSOR_DOT_SIZE,
-        color: CONST.CURSOR_DOT_COLOR,
-        line: { width: 2, color: CONST.CURSOR_DOT_LINE },
-        symbol: "circle"
-      },
-      hoverinfo: "skip",
-      showlegend: false
-    };
-
-    traces.push(pts2d, cursorGlow2d, cursorDot2d);
-
-    layout = {
-      dragmode: "pan",
-      hovermode: "closest",
-      xaxis: { title: state.axisNames[axX] },
-      yaxis: { title: state.axisNames[axY] },
-      margin: { t: 10, r: 10, b: 40, l: 40 },
-      paper_bgcolor: CONST.BG_COLOR,
-      plot_bgcolor: CONST.BG_COLOR,
-      uirevision: "static"
-    };
-
-    return {
-      traces,
-      layout,
-      is3D: false,
-      cursorIndices: { glow: traces.length - 2, dot: traces.length - 1 }
-    };
-  }
-
+function scatter3D(axX, axY, axZ, cursorPoint) {
+  const x = getColumn(state.latent, axX);
+  const y = getColumn(state.latent, axY);
   const z = getColumn(state.latent, axZ);
 
-  if (state.dim === 4 && state.sliceDim != null) {
-    const HALF_W = 0.12;
-    const near = { x: [], y: [], z: [] };
-    const far  = { x: [], y: [], z: [] };
+  const cx = cursorPoint ? cursorPoint[axX] : 0.5 * (state.boundsMin[axX] + state.boundsMax[axX]);
+  const cy = cursorPoint ? cursorPoint[axY] : 0.5 * (state.boundsMin[axY] + state.boundsMax[axY]);
+  const cz = cursorPoint ? cursorPoint[axZ] : 0.5 * (state.boundsMin[axZ] + state.boundsMax[axZ]);
 
-    for (let i = 0; i < state.latent.length; i++) {
-      const wVal = state.latent[i][state.sliceDim];
-      const tgt = (Math.abs(wVal - state.sliceW0) <= HALF_W) ? near : far;
-      tgt.x.push(x[i]); tgt.y.push(y[i]); tgt.z.push(z[i]);
-    }
-
-    traces.push({
-      type: "scatter3d",
-      mode: "markers",
-      x: near.x, y: near.y, z: near.z,
-      marker: {
-        size: 3,
-        color: near.z.length === z.length ? z : near.z,
-        colorscale: "Viridis",
-        showscale: false,
-        opacity: 1.0
-      },
-      name: "anchors (slice)"
-    });
-
-    traces.push({
-      type: "scatter3d",
-      mode: "markers",
-      x: far.x, y: far.y, z: far.z,
-      marker: {
-        size: 3,
-        color: far.z.length === z.length ? z : far.z,
-        colorscale: "Viridis",
-        showscale: false,
-        opacity: 0.10
-      },
-      name: "anchors (off-slice)"
-    });
-  } else {
-    traces.push({
-      type: "scatter3d",
-      mode: "markers",
-      x, y, z,
-      marker: {
-        size: 3,
-        color: z,                 // depth cue
-        colorscale: "Viridis",
-        showscale: false
-      },
-      name: "anchors"
-    });
-  }
-
-  const cursorGlow3d = {
+  const pts = {
+    type: "scatter3d",
+    mode: "markers",
+    x, y, z,
+    marker: { size: 3, color: z, colorscale: "Viridis", showscale: false },
+    name: "anchors",
+  };
+  const glow = {
     type: "scatter3d",
     mode: "markers",
     x: [cx], y: [cy], z: [cz],
-    marker: {
-      size: CONST.CURSOR_GLOW_SIZE,
-      opacity: CONST.CURSOR_GLOW_OPACITY,
-      color: CONST.CURSOR_GLOW_COLOR
-    },
+    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
     hoverinfo: "skip",
-    showlegend: false
+    showlegend: false,
   };
-
-  const cursorDot3d = {
+  const dot = {
     type: "scatter3d",
     mode: "markers",
     x: [cx], y: [cy], z: [cz],
-    marker: {
-      size: CONST.CURSOR_DOT_SIZE,
-      color: CONST.CURSOR_DOT_COLOR,
-      line: { width: 2, color: CONST.CURSOR_DOT_LINE },
-      symbol: "circle"
-    },
+    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
     hoverinfo: "skip",
-    showlegend: false
+    showlegend: false,
   };
 
-  traces.push(cursorGlow3d, cursorDot3d);
-
-  layout = {
+  const layout = {
     scene: {
       xaxis: { title: state.axisNames[axX] },
       yaxis: { title: state.axisNames[axY] },
       zaxis: { title: state.axisNames[axZ] },
       bgcolor: CONST.BG_COLOR,
       uirevision: "static",
-      ...(state.lastCamera ? { camera: state.lastCamera } : {})
+      ...(state.lastCamera ? { camera: state.lastCamera } : {}),
     },
     margin: { t: 10, r: 10, b: 10, l: 10 },
-    paper_bgcolor: CONST.BG_COLOR
+    paper_bgcolor: CONST.BG_COLOR,
   };
 
-  return {
-    traces,
-    layout,
-    is3D: true,
-    cursorIndices: { glow: traces.length - 2, dot: traces.length - 1 }
-  };
+  return { traces: [pts, glow, dot], layout, glowIdx: 1, dotIdx: 2 };
 }
 
-export function drawPlot() {
-  const { traces, layout, cursorIndices, is3D } = makeScatterTraces();
-  Plotly.react(dom.plotEl, traces, layout, { responsive: true });
-  state.cursorGlowIdx = cursorIndices.glow;
-  state.cursorDotIdx  = cursorIndices.dot;
-  state.is3D = !!is3D;
+/* ---------- API esportate ---------- */
+export function drawPlots() {
+  const { left, right } = els();
+
+  if (state.dim === 2) {
+    // layout: singolo grande centrato
+    setLayoutSingle({ bigMinHeightPx: 640 });
+    const { traces, layout, glowIdx, dotIdx } =
+      scatter2D(state.currentAxes.x, state.currentAxes.y, state.cursorPoint);
+    Plotly.react(left, traces, layout, { responsive: true });
+    state.is3D = false;
+    state.cursorLeft = { glowIdx, dotIdx };
+    state.cursorRight = null;
+    return;
+  }
+
+  if (state.dim === 3) {
+    // layout: singolo grande centrato
+    setLayoutSingle({ bigMinHeightPx: 640 });
+    const { traces, layout, glowIdx, dotIdx } =
+      scatter3D(state.currentAxes.x, state.currentAxes.y, state.currentAxes.z, state.cursorPoint);
+    Plotly.react(left, traces, layout, { responsive: true });
+    state.is3D = true;
+    state.cursorLeft = { glowIdx, dotIdx };
+    state.cursorRight = null;
+    return;
+  }
+
+  // dim === 4 → due grafici affiancati (più piccoli)
+  setLayoutDual({ smallMinHeightPx: 520 });
+
+  const a = state.currentAxesA || { x: 0, y: 1 };
+  const b = state.currentAxesB || { x: 2, y: 3 };
+
+  const A = scatter2D(a.x, a.y, state.cursorPoint);
+  Plotly.react(left, A.traces, A.layout, { responsive: true });
+  state.cursorLeft = { glowIdx: A.glowIdx, dotIdx: A.dotIdx };
+
+  const B = scatter2D(b.x, b.y, state.cursorPoint);
+  Plotly.react(right, B.traces, B.layout, { responsive: true });
+  state.cursorRight = { glowIdx: B.glowIdx, dotIdx: B.dotIdx };
+
+  state.is3D = false; // entrambe viste 2D
 }
 
 export function updateCursor(latentPoint) {
-  if (!latentPoint || !Array.isArray(latentPoint) || latentPoint.length !== state.dim) return;
+  const { left, right } = els();
+  if (!latentPoint || latentPoint.length !== state.dim) return;
 
-  const cx = latentPoint[state.currentAxes.x];
-  const cy = latentPoint[state.currentAxes.y];
-
-  if (!state.is3D) {
-    if (state.cursorGlowIdx >= 0) {
-      Plotly.restyle(dom.plotEl, { x: [[cx]], y: [[cy]] }, [state.cursorGlowIdx]);
-    }
-    if (state.cursorDotIdx >= 0) {
-      Plotly.restyle(dom.plotEl, { x: [[cx]], y: [[cy]] }, [state.cursorDotIdx]);
+  if (state.dim === 2) {
+    const axX = state.currentAxes.x, axY = state.currentAxes.y;
+    const cx = latentPoint[axX], cy = latentPoint[axY];
+    if (state.cursorLeft) {
+      Plotly.restyle(left, { x: [[cx]], y: [[cy]] }, [state.cursorLeft.glowIdx]);
+      Plotly.restyle(left, { x: [[cx]], y: [[cy]] }, [state.cursorLeft.dotIdx]);
     }
     return;
   }
 
-  const cz = (typeof state.currentAxes.z === "number") ? latentPoint[state.currentAxes.z] : 0.0;
+  if (state.dim === 3) {
+    const axX = state.currentAxes.x, axY = state.currentAxes.y, axZ = state.currentAxes.z;
+    const cx = latentPoint[axX], cy = latentPoint[axY], cz = latentPoint[axZ];
+    if (state.cursorLeft) {
+      Plotly.restyle(left, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorLeft.glowIdx]);
+      Plotly.restyle(left, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorLeft.dotIdx]);
+    }
+    return;
+  }
 
-  if (state.cursorGlowIdx >= 0) {
-    Plotly.restyle(dom.plotEl, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorGlowIdx]);
-  }
-  if (state.cursorDotIdx >= 0) {
-    Plotly.restyle(dom.plotEl, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorDotIdx]);
-  }
-}
+  // 4D dual 2D
+  const a = state.currentAxesA || { x: 0, y: 1 };
+  const b = state.currentAxesB || { x: 2, y: 3 };
 
-export function applySliceFromLatent(latentPoint) {
-  if (state.dim !== 4) return;
-  state.sliceW0 = latentPoint[state.sliceDim];
-  if (dom.wSlider && dom.wReadout) {
-    // reuse latentToU indirectly through bounds: compute normalised u manually
-    const lo = state.boundsMin[state.sliceDim], hi = state.boundsMax[state.sliceDim];
-    const denom = Math.max(1e-12, (hi - lo));
-    const u = 2.0 * (state.sliceW0 - lo) / denom - 1.0;
-    state.wValue = Math.max(-1, Math.min(1, u));
-    dom.wSlider.value = String(state.wValue);
-    dom.wReadout.textContent = state.wValue.toFixed(2);
+  const cax = latentPoint[a.x], cay = latentPoint[a.y];
+  if (state.cursorLeft) {
+    Plotly.restyle(left, { x: [[cax]], y: [[cay]] }, [state.cursorLeft.glowIdx]);
+    Plotly.restyle(left, { x: [[cax]], y: [[cay]] }, [state.cursorLeft.dotIdx]);
   }
-  drawPlot();
-  updateCursor(latentPoint);
+
+  const cbx = latentPoint[b.x], cby = latentPoint[b.y];
+  if (state.cursorRight) {
+    Plotly.restyle(right, { x: [[cbx]], y: [[cby]] }, [state.cursorRight.glowIdx]);
+    Plotly.restyle(right, { x: [[cbx]], y: [[cby]] }, [state.cursorRight.dotIdx]);
+  }
 }

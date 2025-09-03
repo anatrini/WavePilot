@@ -24,16 +24,29 @@ export const state = {
   boundsMin: [],
   boundsMax: [],
   axisNames: [],          // ["z0","z1","z2","z3"]
+  // Vista "classica" (2D/3D)
   currentAxes: { x: 0, y: 1, z: 2 },
-  inputSource: "keyboard", // "osc" | "mouse" | "keyboard"
   is3D: false,
+
+  // Nuove viste duali per 4D
+  viewA: { i: 0, j: 1 },  // default: (z0,z1)
+  viewB: { i: 2, j: 3 },  // default: (z2,z3)
+  cursorTraces: {
+    A: { glow: -1, dot: -1 },
+    B: { glow: -1, dot: -1 },
+  },
+
+  inputSource: "keyboard", // "osc" | "mouse" | "keyboard"
   cursorPoint: null,      // array length D
   uCurrent: [],
   uTarget: [],
   lastSendTs: 0,
-  sliceW0: null,          // 4D slicing centre (latent coord along slice dim)
-  sliceDim: null,         // which latent dimension is used for slicing (4D only)
+
+  // Campi legacy slice (non più usati in 4D, tenuti per compat. 2D/3D)
+  sliceW0: null,
+  sliceDim: null,
   wValue: 0.0,
+
   keyNavEnabled: false,
   localSeq: 0,
   lastAppliedSeq: -1,
@@ -44,7 +57,7 @@ export const state = {
 
 export function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 export const clamp11 = v => clamp(v, -1, 1);
-// NOTE: kept identical semantics to the original file.
+// NOTE: kept identical semantics to the original file (compat).
 export function clamp01(x) { return Math.min(1, Math.max(-1, x)); }
 
 export function currentStep(e) {
@@ -71,7 +84,7 @@ export function updateControlsVisibility(dim, wControlsEl) {
   } else {
     zEls.forEach(e => e.style.display = "");
   }
-  if (wControlsEl) wControlsEl.style.display = (dim === 4 ? "flex" : "none");
+  if (wControlsEl) wControlsEl.style.display = (dim === 4 ? "none" : "none"); // sempre nascosto in nuova 4D
 }
 
 export function buildAxisNames(n) {

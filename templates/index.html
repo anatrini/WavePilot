@@ -1,63 +1,89 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="it">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Preset Latent Visualiser</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Latent Space Explorer</title>
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="/static/visualizer_style.css"/>
+  <!-- Stili -->
+  <link rel="stylesheet" href="/static/visualizer_style.css" />
 
-  <!-- Socket.IO -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <!-- Plotly -->
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+  <!-- Fallback minimo per l’affiancamento dei due plot (se non già nel tuo CSS) -->
+  <style>
+    .plots-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .plot { min-height: 520px; }
+    fieldset { border: 1px solid #ccc; padding: .5rem .75rem; margin: .25rem .5rem; }
+    legend { padding: 0 .25rem; font-size: .9rem; }
+    #controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+    #dual-axis-controls { gap: 8px; align-items: center; }
+    label { margin-right: .5rem; }
+    .z-only { display: inline-flex; align-items: center; }
+  </style>
+
+  <!-- Librerie -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
 </head>
-
 <body>
-  <div id="title-container">
-    <h1>Preset Latent Visualiser</h1>
+  <div id="app">
+    <header>
+      <h1>Latent Space Explorer</h1>
+    </header>
+
+    <!-- CONTROLLI -->
+    <section id="controls">
+      <fieldset>
+        <legend>Input</legend>
+        <label for="input-source">Source</label>
+        <select id="input-source">
+          <option value="keyboard" selected>Keyboard</option>
+          <option value="mouse">Mouse</option>
+          <option value="osc">OSC</option>
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Point</legend>
+        <label for="point-select">Anchor</label>
+        <select id="point-select"></select>
+      </fieldset>
+
+      <!-- Controlli per 2D/3D (invariati) -->
+      <div id="single-axis-controls">
+        <fieldset>
+          <legend>Axes (2D/3D)</legend>
+          <label>X <select id="axis-x"></select></label>
+          <label>Y <select id="axis-y"></select></label>
+          <label class="z-only">Z <select id="axis-z"></select></label>
+        </fieldset>
+      </div>
+
+      <!-- NUOVI controlli per 4D: doppia vista 2D affiancata -->
+      <div id="dual-axis-controls" style="display:none">
+        <fieldset>
+          <legend>View A</legend>
+          <label>X <select id="axis-a-x"></select></label>
+          <label>Y <select id="axis-a-y"></select></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>View B</legend>
+          <label>X <select id="axis-b-x"></select></label>
+          <label>Y <select id="axis-b-y"></select></label>
+        </fieldset>
+      </div>
+
+      <!-- IMPORTANTE: lo slider W e i controlli di slicing sono stati rimossi del tutto -->
+    </section>
+
+    <!-- PLOT: due canvas affiancati (in 2D/3D userai quello di sinistra; in 4D entrambi) -->
+    <main id="plots" class="plots-2col">
+      <div id="plot-left"  class="plot"></div>
+      <div id="plot-right" class="plot"></div>
+    </main>
   </div>
 
-  <!-- Controls -->
-  <div id="controls">
-    <div class="control-row">
-      <!-- Input source -->
-      <label for="input-source">Input</label>
-      <select id="input-source" title="Select cursor control source">
-        <option value="osc" selected>OSC (device)</option>
-        <option value="keyboard">keyboard</option>
-      </select>
-
-      <!-- Point selector -->
-      <label for="point-select">Point</label>
-      <select id="point-select" title="Jump to a specific latent point">
-        <option value="">— select point —</option>
-      </select>
-
-      <!-- Axis mapping -->
-      <label for="axis-x">X</label>
-      <select id="axis-x"></select>
-      <label for="axis-y">Y</label>
-      <select id="axis-y"></select>
-      <label for="axis-z" class="z-only">Z</label>
-      <select id="axis-z" class="z-only"></select>
-
-      <!-- 4D slice controls (shown only when dim === 4) -->
-       <div id="slice-controls" class="control-row w-only" style="display:none;">
-        <label for="w-slider">W slice</label>
-        <input id="w-slider" type="range" min="-1" max="1" step="0.01" value="0">
-        <span id="w-value">0.00</span>
-       </div>
-
-    </div>
-    <div class="hint">Click (Mouse mode) or drive via OSC (OSC mode). Selecting a point will move the cursor and interpolate.</div>
-  </div>
-
-  <!-- Plot container -->
-  <div id="plot-container"></div>
-
-  <!-- App -->
+  <!-- Entry point ES module -->
   <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

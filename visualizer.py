@@ -24,7 +24,7 @@ from pythonosc import dispatcher as osc_dispatcher
 from pythonosc import osc_server
 
 from logger import setup_logger
-from constants import VIS_MIN, VIS_MAX, MIN_LATENT_DIM, MAX_LATENT_DIM
+from constants import VIZ_MIN, VIZ_MAX, MIN_LATENT_DIM, MAX_LATENT_DIM
 
 
 log = setup_logger("Visualizer")
@@ -166,7 +166,7 @@ class Visualize:
             u = np.pad(u, (0, pad), mode="constant", constant_values=0.0)
 
         # Clamp to [-1, 1] for robustness
-        u = np.clip(u, VIS_MIN, VIS_MAX)
+        u = np.clip(u, VIZ_MIN, VIZ_MAX)
 
         # 1. interpolation -> OSC
         try:

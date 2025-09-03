@@ -1,6 +1,6 @@
 // /static/js/plot.js
 /* global Plotly */
-import { state, CONST, getColumn } from "./core.js";
+import { state, CONST, getColumn, latentToU } from "./core.js";
 
 /* ---------- util DOM per i contenitori ---------- */
 function els() {
@@ -46,11 +46,11 @@ function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
 
 /* ---------- tracce 2D / 3D ---------- */
 function scatter2D(axX, axY, cursorPoint) {
-  const x = getColumn(state.latent, axX);
-  const y = getColumn(state.latent, axY);
+  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX))
+  const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
 
-  const cx = cursorPoint ? cursorPoint[axX] : 0.5 * (state.boundsMin[axX] + state.boundsMax[axX]);
-  const cy = cursorPoint ? cursorPoint[axY] : 0.5 * (state.boundsMin[axY] + state.boundsMax[axY]);
+  const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
+  const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
 
   const pts = {
     type: "scattergl",
@@ -62,7 +62,7 @@ function scatter2D(axX, axY, cursorPoint) {
   const glow = {
     type: "scattergl",
     mode: "markers",
-    x: [cx], y: [cy],
+    x: [cx_u], y: [cy_u],
     marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
     hoverinfo: "skip",
     showlegend: false,
@@ -70,7 +70,7 @@ function scatter2D(axX, axY, cursorPoint) {
   const dot = {
     type: "scattergl",
     mode: "markers",
-    x: [cx], y: [cy],
+    x: [cx_u], y: [cy_u],
     marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
     hoverinfo: "skip",
     showlegend: false,
@@ -79,8 +79,8 @@ function scatter2D(axX, axY, cursorPoint) {
   const layout = {
     dragmode: "pan",
     hovermode: "closest",
-    xaxis: { title: state.axisNames[axX] },
-    yaxis: { title: state.axisNames[axY] },
+    xaxis: { title: state.axisNames[axX], range: [-1, 1] },
+    yaxis: { title: state.axisNames[axY], range: [-1, 1] },
     margin: { t: 10, r: 10, b: 40, l: 40 },
     paper_bgcolor: CONST.BG_COLOR,
     plot_bgcolor: CONST.BG_COLOR,
@@ -91,13 +91,13 @@ function scatter2D(axX, axY, cursorPoint) {
 }
 
 function scatter3D(axX, axY, axZ, cursorPoint) {
-  const x = getColumn(state.latent, axX);
-  const y = getColumn(state.latent, axY);
-  const z = getColumn(state.latent, axZ);
+  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
+  const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
+  const z = getColumn(state.latent, axZ).map(v => latentToU(v, axZ));
 
-  const cx = cursorPoint ? cursorPoint[axX] : 0.5 * (state.boundsMin[axX] + state.boundsMax[axX]);
-  const cy = cursorPoint ? cursorPoint[axY] : 0.5 * (state.boundsMin[axY] + state.boundsMax[axY]);
-  const cz = cursorPoint ? cursorPoint[axZ] : 0.5 * (state.boundsMin[axZ] + state.boundsMax[axZ]);
+  const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
+  const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
+  const cz_u = cursorPoint ? latentToU(cursorPoint[axZ], axZ) : 0;
 
   const pts = {
     type: "scatter3d",
@@ -109,7 +109,7 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
   const glow = {
     type: "scatter3d",
     mode: "markers",
-    x: [cx], y: [cy], z: [cz],
+    x: [cx_u], y: [cy_u], z: [cz_u],
     marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
     hoverinfo: "skip",
     showlegend: false,
@@ -117,7 +117,7 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
   const dot = {
     type: "scatter3d",
     mode: "markers",
-    x: [cx], y: [cy], z: [cz],
+    x: [cx_u], y: [cy_u], z: [cz_u],
     marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
     hoverinfo: "skip",
     showlegend: false,
@@ -125,9 +125,9 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
 
   const layout = {
     scene: {
-      xaxis: { title: state.axisNames[axX] },
-      yaxis: { title: state.axisNames[axY] },
-      zaxis: { title: state.axisNames[axZ] },
+      xaxis: { title: state.axisNames[axX], range: [-1, 1] },
+      yaxis: { title: state.axisNames[axY], range: [-1, 1] },
+      zaxis: { title: state.axisNames[axZ], range: [-1, 1] },
       bgcolor: CONST.BG_COLOR,
       uirevision: "static",
       ...(state.lastCamera ? { camera: state.lastCamera } : {}),
@@ -189,38 +189,53 @@ export function updateCursor(latentPoint) {
   if (!latentPoint || latentPoint.length !== state.dim) return;
 
   if (state.dim === 2) {
-    const axX = state.currentAxes.x, axY = state.currentAxes.y;
-    const cx = latentPoint[axX], cy = latentPoint[axY];
+    // assi correnti (forziamo Number nel dubbio arrivino stringhe dai <select>)
+    const axX = Number(state.currentAxes.x);
+    const axY = Number(state.currentAxes.y);
+
+    // latentPoint è in [0,1] -> converti in u-space [-1,1] per disegnare
+    const cx_u = latentToU(latentPoint[axX], axX);
+    const cy_u = latentToU(latentPoint[axY], axY);
+
     if (state.cursorLeft) {
-      Plotly.restyle(left, { x: [[cx]], y: [[cy]] }, [state.cursorLeft.glowIdx]);
-      Plotly.restyle(left, { x: [[cx]], y: [[cy]] }, [state.cursorLeft.dotIdx]);
+      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]] }, [state.cursorLeft.glowIdx]);
+      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]] }, [state.cursorLeft.dotIdx]);
     }
     return;
   }
 
   if (state.dim === 3) {
-    const axX = state.currentAxes.x, axY = state.currentAxes.y, axZ = state.currentAxes.z;
-    const cx = latentPoint[axX], cy = latentPoint[axY], cz = latentPoint[axZ];
+    const axX = Number(state.currentAxes.x);
+    const axY = Number(state.currentAxes.y);
+    const axZ = Number(state.currentAxes.z);
+
+    const cx_u = latentToU(latentPoint[axX], axX);
+    const cy_u = latentToU(latentPoint[axY], axY);
+    const cz_u = latentToU(latentPoint[axZ], axZ);
+
     if (state.cursorLeft) {
-      Plotly.restyle(left, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorLeft.glowIdx]);
-      Plotly.restyle(left, { x: [[cx]], y: [[cy]], z: [[cz]] }, [state.cursorLeft.dotIdx]);
+      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]], z: [[cz_u]] }, [state.cursorLeft.glowIdx]);
+      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]], z: [[cz_u]] }, [state.cursorLeft.dotIdx]);
     }
     return;
   }
 
-  // 4D dual 2D
+  // dim === 4 → due viste 2D
   const a = state.currentAxesA || { x: 0, y: 1 };
   const b = state.currentAxesB || { x: 2, y: 3 };
 
-  const cax = latentPoint[a.x], cay = latentPoint[a.y];
-  if (state.cursorLeft) {
-    Plotly.restyle(left, { x: [[cax]], y: [[cay]] }, [state.cursorLeft.glowIdx]);
-    Plotly.restyle(left, { x: [[cax]], y: [[cay]] }, [state.cursorLeft.dotIdx]);
-  }
+  const ax_u = latentToU(latentPoint[a.x], a.x);
+  const ay_u = latentToU(latentPoint[a.y], a.y);
+  const bx_u = latentToU(latentPoint[b.x], b.x);
+  const by_u = latentToU(latentPoint[b.y], b.y);
 
-  const cbx = latentPoint[b.x], cby = latentPoint[b.y];
+  if (state.cursorLeft) {
+    Plotly.restyle(left,  { x: [[ax_u]], y: [[ay_u]] }, [state.cursorLeft.glowIdx]);
+    Plotly.restyle(left,  { x: [[ax_u]], y: [[ay_u]] }, [state.cursorLeft.dotIdx]);
+  }
   if (state.cursorRight) {
-    Plotly.restyle(right, { x: [[cbx]], y: [[cby]] }, [state.cursorRight.glowIdx]);
-    Plotly.restyle(right, { x: [[cbx]], y: [[cby]] }, [state.cursorRight.dotIdx]);
+    Plotly.restyle(right, { x: [[bx_u]], y: [[by_u]] }, [state.cursorRight.glowIdx]);
+    Plotly.restyle(right, { x: [[bx_u]], y: [[by_u]] }, [state.cursorRight.dotIdx]);
   }
 }
+

@@ -133,12 +133,10 @@ function handlePlotClick(ev, viewAxes) {
 
   const p = ev.points[0];
   const lp = state.cursorPoint ? state.cursorPoint.slice() : new Array(state.dim).fill(0);
-
-  lp[viewAxes.x] = p.x;
-  lp[viewAxes.y] = p.y;
+  lp[viewAxes.x] = uToLatent(p.x, viewAxes.x);
+  lp[viewAxes.y] = uToLatent(p.y, viewAxes.y);
 
   // le altre dimensioni restano dove sono (cursorPoint attuale)
-
   const u = lp.map((val, j) => latentToU(val, j));
   state.uTarget = u.map(v => clamp(v, -1, 1));
 }
@@ -152,6 +150,22 @@ function handlePlotClick(ev, viewAxes) {
   state.dim = meta.dim;
   state.boundsMin = meta.bounds_min;
   state.boundsMax = meta.bounds_max;
+
+   // Ricalcola bounds dai dati (sicuro: 0..1 nel tuo caso)
+if (Array.isArray(state.latent) && state.latent.length > 0) {
+  const d = state.dim;
+  const bmin = new Array(d).fill(+Infinity);
+  const bmax = new Array(d).fill(-Infinity);
+  for (const row of state.latent) {
+    for (let j = 0; j < d; j++) {
+      const v = row[j];
+      if (v < bmin[j]) bmin[j] = v;
+      if (v > bmax[j]) bmax[j] = v;
+    }
+  }
+  state.boundsMin = bmin;
+  state.boundsMax = bmax;
+}
 
   buildAxisNames(state.dim);
 
@@ -171,16 +185,19 @@ function handlePlotClick(ev, viewAxes) {
   // 3) Inizializza controlli sorgente input
   const selInput = document.getElementById("input-source");
   state.inputSource = (selInput && selInput.value) ? selInput.value : "keyboard";
-  selInput.addEventListener("change", () => {
-    state.inputSource = selInput.value;
-    if (state.inputSource === "keyboard") {
-      window.addEventListener("keydown", handleKeyDown, { passive: false });
-      window.addEventListener("keyup",   handleKeyUp,   { passive: true  });
-    } else {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup",   handleKeyUp);
-    }
-  });
+  if (selInput) {
+    selInput.addEventListener("change", () => {
+      state.inputSource = selInput.value; // "keyboard" | "mouse" | "osc"
+      if (state.inputSource === "keyboard") {
+        window.addEventListener("keydown", handleKeyDown, { passive: false });
+        window.addEventListener("keyup",   handleKeyUp,   { passive: true  });
+      } else {
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup",   handleKeyUp);
+      }
+    });
+  }
+
 
   // 4) Point selector (identico)
   const selPoint = document.getElementById("point-select");
@@ -206,18 +223,15 @@ function handlePlotClick(ev, viewAxes) {
   // 5) Mostra/nascondi controlli in base alla dimensionalità
   const singleAxisControls = document.getElementById("single-axis-controls"); // X/Y[/Z] legacy
   const dualAxisControls   = document.getElementById("dual-axis-controls");   // A/B (nuovi)
-  const sliceControls      = document.getElementById("slice-controls");       // W slice (da nascondere)
 
   if (state.dim <= 3) {
     // 2D/3D → UI invariata
     if (singleAxisControls) singleAxisControls.style.display = "";
     if (dualAxisControls)   dualAxisControls.style.display   = "none";
-    if (sliceControls)      sliceControls.style.display      = "none";
   } else {
     // 4D → dual 2D, via A/B
     if (singleAxisControls) singleAxisControls.style.display = "none";
     if (dualAxisControls)   dualAxisControls.style.display   = "flex";
-    if (sliceControls)      sliceControls.style.display      = "none";
   }
 
   // 6) Disegno iniziale

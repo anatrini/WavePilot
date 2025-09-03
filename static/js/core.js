@@ -103,6 +103,8 @@ export function latentToU(val, dimIdx) {
 
 // Map normalised cursor u in [-1,1] -> latent coordinate
 export function uToLatent(u, dimIdx) {
+  const uu = Math.max(-1, Math.min(1, Number.isFinite(u) ? u : 0));
   const lo = state.boundsMin[dimIdx], hi = state.boundsMax[dimIdx];
-  return (u + 1.0) * 0.5 * (hi - lo) + lo;
+  const span = Math.max(1e-12, (hi - lo));
+  return (uu + 1.0) * 0.5 * span + lo;
 }

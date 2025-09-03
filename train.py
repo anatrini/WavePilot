@@ -152,6 +152,20 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
             degree=rbf_params["degree"]
         )
 
+        # Optional: save consolidated checkpoint when training from optimiser session
+        if (not pretrained_model_path) and save_model_path:
+            save_model(
+                reducer=reducer,
+                vae_params=vae_params,
+                rbf_params=rbf_params,
+                filepath=save_model_path,
+                latent_scaler=scaler,
+                rbf_interpolator=None,  
+                Z_std=Z_std,
+                original_data=original_data,
+                median_dist=median_dist
+            )
+
         # Expose dependecies to socket.io handlers
         app.config["INTERPOLATOR"] = interpolator
         app.config["OSC_CLIENT"]   = osc_client
@@ -170,20 +184,6 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
         flask_thread.start()
 
         await visualizer.run(IP_ADDRESS, SEND_PORT, interpolator, osc_client)
-
-        # Optional: save consolidated checkpoint when training from optimiser session
-        if (not pretrained_model_path) and save_model_path:
-            save_model(
-                reducer=reducer,
-                vae_params=vae_params,
-                rbf_params=rbf_params,
-                filepath=save_model_path,
-                latent_scaler=scaler,
-                rbf_interpolator=None,  
-                Z_std=Z_std,
-                original_data=original_data,
-                median_dist=median_dist
-            )
 
     except FileNotFoundError as e:
         log.error("File not found: %s", e)

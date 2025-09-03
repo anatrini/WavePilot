@@ -11,80 +11,99 @@ import { sendCursor, setupSocket } from "./net.js";
 // ---- Gestione tastiera su vista attiva (A o B) ----
 let activeView = "A"; // "A" o "B" in modalità 4D dual; ignorato in 2D/3D
 
-function applyKeyToView(u, viewAxes, step, key) {
-  // X (←/→ o A/D)
-  if (key === "ArrowLeft" || key === "a" || key === "A") {
-    u[viewAxes.x] = clamp(u[viewAxes.x] - step, -1, 1); return true;
-  } else if (key === "ArrowRight" || key === "d" || key === "D") {
-    u[viewAxes.x] = clamp(u[viewAxes.x] + step, -1, 1); return true;
-  }
-  // Y (↑/↓ o W/S)
-  if (key === "ArrowUp" || key === "w" || key === "W") {
-    u[viewAxes.y] = clamp(u[viewAxes.y] + step, -1, 1); return true;
-  } else if (key === "ArrowDown" || key === "s" || key === "S") {
-    u[viewAxes.y] = clamp(u[viewAxes.y] - step, -1, 1); return true;
-  }
-  return false;
-}
+// Stato tastiera per movimenti simultanei
+const keysDown = new Set();
+const modifiers = { shift: false, alt: false };
+
+// function applyKeyToView(u, viewAxes, step, key) {
+//   // X (←/→ o A/D)
+//   if (key === "ArrowLeft" || key === "a" || key === "A") {
+//     u[viewAxes.x] = clamp(u[viewAxes.x] - step, -1, 1); return true;
+//   } else if (key === "ArrowRight" || key === "d" || key === "D") {
+//     u[viewAxes.x] = clamp(u[viewAxes.x] + step, -1, 1); return true;
+//   }
+//   // Y (↑/↓ o W/S)
+//   if (key === "ArrowUp" || key === "w" || key === "W") {
+//     u[viewAxes.y] = clamp(u[viewAxes.y] + step, -1, 1); return true;
+//   } else if (key === "ArrowDown" || key === "s" || key === "S") {
+//     u[viewAxes.y] = clamp(u[viewAxes.y] - step, -1, 1); return true;
+//   }
+//   return false;
+// }
 
 function handleKeyDown(e) {
   if (state.inputSource !== "keyboard") return;
   const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
   if (tag === "input" || tag === "select" || tag === "textarea") return;
 
-  const step = currentStep(e);
-  const u = state.uCurrent.slice();
-  let used = false;
+  const k = (e.key || "").toLowerCase();
+  // tasti che gestiamo: A D W S (sinistra), F H T G (destra), più Shift/Alt per lo step
+  if (["a","d","w","s","f","h","t","g","shift","alt"].includes(k)) {
+    e.preventDefault();
+    keysDown.add(k);
+    if (k === "shift") modifiers.shift = true;
+    if (k === "alt")   modifiers.alt   = true;
+  }
+}
 
-  // helper per modificare un indice in u-space
+function handleKeyUp(e) {
+  const k = (e.key || "").toLowerCase();
+  keysDown.delete(k);
+  if (k === "shift") modifiers.shift = false;
+  if (k === "alt")   modifiers.alt   = false;
+}
+
+
+function stepFromModifiers() {
+  if (modifiers.shift) return CONST.STEP_COARSE;
+  if (modifiers.alt)   return CONST.STEP_FINE;
+  return CONST.STEP_BASE;
+}
+
+function applyKeyboardInput() {
+  if (keysDown.size === 0) return;
+
+  const step = stepFromModifiers();
+  const u = state.uTarget.slice(); // accumula partendo dal target corrente
+
   const add = (idx, delta) => {
     if (typeof idx === "number" && Number.isFinite(idx)) {
       u[idx] = clamp(u[idx] + delta, -1, 1);
-      used = true;
     }
   };
 
   if (state.dim === 4) {
-    // Vista SINISTRA (A/D X, W/S Y)
+    // Vista SINISTRA: A/D (X), W/S (Y)
     const a = state.currentAxesA || { x: 0, y: 1 };
-    switch (e.key) {
-      case "a": case "A": add(a.x, -step); break;
-      case "d": case "D": add(a.x,  step); break;
-      case "w": case "W": add(a.y,  step); break;
-      case "s": case "S": add(a.y, -step); break;
-    }
-    // Vista DESTRA (F/H X, T/G Y)
+    if (keysDown.has("a")) add(a.x, -step);
+    if (keysDown.has("d")) add(a.x,  step);
+    if (keysDown.has("w")) add(a.y,  step);
+    if (keysDown.has("s")) add(a.y, -step);
+
+    // Vista DESTRA: F/H (X), T/G (Y)
     const b = state.currentAxesB || { x: 2, y: 3 };
-    switch (e.key) {
-      case "f": case "F": add(b.x, -step); break;
-      case "h": case "H": add(b.x,  step); break;
-      case "t": case "T": add(b.y,  step); break;
-      case "g": case "G": add(b.y, -step); break;
-    }
+    if (keysDown.has("f")) add(b.x, -step);
+    if (keysDown.has("h")) add(b.x,  step);
+    if (keysDown.has("t")) add(b.y,  step);
+    if (keysDown.has("g")) add(b.y, -step);
   } else {
-    // 2D/3D → usa i tasti della vista sinistra: A/D (X), W/S (Y)
+    // 2D/3D → come la vista sinistra: A/D (X), W/S (Y)
     const ax = Number(state.currentAxes.x);
     const ay = Number(state.currentAxes.y);
-    switch (e.key) {
-      case "a": case "A": add(ax, -step); break;
-      case "d": case "D": add(ax,  step); break;
-      case "w": case "W": add(ay,  step); break;
-      case "s": case "S": add(ay, -step); break;
-      // (niente frecce; le abbiamo tolte come richiesto)
-    }
+    if (keysDown.has("a")) add(ax, -step);
+    if (keysDown.has("d")) add(ax,  step);
+    if (keysDown.has("w")) add(ay,  step);
+    if (keysDown.has("s")) add(ay, -step);
   }
 
-  if (used) {
-    e.preventDefault();
-    state.uTarget = u; // già clampato
-  }
+  state.uTarget = u;
 }
 
 
-function handleKeyUp(_e) { /* riservato per futuri usi */ }
 
 // ---- Loop di smoothing + invio cursor ----
 function tickSmooth() {
+  applyKeyboardInput();
   let moved = false;
   for (let i = 0; i < state.dim; i++) {
     const prev = state.uCurrent[i];

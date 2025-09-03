@@ -36,20 +36,50 @@ function handleKeyDown(e) {
   const u = state.uCurrent.slice();
   let used = false;
 
-  if (state.dim <= 3) {
-    // comportamento invariato: usa currentAxes (x,y[,z]) come da versione precedente
-    used = applyKeyToView(u, state.currentAxes, step, e.key);
+  // helper per modificare un indice in u-space
+  const add = (idx, delta) => {
+    if (typeof idx === "number" && Number.isFinite(idx)) {
+      u[idx] = clamp(u[idx] + delta, -1, 1);
+      used = true;
+    }
+  };
+
+  if (state.dim === 4) {
+    // Vista SINISTRA (A/D X, W/S Y)
+    const a = state.currentAxesA || { x: 0, y: 1 };
+    switch (e.key) {
+      case "a": case "A": add(a.x, -step); break;
+      case "d": case "D": add(a.x,  step); break;
+      case "w": case "W": add(a.y,  step); break;
+      case "s": case "S": add(a.y, -step); break;
+    }
+    // Vista DESTRA (F/H X, T/G Y)
+    const b = state.currentAxesB || { x: 2, y: 3 };
+    switch (e.key) {
+      case "f": case "F": add(b.x, -step); break;
+      case "h": case "H": add(b.x,  step); break;
+      case "t": case "T": add(b.y,  step); break;
+      case "g": case "G": add(b.y, -step); break;
+    }
   } else {
-    // 4D dual: applica alla vista attiva
-    const viewAxes = (activeView === "B") ? state.currentAxesB : state.currentAxesA;
-    used = applyKeyToView(u, viewAxes, step, e.key);
+    // 2D/3D → usa i tasti della vista sinistra: A/D (X), W/S (Y)
+    const ax = Number(state.currentAxes.x);
+    const ay = Number(state.currentAxes.y);
+    switch (e.key) {
+      case "a": case "A": add(ax, -step); break;
+      case "d": case "D": add(ax,  step); break;
+      case "w": case "W": add(ay,  step); break;
+      case "s": case "S": add(ay, -step); break;
+      // (niente frecce; le abbiamo tolte come richiesto)
+    }
   }
 
   if (used) {
     e.preventDefault();
-    state.uTarget = u.map(v => clamp(v, -1, 1));
+    state.uTarget = u; // già clampato
   }
 }
+
 
 function handleKeyUp(_e) { /* riservato per futuri usi */ }
 
@@ -152,35 +182,27 @@ function handlePlotClick(ev, viewAxes) {
   state.boundsMax = meta.bounds_max;
 
    // Ricalcola bounds dai dati (sicuro: 0..1 nel tuo caso)
-if (Array.isArray(state.latent) && state.latent.length > 0) {
-  const d = state.dim;
-  const bmin = new Array(d).fill(+Infinity);
-  const bmax = new Array(d).fill(-Infinity);
-  for (const row of state.latent) {
-    for (let j = 0; j < d; j++) {
-      const v = row[j];
-      if (v < bmin[j]) bmin[j] = v;
-      if (v > bmax[j]) bmax[j] = v;
+  if (Array.isArray(state.latent) && state.latent.length > 0) {
+    const d = state.dim;
+    const bmin = new Array(d).fill(+Infinity);
+    const bmax = new Array(d).fill(-Infinity);
+    for (const row of state.latent) {
+      for (let j = 0; j < d; j++) {
+        const v = row[j];
+        if (v < bmin[j]) bmin[j] = v;
+        if (v > bmax[j]) bmax[j] = v;
+      }
     }
+    state.boundsMin = bmin;
+    state.boundsMax = bmax;
   }
-  state.boundsMin = bmin;
-  state.boundsMax = bmax;
-}
 
   buildAxisNames(state.dim);
 
   // 2) Inizializza u/cursor
   state.uCurrent = new Array(state.dim).fill(0.0);
   state.uTarget  = new Array(state.dim).fill(0.0);
-
-  // Cursor iniziale
-  if (state.latent && state.latent.length > 0) {
-    state.cursorPoint = state.latent[0].slice();
-  } else {
-    state.cursorPoint = Array.from({ length: state.dim }, (_, i) =>
-      0.5 * (state.boundsMin[i] + state.boundsMax[i])
-    );
-  }
+  state.cursorPoint = state.uCurrent.map((uu, j) => uToLatent(uu, j));
 
   // 3) Inizializza controlli sorgente input
   const selInput = document.getElementById("input-source");

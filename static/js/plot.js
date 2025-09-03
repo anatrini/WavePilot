@@ -46,32 +46,58 @@ function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
 
 /* ---------- tracce 2D / 3D ---------- */
 function scatter2D(axX, axY, cursorPoint) {
-  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX))
+  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
   const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
+
+  const extras = Array.from({ length: state.dim }, (_, i) => i).filter(i => i !== axX && i !== axY);
+  const colorDim = extras.length ? extras[0] : axX;
+
+  const c = getColumn(state.latent, colorDim).map(v => latentToU(v, colorDim));
 
   const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
   const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
+
 
   const pts = {
     type: "scattergl",
     mode: "markers",
     x, y,
-    marker: { size: 3, color: CONST.MARKER_COLOR },
+    marker: { 
+        size: 5, 
+        color: c,
+        colorscale: "Viridis",
+        cmin: -1,
+        cmax: 1,
+        showscale: false
+    },
     name: "anchors",
   };
+
   const glow = {
     type: "scattergl",
     mode: "markers",
     x: [cx_u], y: [cy_u],
-    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
+    marker: { 
+        size: CONST.CURSOR_GLOW_SIZE, 
+        opacity: CONST.CURSOR_GLOW_OPACITY, 
+        color: CONST.CURSOR_GLOW_COLOR 
+    },
     hoverinfo: "skip",
     showlegend: false,
   };
+
   const dot = {
     type: "scattergl",
     mode: "markers",
     x: [cx_u], y: [cy_u],
-    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
+    marker: { 
+        size: CONST.CURSOR_DOT_SIZE, 
+        color: CONST.CURSOR_DOT_COLOR, 
+        line: { 
+            width: 2, 
+            color: CONST.CURSOR_DOT_LINE 
+        } 
+    },
     hoverinfo: "skip",
     showlegend: false,
   };

@@ -13,7 +13,7 @@ export const CONST = {
   STEP_BASE: 0.03,
   STEP_FINE: 0.01,
   STEP_COARSE: 0.1,
-  LERP_ALPHA: 0.25,
+  LERP_ALPHA: 0.35,
   SEND_INTERVAL_MS: 60,
   MOVE_EPS: 1e-3,
 };

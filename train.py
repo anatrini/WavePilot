@@ -166,6 +166,13 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
                 median_dist=median_dist
             )
 
+        # --- Publish data to web and register routes ---
+        app.config["LATENT_DATA"]  = Z_std
+        app.config["PRESET_NAMES"] = loader.get_preset_names(Z_std.shape[0])
+
+        app.add_url_rule("/",     "index_route", index_route, methods=["GET"])
+        app.add_url_rule("/data", "data_route",  data_route,  methods=["GET"])
+
         # Expose dependecies to socket.io handlers
         app.config["INTERPOLATOR"] = interpolator
         app.config["OSC_CLIENT"]   = osc_client

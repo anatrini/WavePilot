@@ -5,85 +5,75 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Latent Space Explorer</title>
 
-  <!-- Stili -->
   <link rel="stylesheet" href="/static/visualizer_style.css" />
 
-  <!-- Fallback minimo per l’affiancamento dei due plot (se non già nel tuo CSS) -->
-  <style>
-    .plots-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .plot { min-height: 520px; }
-    fieldset { border: 1px solid #ccc; padding: .5rem .75rem; margin: .25rem .5rem; }
-    legend { padding: 0 .25rem; font-size: .9rem; }
-    #controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
-    #dual-axis-controls { gap: 8px; align-items: center; }
-    label { margin-right: .5rem; }
-    .z-only { display: inline-flex; align-items: center; }
-  </style>
-
-  <!-- Librerie -->
+  <!-- librerie -->
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>Latent Space Explorer</h1>
-    </header>
+  <header><h1>Latent Space Explorer</h1></header>
 
-    <!-- CONTROLLI -->
-    <section id="controls">
-      <fieldset>
-        <legend>Input</legend>
-        <label for="input-source">Source</label>
-        <select id="input-source">
-          <option value="keyboard" selected>Keyboard</option>
-          <option value="mouse">Mouse</option>
-          <option value="osc">OSC</option>
-        </select>
-      </fieldset>
-
-      <fieldset>
-        <legend>Point</legend>
-        <label for="point-select">Anchor</label>
-        <select id="point-select"></select>
-      </fieldset>
-
-      <!-- Controlli per 2D/3D (invariati) -->
-      <div id="single-axis-controls">
+  <!-- LAYOUT: sidebar sinistra (sticky) + area grafici -->
+  <div class="layout">
+    <aside id="sidebar">
+      <section id="controls">
         <fieldset>
-          <legend>Axes (2D/3D)</legend>
-          <label>X <select id="axis-x"></select></label>
-          <label>Y <select id="axis-y"></select></label>
-          <label class="z-only">Z <select id="axis-z"></select></label>
-        </fieldset>
-      </div>
-
-      <!-- NUOVI controlli per 4D: doppia vista 2D affiancata -->
-      <div id="dual-axis-controls" style="display:none">
-        <fieldset>
-          <legend>View A</legend>
-          <label>X <select id="axis-a-x"></select></label>
-          <label>Y <select id="axis-a-y"></select></label>
+          <legend>Input</legend>
+          <label for="input-source">Source</label>
+          <select id="input-source">
+            <option value="keyboard" selected>Keyboard</option>
+            <option value="mouse">Mouse</option>
+            <option value="osc">OSC</option>
+          </select>
         </fieldset>
 
         <fieldset>
-          <legend>View B</legend>
-          <label>X <select id="axis-b-x"></select></label>
-          <label>Y <select id="axis-b-y"></select></label>
+          <legend>Presets</legend>
+          <label for="preset-select">Preset</label>
+          <select id="preset-select"></select>
         </fieldset>
-      </div>
 
-      <!-- IMPORTANTE: lo slider W e i controlli di slicing sono stati rimossi del tutto -->
-    </section>
+        <!-- 2D/3D -->
+        <div id="single-axis-controls">
+          <fieldset>
+            <legend>Axes (2D/3D)</legend>
+            <label>x <select id="axis-x"></select></label>
+            <label>y <select id="axis-y"></select></label>
+            <label class="z-only">z <select id="axis-z"></select></label>
+          </fieldset>
+        </div>
 
-    <!-- PLOT: due canvas affiancati (in 2D/3D userai quello di sinistra; in 4D entrambi) -->
-    <main id="plots" class="plots-2col">
+        <!-- 4D -->
+        <div id="dual-axis-controls" style="display:none">
+          <fieldset>
+            <legend>View A</legend>
+            <label>x <select id="axis-a-x"></select></label>
+            <label>y <select id="axis-a-y"></select></label>
+          </fieldset>
+          <fieldset>
+            <legend>View B</legend>
+            <label>x <select id="axis-b-x"></select></label>
+            <label>y <select id="axis-b-y"></select></label>
+          </fieldset>
+        </div>
+
+        <fieldset>
+          <legend>Shortcuts</legend>
+          <div><kbd class="kbd">A/D</kbd> <kbd class="kbd">W/S</kbd> → View A</div>
+          <div><kbd class="kbd">F/H</kbd> <kbd class="kbd">T/G</kbd> → View B</div>
+          <div><kbd class="kbd">Shift</kbd> coarse, <kbd class="kbd">Alt</kbd> fine</div>
+        </fieldset>
+      </section>
+    </aside>
+
+    <main id="plots">
+      <!-- NB: in 2D/3D usiamo solo il sinistro (centrato e grande); in 4D entrambi -->
       <div id="plot-left"  class="plot"></div>
       <div id="plot-right" class="plot"></div>
     </main>
   </div>
 
-  <!-- Entry point ES module -->
   <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

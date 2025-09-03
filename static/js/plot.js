@@ -45,61 +45,58 @@ function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
 }
 
 /* ---------- tracce 2D / 3D ---------- */
+
 function scatter2D(axX, axY, cursorPoint) {
   const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
   const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
 
+  // colore: dimensione extra se disponibile, altrimenti X
   const extras = Array.from({ length: state.dim }, (_, i) => i).filter(i => i !== axX && i !== axY);
   const colorDim = extras.length ? extras[0] : axX;
-
   const c = getColumn(state.latent, colorDim).map(v => latentToU(v, colorDim));
+
+  // etichette
+  const labels = (state.presetNames && state.presetNames.length === x.length)
+    ? state.presetNames
+    : x.map((_, i) => `ID${i+1}`);
 
   const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
   const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
-
 
   const pts = {
     type: "scattergl",
     mode: "markers",
     x, y,
-    marker: { 
-        size: 5, 
-        color: c,
-        colorscale: "Viridis",
-        cmin: -1,
-        cmax: 1,
-        showscale: false
-    },
-    name: "anchors",
+    marker: { size: 5, color: c, colorscale: "Viridis", cmin: -1, cmax: 1, showscale: false },
+    name: "presets",
+  };
+
+  // testo (SVG) per etichette
+  const txt = {
+    type: "scatter",
+    mode: "text",
+    x, y,
+    text: labels,
+    textposition: "top center",
+    textfont: { size: 11, color: "#cfd8dc" },
+    hoverinfo: "skip",
+    showlegend: false,
   };
 
   const glow = {
     type: "scattergl",
     mode: "markers",
     x: [cx_u], y: [cy_u],
-    marker: { 
-        size: CONST.CURSOR_GLOW_SIZE, 
-        opacity: CONST.CURSOR_GLOW_OPACITY, 
-        color: CONST.CURSOR_GLOW_COLOR 
-    },
-    hoverinfo: "skip",
-    showlegend: false,
+    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
+    hoverinfo: "skip", showlegend: false,
   };
 
   const dot = {
     type: "scattergl",
     mode: "markers",
     x: [cx_u], y: [cy_u],
-    marker: { 
-        size: CONST.CURSOR_DOT_SIZE, 
-        color: CONST.CURSOR_DOT_COLOR, 
-        line: { 
-            width: 2, 
-            color: CONST.CURSOR_DOT_LINE 
-        } 
-    },
-    hoverinfo: "skip",
-    showlegend: false,
+    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
+    hoverinfo: "skip", showlegend: false,
   };
 
   const layout = {
@@ -108,43 +105,85 @@ function scatter2D(axX, axY, cursorPoint) {
     xaxis: { title: state.axisNames[axX], range: [-1, 1] },
     yaxis: { title: state.axisNames[axY], range: [-1, 1] },
     margin: { t: 10, r: 10, b: 40, l: 40 },
-    paper_bgcolor: CONST.BG_COLOR,
-    plot_bgcolor: CONST.BG_COLOR,
+    paper_bgcolor: CONST.BG_COLOR, plot_bgcolor: CONST.BG_COLOR,
     uirevision: "static",
   };
 
-  return { traces: [pts, glow, dot], layout, glowIdx: 1, dotIdx: 2 };
+  return { traces: [pts, txt, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
 }
 
+
+// Assicurati in testa al file:
+// import { state, CONST, getColumn, latentToU } from "./core.js";
+
 function scatter3D(axX, axY, axZ, cursorPoint) {
+  // Dati in [0,1] -> u-space [-1,1] per disegnare
   const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
   const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
   const z = getColumn(state.latent, axZ).map(v => latentToU(v, axZ));
 
+  // Etichette: preset_names dal frontend o fallback ID1..N
+  const N = x.length;
+  const labels = (state.presetNames && state.presetNames.length === N)
+    ? state.presetNames
+    : Array.from({ length: N }, (_, i) => `ID${i + 1}`);
+
+  // Posizione cursore in u-space
   const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
   const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
   const cz_u = cursorPoint ? latentToU(cursorPoint[axZ], axZ) : 0;
 
+  // Punti: color-coded (qui uso z per coerenza visiva, ma è già in [-1,1])
   const pts = {
     type: "scatter3d",
     mode: "markers",
     x, y, z,
-    marker: { size: 3, color: z, colorscale: "Viridis", showscale: false },
-    name: "anchors",
+    marker: {
+      size: 4,                  // leggermente più grandi
+      color: z,                 // color coding su z in u-space
+      colorscale: "Viridis",
+      cmin: -1, cmax: 1,
+      showscale: false
+    },
+    name: "presets",            // <— nome chiaro
   };
+
+  // Etichette 3D (Plotly supporta text anche in scatter3d)
+  const txt3d = {
+    type: "scatter3d",
+    mode: "text",
+    x, y, z,
+    text: labels,
+    textposition: "top center",
+    textfont: { size: 11, color: "#cfd8dc" },
+    hoverinfo: "skip",
+    showlegend: false,
+  };
+
+  // Cursore: alone + dot
   const glow = {
     type: "scatter3d",
     mode: "markers",
     x: [cx_u], y: [cy_u], z: [cz_u],
-    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
+    marker: {
+      size: CONST.CURSOR_GLOW_SIZE,
+      opacity: CONST.CURSOR_GLOW_OPACITY,
+      color: CONST.CURSOR_GLOW_COLOR
+    },
     hoverinfo: "skip",
     showlegend: false,
   };
+
   const dot = {
     type: "scatter3d",
     mode: "markers",
     x: [cx_u], y: [cy_u], z: [cz_u],
-    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { width: 2, color: CONST.CURSOR_DOT_LINE } },
+    marker: {
+      size: CONST.CURSOR_DOT_SIZE,
+      color: CONST.CURSOR_DOT_COLOR,
+      line: { width: 2, color: CONST.CURSOR_DOT_LINE },
+      symbol: "circle"
+    },
     hoverinfo: "skip",
     showlegend: false,
   };
@@ -162,8 +201,10 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
     paper_bgcolor: CONST.BG_COLOR,
   };
 
-  return { traces: [pts, glow, dot], layout, glowIdx: 1, dotIdx: 2 };
+  // Nota: con le etichette aggiunte, gli indici del cursore si spostano
+  return { traces: [pts, txt3d, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
 }
+
 
 /* ---------- API esportate ---------- */
 export function drawPlots() {

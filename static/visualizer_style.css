@@ -1,90 +1,160 @@
-/* Layout base */
-body {
+/* =========================================
+   THEME TOKENS — change these to recolor the UI
+   ========================================= */
+:root{
+  --ui-bg:            #0f1216;   /* page background */
+  --ui-text:          #e5e7eb;   /* base text */
+  --ui-muted:         #9ca3af;   /* secondary text */
+
+  --ui-panel-bg:      #171b21;   /* sidebar / panel bg */
+  --ui-border:        #2b3037;   /* borders / outlines */
+  --ui-accent:        #8b5cf6;   /* focus ring, active outline */
+
+  --ui-control-bg:    #111418;   /* inputs/selects bg */
+  --ui-control-text:  #e5e7eb;   /* inputs/selects text */
+  --ui-control-border:#2b3037;   /* inputs/selects border */
+
+  --plot-paper:       #0f1216;   /* Plotly paper bg */
+  --plot-bg:          #0f1216;   /* Plot area bg */
+
+  /* --- Markers & cursor (usate da JS) --- */
+  --marker-color:       #6ea8fe;
+
+  --cursor-glow-size:   18;      /* numeri "nudi": li leggeremo come Number */
+  --cursor-glow-color:  rgb(255,200,120);
+  --cursor-glow-opacity:0.25;
+
+  --cursor-dot-size:    7;
+  --cursor-dot-color:   rgb(255,210,150);
+  --cursor-dot-line:    #ffffff;
+}
+
+/* =========================================
+   BASE / TYPOGRAPHY
+   ========================================= */
+html, body {
+  height: 100%;
   margin: 0;
-  padding: 0;
-  height: 100vh;
-  background: #101214; /* color placeholder */
-  color: #e6e6e6;      /* color placeholder */
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-#title-container {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 10;
-  padding: 10px 12px;
-  background: rgba(0,0,0,0.6); /* color placeholder */
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid rgba(255,255,255,0.06); /* color placeholder */
-}
+*,
+*::before,
+*::after { box-sizing: border-box; }
 
-#title-container h1 {
+header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-border);
+}
+header h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .2px;
 }
 
-#controls {
-  position: fixed;
-  top: 48px; left: 12px; right: 12px;
-  z-index: 9;
-  display: flex;
-  align-items: center;
+/* =========================================
+   LAYOUT: sidebar sinistra (sticky) + plots
+   ========================================= */
+.layout{
+  display: grid;
+  grid-template-columns: 240px 1fr;  /* sidebar | main */
   gap: 12px;
-  padding: 8px 10px;
-  background: rgba(255,255,255,0.04); /* color placeholder */
-  border: 1px solid rgba(255,255,255,0.08); /* color placeholder */
+  padding: 12px;
+}
+
+#sidebar{
+  position: sticky;
+  top: 12px;
+  align-self: start;
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: var(--ui-panel-bg);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
+  padding: 10px;
 }
 
-.control-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+/* Plots area (plot.js gestisce 1 vs 2 colonne) */
+#plots { width: 100%; }
+.plot  { min-height: 520px; }
 
-#controls label {
-  font-size: 13px;
-  opacity: 0.85;
+/* =========================================
+   CONTROLS (fieldset + selects)
+   ========================================= */
+#controls fieldset{
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
 }
-
-#controls select {
-  min-width: 110px;
-  background: #1b1f24; /* color placeholder */
-  color: #e6e6e6;       /* color placeholder */
-  border: 1px solid rgba(255,255,255,0.08); /* color placeholder */
+#controls legend{
+  font-size: .9rem;
+  color: var(--ui-muted);
+}
+#controls label{
+  display: block;
+  margin: 6px 0;
+  font-size: .95rem;
+}
+#controls select{
+  width: 100%;
+  background: var(--ui-control-bg);
+  color: var(--ui-control-text);
+  border: 1px solid var(--ui-control-border);
   border-radius: 8px;
   padding: 6px 8px;
+  outline: none;
+}
+#controls select:focus{
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 40%, transparent);
 }
 
-#controls .hint {
-  margin-left: auto;
-  font-size: 12px;
-  opacity: 0.7;
+/* shortcut chips */
+.kbd{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  padding: 2px 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  font-size: .85em;
+  background: var(--ui-control-bg);
+  color: var(--ui-text);
 }
 
-#plot-container {
-  position: absolute;
-  top: 100px; /* headroom for title + controls */
-  left: 0; right: 0; bottom: 0;
+/* =========================================
+   PLOTLY TWEAKS (match theme)
+   ========================================= */
+.js-plotly-plot, .plotly, .plot-container{
+  background: var(--plot-paper) !important;
+}
+.cartesianlayer, .gl-container{
+  background: var(--plot-bg) !important;
 }
 
-/* visibilità controlli in base alla dimensionalità */
-.z-only, #axis-z { display: none; }
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+@media (max-width: 980px){
+  .layout{
+    grid-template-columns: 1fr;  /* stack sidebar above plots */
+  }
+  #sidebar{
+    position: static;
+    max-height: none;
+  }
+}
 
-/* 4D slice UI (color placeholder) */
-#w-slider {
-  width: 200px;
-  accent-color: #888; /* color placeholder */
-}
-#w-value {
-  display: inline-block;
-  min-width: 42px;
-  text-align: right;
-}
-#w-slider::-webkit-slider-thumb {
-  /* color placeholder */
-  background: #555;
+/* =========================================
+   MISC / CLEANUPS
+   ========================================= */
+/* Mostra l'elemento .z-only (lo nasconderai via JS se non serve) */
+.z-only { display: inline-block; }
+
+/* Rimuovi qualsiasi overlay/posizionamento assoluto dei vecchi controlli */
+#title-container, #plot-container{
+  display: none !important;
 }

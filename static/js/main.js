@@ -1,7 +1,7 @@
 // main.js
 /* global Plotly */
 import {
-  state, CONST, clamp, currentStep, buildAxisNames,
+  state, CONST, clamp, buildAxisNames,
   latentToU, uToLatent, populateSelect
 } from "./core.js";
 import { /* usiamo solo gli ID in HTML per i plot; il resto della UI resta com'è */ } from "./ui.js";
@@ -14,22 +14,6 @@ let activeView = "A"; // "A" o "B" in modalità 4D dual; ignorato in 2D/3D
 // Stato tastiera per movimenti simultanei
 const keysDown = new Set();
 const modifiers = { shift: false, alt: false };
-
-// function applyKeyToView(u, viewAxes, step, key) {
-//   // X (←/→ o A/D)
-//   if (key === "ArrowLeft" || key === "a" || key === "A") {
-//     u[viewAxes.x] = clamp(u[viewAxes.x] - step, -1, 1); return true;
-//   } else if (key === "ArrowRight" || key === "d" || key === "D") {
-//     u[viewAxes.x] = clamp(u[viewAxes.x] + step, -1, 1); return true;
-//   }
-//   // Y (↑/↓ o W/S)
-//   if (key === "ArrowUp" || key === "w" || key === "W") {
-//     u[viewAxes.y] = clamp(u[viewAxes.y] + step, -1, 1); return true;
-//   } else if (key === "ArrowDown" || key === "s" || key === "S") {
-//     u[viewAxes.y] = clamp(u[viewAxes.y] - step, -1, 1); return true;
-//   }
-//   return false;
-// }
 
 function handleKeyDown(e) {
   if (state.inputSource !== "keyboard") return;
@@ -200,6 +184,17 @@ function handlePlotClick(ev, viewAxes) {
   state.boundsMin = meta.bounds_min;
   state.boundsMax = meta.bounds_max;
 
+  // Preset names: da server oppure fallback ID1..N
+  const N = state.latent.length;
+  if (Array.isArray(meta.preset_names) && meta.preset_names.length === N) {
+    state.presetNames = meta.preset_names.map(s => (s == null || s === "") ? null : String(s));
+  } else {
+    state.presetNames = new Array(N).fill(null);
+  }
+  for (let i = 0; i < N; i++) {
+    if (!state.presetNames[i]) state.presetNames[i] = `ID${i+1}`;
+  }
+
    // Ricalcola bounds dai dati (sicuro: 0..1 nel tuo caso)
   if (Array.isArray(state.latent) && state.latent.length > 0) {
     const d = state.dim;
@@ -241,13 +236,13 @@ function handlePlotClick(ev, viewAxes) {
 
 
   // 4) Point selector (identico)
-  const selPoint = document.getElementById("point-select");
+  const selPoint = document.getElementById("preset-select");
   if (selPoint) {
-    selPoint.innerHTML = '<option value="">— select point —</option>';
-    for (let i = 0; i < state.latent.length; i++) {
+    selPoint.innerHTML = '<option value="">— select preset —</option>';
+    for (let i = 0; i < state.presetNames.length; i++) {
       const opt = document.createElement("option");
       opt.value = String(i);
-      opt.textContent = `Point ${i}`;
+      opt.textContent = state.presetNames[i];
       selPoint.appendChild(opt);
     }
     selPoint.addEventListener("change", () => {
@@ -255,11 +250,11 @@ function handlePlotClick(ev, viewAxes) {
       if (v === "") return;
       const idx = Number(v);
       if (!Number.isFinite(idx) || idx < 0 || idx >= state.latent.length) return;
-      state.cursorPoint = state.latent[idx].slice();
+      state.cursorPoint = state.latent[idx].slice();   // [0,1]
       updateCursor(state.cursorPoint);
       sendCursor(state.cursorPoint);
     });
-  }
+}
 
   // 5) Mostra/nascondi controlli in base alla dimensionalità
   const singleAxisControls = document.getElementById("single-axis-controls"); // X/Y[/Z] legacy

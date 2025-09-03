@@ -615,7 +615,7 @@ socket.on("cursor_update", (payload) => {
     if (seq !== null) lastAppliedSeq = seq;
 
     if (payload && Array.isArray(payload.y)) {
-        console.log("RBF reconstructed:", payload.y);
+        console.log("RBF reconstructed:", payload.y); // perché non vedo i dati in console?
     }
   } catch (err) {
     // eslint-disable-next-line no-console

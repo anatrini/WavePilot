@@ -1,5 +1,4 @@
 import numpy as np
-import numpy as np
 from flask import current_app, jsonify, render_template
 
 def index_route():

@@ -235,7 +235,7 @@ function handlePlotClick(ev, viewAxes) {
   }
 
 
-  // 4) Point selector (identico)
+  // 4) Point selector
   const selPoint = document.getElementById("preset-select");
   if (selPoint) {
     selPoint.innerHTML = '<option value="">— select preset —</option>';

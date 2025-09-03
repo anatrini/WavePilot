@@ -154,7 +154,8 @@ header h1 {
 /* Mostra l'elemento .z-only (lo nasconderai via JS se non serve) */
 .z-only { display: inline-block; }
 
-/* Rimuovi qualsiasi overlay/posizionamento assoluto dei vecchi controlli */
+/* Rimuovi qualsiasi overlay/posizionamento assoluto dei vecchi controlli 
 #title-container, #plot-container{
   display: none !important;
 }
+*/

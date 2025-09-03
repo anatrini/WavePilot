@@ -46,7 +46,7 @@ export function buildAxisNames(n) {
 // Generic utils
 // -----------------------------
 export function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-export function clamp01(v){ return clamp(v, 0, 1); } // legacy
+//export function clamp01(v){ return clamp(v, 0, 1); } // legacy
 export function getColumn(mat, j){ return (mat || []).map(row => row[j]); }
 
 export function lerp(a, b, t){ return a + (b - a) * t; }
@@ -100,7 +100,7 @@ export function latentToU(v, dimIdx){
 }
 
 // ============================================================
-// THEME bridge (CSS variables only, no JS fallbacks)
+// THEME bridge (CSS variables)
 // ============================================================
 function _cssVar(name){
   const s = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -152,7 +152,7 @@ export const CONST = {
   STEP_FINE: 0.01,
   STEP_COARSE: 0.1,
   LERP_ALPHA: 0.35,
-  SEND_INTERVAL_MS: 60,
+  //SEND_INTERVAL_MS: 60,
   MOVE_EPS: 1e-3,
 };
 

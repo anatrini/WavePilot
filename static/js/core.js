@@ -1,0 +1,95 @@
+// core.js
+// Central state, constants, and helpers used across modules.
+
+export const CONST = {
+  CURSOR_GLOW_SIZE: 18,
+  CURSOR_GLOW_COLOR: "rgb(255,200,120)",
+  CURSOR_GLOW_OPACITY: 0.25,
+  CURSOR_DOT_SIZE: 7,
+  CURSOR_DOT_COLOR: "rgb(255,210,150)",
+  CURSOR_DOT_LINE: "#ffffff",
+  MARKER_COLOR: "#6ea8fe",
+  BG_COLOR: "#101214",
+  STEP_BASE: 0.03,
+  STEP_FINE: 0.01,
+  STEP_COARSE: 0.1,
+  LERP_ALPHA: 0.25,
+  SEND_INTERVAL_MS: 60,
+  MOVE_EPS: 1e-3,
+};
+
+export const state = {
+  latent: [],             // NxD
+  dim: 0,                 // D
+  boundsMin: [],
+  boundsMax: [],
+  axisNames: [],          // ["z0","z1","z2","z3"]
+  currentAxes: { x: 0, y: 1, z: 2 },
+  inputSource: "keyboard", // "osc" | "mouse" | "keyboard"
+  is3D: false,
+  cursorPoint: null,      // array length D
+  uCurrent: [],
+  uTarget: [],
+  lastSendTs: 0,
+  sliceW0: null,          // 4D slicing centre (latent coord along slice dim)
+  sliceDim: null,         // which latent dimension is used for slicing (4D only)
+  wValue: 0.0,
+  keyNavEnabled: false,
+  localSeq: 0,
+  lastAppliedSeq: -1,
+  cursorGlowIdx: -1,
+  cursorDotIdx: -1,
+  lastCamera: null,
+};
+
+export function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+export const clamp11 = v => clamp(v, -1, 1);
+// NOTE: kept identical semantics to the original file.
+export function clamp01(x) { return Math.min(1, Math.max(-1, x)); }
+
+export function currentStep(e) {
+  if (e && e.shiftKey) return CONST.STEP_COARSE;
+  if (e && e.altKey) return CONST.STEP_FINE;
+  return CONST.STEP_BASE;
+}
+
+export function populateSelect(el, n, selectedIdx = 0, labels = null) {
+  el.innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = labels ? labels[i] : "z" + i;
+    if (i === selectedIdx) opt.selected = true;
+    el.appendChild(opt);
+  }
+}
+
+export function updateControlsVisibility(dim, wControlsEl) {
+  const zEls = document.querySelectorAll(".z-only, #axis-z");
+  if (dim === 2) {
+    zEls.forEach(e => e.style.display = "none");
+  } else {
+    zEls.forEach(e => e.style.display = "");
+  }
+  if (wControlsEl) wControlsEl.style.display = (dim === 4 ? "flex" : "none");
+}
+
+export function buildAxisNames(n) {
+  state.axisNames = Array.from({ length: n }, (_, i) => "z" + i);
+}
+
+export const getColumn = (arr, idx) => arr.map(row => row[idx]);
+
+// Map latent coordinate -> normalised cursor u in [-1,1]
+export function latentToU(val, dimIdx) {
+  const lo = state.boundsMin[dimIdx], hi = state.boundsMax[dimIdx];
+  const denom = Math.max(1e-12, (hi - lo));
+  const u = 2.0 * (val - lo) / denom - 1.0;
+  return clamp(u, -1.0, 1.0);
+}
+
+// Map normalised cursor u in [-1,1] -> latent coordinate
+export function uToLatent(u, dimIdx) {
+  const lo = state.boundsMin[dimIdx], hi = state.boundsMax[dimIdx];
+  return (u + 1.0) * 0.5 * (hi - lo) + lo;
+}

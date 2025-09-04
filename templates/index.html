@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="it">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -18,6 +18,7 @@
   <div class="layout">
     <aside id="sidebar">
       <section id="controls">
+        <!-- Input -->
         <fieldset>
           <legend>Input</legend>
           <label for="input-source">Source</label>
@@ -28,6 +29,7 @@
           </select>
         </fieldset>
 
+        <!-- Presets -->
         <fieldset>
           <legend>Presets</legend>
           <label for="preset-select">Preset</label>
@@ -58,16 +60,60 @@
           </fieldset>
         </div>
 
-        <!-- Shortcuts dinamici: visibili solo se Source=Keyboard -->
-        <fieldset id="shortcuts" style="display:none">
+        <!-- Shortcuts: markup STATICO; visibilità via data-attr + CSS -->
+        <fieldset id="shortcuts" data-mode="other" data-dim="2">
           <legend>Shortcuts</legend>
-          <div id="shortcuts-body"></div>
+
+          <!-- 2D -->
+          <div class="shortcut-set" data-dim="2">
+            <div class="shortcut-title">Move</div>
+            <div class="shortcut-keys" aria-label="Move in 2D">
+              <span class="kbd">A</span><span class="sep">/</span><span class="kbd">D</span>
+              <span class="kbd">W</span><span class="sep">/</span><span class="kbd">S</span>
+            </div>
+          </div>
+
+          <!-- 3D -->
+          <div class="shortcut-set" data-dim="3">
+            <div class="shortcut-title">Move XY</div>
+            <div class="shortcut-keys" aria-label="Move on X and Y">
+              <span class="kbd">A</span><span class="sep">/</span><span class="kbd">D</span>
+              <span class="kbd">W</span><span class="sep">/</span><span class="kbd">S</span>
+            </div>
+          </div>
+          <div class="shortcut-set" data-dim="3">
+            <div class="shortcut-title">Move Z</div>
+            <div class="shortcut-keys" aria-label="Move on Z">
+              <span class="kbd">Q</span><span class="sep">/</span><span class="kbd">E</span>
+            </div>
+          </div>
+
+          <!-- 4D -->
+          <div class="shortcut-set" data-dim="4">
+            <div class="shortcut-title">View A</div>
+            <div class="shortcut-keys" aria-label="Move View A">
+              <span class="kbd">A</span><span class="sep">/</span><span class="kbd">D</span>
+              <span class="kbd">W</span><span class="sep">/</span><span class="kbd">S</span>
+            </div>
+          </div>
+          <div class="shortcut-set" data-dim="4">
+            <div class="shortcut-title">View B</div>
+            <div class="shortcut-keys" aria-label="Move View B">
+              <span class="kbd">F</span><span class="sep">/</span><span class="kbd">H</span>
+              <span class="kbd">T</span><span class="sep">/</span><span class="kbd">G</span>
+            </div>
+          </div>
+
+          <!-- Nota comune -->
+          <div class="shortcut-note" data-dim="any">
+            <span class="kbd">Shift</span> coarse &nbsp;&nbsp; <span class="kbd">Alt</span> fine
+          </div>
         </fieldset>
       </section>
     </aside>
 
     <main id="plots">
-      <!-- NB: in 2D/3D usiamo solo il sinistro (centrato e grande); in 4D entrambi -->
+      <!-- In 2D/3D il JS usa solo il sinistro (centrato e grande); in 4D entrambi -->
       <div id="plot-left"  class="plot"></div>
       <div id="plot-right" class="plot"></div>
     </main>

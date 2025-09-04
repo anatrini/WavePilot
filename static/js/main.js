@@ -1,23 +1,24 @@
-// main.js
-/* global Plotly */
-import { state, CONST, clamp, buildAxisNames, latentToU, uToLatent, populateSelect } from "./core.js";
-import { setupAxisSelectors, refreshShortcuts, dom as UI } from "./ui.js";
-import { drawPlots, updateCursor } from "./plot.js";    // drawPlots gestisce single o dual automaticamente
-import { sendCursor, setupSocket } from "./net.js";
+// main.js — entry point
 
-// ---- Gestione tastiera su vista attiva (A o B) ----
-let activeView = "A"; // "A" o "B" in modalità 4D dual; ignorato in 2D/3D
+import { state, CONST, clamp, buildAxisNames, uToLatent } from "./core.js";
+import { drawPlots, updateCursor } from "./plot.js";
+import { setupAxisSelectors, refreshShortcuts, dom as UI, setupDual2DControls } from "./ui.js";
+import { setupSocket, sendCursor } from "./net.js";
 
-// --- Keyboard state & helpers ---
+// -------------------- Keyboard handling --------------------
+
+// Currently pressed keys
 const keysDown = new Set();
+// Modifier flags
 const modifiers = { shift: false, alt: false };
 
+// Keys we care about
 const ALLOWED_KEYS = new Set(["a","d","w","s","f","h","t","g","q","e","shift","alt"]);
 
-// Normalizza tasto: usa e.code come fallback (layout indipendente)
+// Normalise key across layouts using event.code when available
 function normKey(e) {
   const k = (e.key  || "").toLowerCase();
-  const c = (e.code || "").toLowerCase(); // es. "keyq"
+  const c = (e.code || "").toLowerCase();
   const map = { keya:"a", keyd:"d", keyw:"w", keys:"s", keyf:"f", keyh:"h", keyt:"t", keyg:"g", keyq:"q", keye:"e" };
   return map[c] || k;
 }
@@ -25,7 +26,8 @@ function normKey(e) {
 function handleKeyDown(e) {
   if (state.inputSource !== "keyboard") return;
   const tag = (e.target && e.target.tagName || "").toLowerCase();
-  if (tag === "input" || tag === "textarea") return; // consenti da <select>
+  // Allow shortcuts while focus is on <select>; only suppress for text inputs
+  if (tag === "input" || tag === "textarea") return;
 
   const k = normKey(e);
   if (!ALLOWED_KEYS.has(k)) return;
@@ -52,64 +54,53 @@ function detachKeyListeners() {
   window.removeEventListener("keyup",   handleKeyUp);
 }
 
-// step in base ai modificatori
+// Step size based on modifiers
 function stepFromModifiers() {
   if (modifiers.shift) return CONST.STEP_COARSE;
   if (modifiers.alt)   return CONST.STEP_FINE;
   return CONST.STEP_BASE;
 }
 
+// Apply keyboard deltas into state.uTarget (u-space in [-1,1])
 function applyKeyboardInput() {
   if (keysDown.size === 0) return;
 
   const step = stepFromModifiers();
-  const u = state.uTarget.slice(); // accumula dal target corrente
+  const u = state.uTarget.slice(); // accumulate from current target
 
-  const add = (idx, delta) => {
-    if (Number.isFinite(idx)) {
-      u[idx] = clamp(u[idx] + delta, -1, 1);
-    }
+  const add = (idx, d) => {
+    if (Number.isFinite(idx)) u[idx] = clamp(u[idx] + d, -1, 1);
   };
 
-  switch (state.dim) {
+  switch (Number(state.dim)) {
     case 4: {
-      // --- 4D: due viste 2D indipendenti ---
-      // View A: A/D (X), W/S (Y)
       const a = state.currentAxesA || { x: 0, y: 1 };
+      const b = state.currentAxesB || { x: 2, y: 3 };
       if (keysDown.has("a")) add(a.x, -step);
       if (keysDown.has("d")) add(a.x,  step);
       if (keysDown.has("w")) add(a.y,  step);
       if (keysDown.has("s")) add(a.y, -step);
-
-      // View B: F/H (X), T/G (Y)
-      const b = state.currentAxesB || { x: 2, y: 3 };
       if (keysDown.has("f")) add(b.x, -step);
       if (keysDown.has("h")) add(b.x,  step);
       if (keysDown.has("t")) add(b.y,  step);
       if (keysDown.has("g")) add(b.y, -step);
       break;
     }
-
     case 3: {
-      // --- 3D: A/D (X), W/S (Y), Q/E (Z) ---
       const ax = Number(state.currentAxes.x);
       const ay = Number(state.currentAxes.y);
       const az = Number(state.currentAxes.z);
-
-      if (keysDown.has("a")) add(ay, -step);
-      if (keysDown.has("d")) add(ay,  step);
-      if (keysDown.has("w")) add(az,  step);
-      if (keysDown.has("s")) add(az, -step);
-      if (keysDown.has("q")) add(ax,  step);  // Z+
-      if (keysDown.has("e")) add(ax, -step);  // Z-
+      if (keysDown.has("a")) add(ax, -step);
+      if (keysDown.has("d")) add(ax,  step);
+      if (keysDown.has("w")) add(ay,  step);
+      if (keysDown.has("s")) add(ay, -step);
+      if (keysDown.has("q")) add(az,  step);  // Z+ towards the observer
+      if (keysDown.has("e")) add(az, -step);  // Z- away
       break;
     }
-
     default: {
-      // --- 2D: A/D (X), W/S (Y) ---
       const ax = Number(state.currentAxes.x);
       const ay = Number(state.currentAxes.y);
-
       if (keysDown.has("a")) add(ax, -step);
       if (keysDown.has("d")) add(ax,  step);
       if (keysDown.has("w")) add(ay,  step);
@@ -118,123 +109,66 @@ function applyKeyboardInput() {
     }
   }
 
-  state.uTarget = u; // applica gli aggiornamenti
+  state.uTarget = u;
 }
 
+// -------------------- Animation / smoothing --------------------
 
-// ---- Loop di smoothing + invio cursor ----
-function tickSmooth() {
+let lastSentMs = 0;
+
+function tickSmooth(ts) {
+  // 1) Read keyboard every frame (no-op if nothing pressed)
   applyKeyboardInput();
-  let moved = false;
 
-  for (let i = 0; i < state.dim; i++) {
-    const prev = state.uCurrent[i];
-    const next = prev + CONST.LERP_ALPHA * (state.uTarget[i] - prev);
-    if (Math.abs(next - prev) > CONST.MOVE_EPS) moved = true;
-    state.uCurrent[i] = next;
+  // 2) Lerp towards target
+  let moved = false;
+  for (let j = 0; j < state.uCurrent.length; j++) {
+    const u0 = state.uCurrent[j];
+    const ut = state.uTarget[j];
+    const u1 = u0 + (ut - u0) * CONST.LERP_ALPHA;
+    if (Math.abs(u1 - u0) > CONST.MOVE_EPS) moved = true;
+    state.uCurrent[j] = u1;
   }
 
+  // 3) If moved enough, update cursor & maybe send to backend
   if (moved) {
+    // Convert u -> latent data-space for the visualiser & server
     const lp = state.uCurrent.map((uu, j) => uToLatent(uu, j));
-    state.cursorPoint = lp;
-    updateCursor(lp);  // aggiorna la/le viste (single o dual)
+    updateCursor(lp);
 
-    const now = (typeof performance !== "undefined" ? performance.now() : Date.now());
-    if (now - state.lastSendTs >= CONST.SEND_INTERVAL_MS) {
+    const now = performance.now();
+    if (now - lastSentMs >= CONST.SEND_INTERVAL_MS) {
+      lastSentMs = now;
       sendCursor(lp);
-      state.lastSendTs = now;
     }
   }
+
   requestAnimationFrame(tickSmooth);
 }
 
-// ---- Setup controlli dual per 4D ----
-function setupDual2DControls() {
-  const selAX = document.getElementById("axis-a-x");
-  const selAY = document.getElementById("axis-a-y");
-  const selBX = document.getElementById("axis-b-x");
-  const selBY = document.getElementById("axis-b-y");
+// -------------------- Boot --------------------
 
-  // default: (0,1) a sinistra, (2,3) a destra
-  state.currentAxesA = state.currentAxesA || { x: 0, y: 1 };
-  state.currentAxesB = state.currentAxesB || { x: 2, y: 3 };
-
-  populateSelect(selAX, state.dim, state.currentAxesA.x, state.axisNames);
-  populateSelect(selAY, state.dim, state.currentAxesA.y, state.axisNames);
-  populateSelect(selBX, state.dim, state.currentAxesB.x, state.axisNames);
-  populateSelect(selBY, state.dim, state.currentAxesB.y, state.axisNames);
-
-  const onChangeA = () => {
-    state.currentAxesA.x = Number(selAX.value);
-    state.currentAxesA.y = Number(selAY.value);
-    drawPlots(); if (state.cursorPoint) updateCursor(state.cursorPoint);
-  };
-  const onChangeB = () => {
-    state.currentAxesB.x = Number(selBX.value);
-    state.currentAxesB.y = Number(selBY.value);
-    drawPlots(); if (state.cursorPoint) updateCursor(state.cursorPoint);
-  };
-
-  selAX.addEventListener("change", onChangeA);
-  selAY.addEventListener("change", onChangeA);
-  selBX.addEventListener("change", onChangeB);
-  selBY.addEventListener("change", onChangeB);
-
-  // Attiva focus tastiera per la vista cliccata
-  const plotLeft = document.getElementById("plot-left");
-  const plotRight = document.getElementById("plot-right");
-  if (plotLeft && typeof plotLeft.on === "function") {
-    plotLeft.on("plotly_click", (ev) => {
-      activeView = "A";
-      handlePlotClick(ev, state.currentAxesA);
-    });
-  }
-  if (plotRight && typeof plotRight.on === "function") {
-    plotRight.on("plotly_click", (ev) => {
-      activeView = "B";
-      handlePlotClick(ev, state.currentAxesB);
-    });
-  }
-}
-
-// Click su una vista: aggiorna solo le 2 dimensioni mappate in quella vista
-function handlePlotClick(ev, viewAxes) {
-  if (state.inputSource !== "mouse") return;
-  if (!ev || !ev.points || !ev.points.length) return;
-
-  const p = ev.points[0];
-  const lp = state.cursorPoint ? state.cursorPoint.slice() : new Array(state.dim).fill(0);
-  lp[viewAxes.x] = uToLatent(p.x, viewAxes.x);
-  lp[viewAxes.y] = uToLatent(p.y, viewAxes.y);
-
-  // le altre dimensioni restano dove sono (cursorPoint attuale)
-  const u = lp.map((val, j) => latentToU(val, j));
-  state.uTarget = u.map(v => clamp(v, -1, 1));
-}
-
-// ---- Boot ----
 (async function init() {
-  // 1) Carica dati/meta
+  // 1) Fetch data/meta
   const resp = await fetch("/data");
   const meta = await resp.json();
-  state.latent = meta.latent;
-  state.dim = meta.dim;
-  state.boundsMin = meta.bounds_min;
-  state.boundsMax = meta.bounds_max;
 
-  // Preset names: da server oppure fallback ID1..N
+  // Normalise and assign core state
+  state.latent    = Array.isArray(meta.latent) ? meta.latent : [];
+  state.dim       = Number(meta.dim) || 0;
+  state.boundsMin = Array.isArray(meta.bounds_min) ? meta.bounds_min : [];
+  state.boundsMax = Array.isArray(meta.bounds_max) ? meta.bounds_max : [];
+
+  // Preset names: server or fallback ID1..N
   const N = state.latent.length;
-  if (Array.isArray(meta.preset_names) && meta.preset_names.length === N) {
-    state.presetNames = meta.preset_names.map(s => (s == null || s === "") ? null : String(s));
-  } else {
-    state.presetNames = new Array(N).fill(null);
-  }
-  for (let i = 0; i < N; i++) {
-    if (!state.presetNames[i]) state.presetNames[i] = `ID${i+1}`;
-  }
+  const fromServer = Array.isArray(meta.preset_names) ? meta.preset_names : [];
+  state.presetNames = Array.from({ length: N }, (_, i) => {
+    const s = (fromServer[i] == null ? "" : String(fromServer[i]).trim());
+    return s ? s : `ID${i + 1}`;
+  });
 
-   // Ricalcola bounds dai dati (sicuro: 0..1 nel tuo caso)
-  if (Array.isArray(state.latent) && state.latent.length > 0) {
+  // Safety: recompute bounds from actual data
+  if (N > 0) {
     const d = state.dim;
     const bmin = new Array(d).fill(+Infinity);
     const bmax = new Array(d).fill(-Infinity);
@@ -249,51 +183,38 @@ function handlePlotClick(ev, viewAxes) {
     state.boundsMax = bmax;
   }
 
+  // Axis names and sensible defaults
   buildAxisNames(state.dim);
-
-  // Populate axis and show proper groups
-  setupAxisSelectors();
-  refreshShortcuts();
-
-  if (UI.selInput) {
-    state.inputSource = UI.selInput.value || "keyboard";
-
-    if (state.inputSource === "keyboard") attachKeyListeners();
-
-    UI.selInput.addEventListener("change", () => {
-        state.inputSource = UI.selInput.value;
-        if (state.inputSource === "keyboard") {
-            attachKeyListeners();
-        } else {
-            detachKeyListeners();
-        }
-        refreshShortcuts();
-    });
+  if (state.dim === 4) {
+    state.currentAxesA = { x: 0, y: 1 };
+    state.currentAxesB = { x: 2, y: 3 };
   }
 
-  // 2) Inizializza u/cursor
-  state.uCurrent = new Array(state.dim).fill(0.0);
-  state.uTarget  = new Array(state.dim).fill(0.0);
+  // Initialise u/cursor (centre of the cube) and map to data-space
+  state.uCurrent    = new Array(state.dim).fill(0.0);
+  state.uTarget     = new Array(state.dim).fill(0.0);
   state.cursorPoint = state.uCurrent.map((uu, j) => uToLatent(uu, j));
 
-  // 3) Inizializza controlli sorgente input
-  const selInput = document.getElementById("input-source");
-  state.inputSource = (selInput && selInput.value) ? selInput.value : "keyboard";
-  if (selInput) {
-    selInput.addEventListener("change", () => {
-      state.inputSource = selInput.value; // "keyboard" | "mouse" | "osc"
-      if (state.inputSource === "keyboard") {
-        window.addEventListener("keydown", handleKeyDown, { passive: false });
-        window.addEventListener("keyup",   handleKeyUp,   { passive: true  });
-      } else {
-        window.removeEventListener("keydown", handleKeyDown);
-        window.removeEventListener("keyup",   handleKeyUp);
-      }
+  // Reflect dimensionality in the shortcuts panel and populate axis selectors
+  refreshShortcuts();
+  setupAxisSelectors();
+
+  // Input source wiring
+  if (UI.selInput) {
+    state.inputSource = UI.selInput.value || "keyboard";
+    if (state.inputSource === "keyboard") attachKeyListeners();
+    else                                   detachKeyListeners();
+    refreshShortcuts();
+
+    UI.selInput.addEventListener("change", () => {
+      state.inputSource = UI.selInput.value;
+      if (state.inputSource === "keyboard") attachKeyListeners();
+      else                                   detachKeyListeners();
+      refreshShortcuts();
     });
   }
 
-
-  // 4) Point selector
+  // Populate preset dropdown
   const selPoint = document.getElementById("preset-select");
   if (selPoint) {
     selPoint.innerHTML = '<option value="">— select preset —</option>';
@@ -308,53 +229,44 @@ function handlePlotClick(ev, viewAxes) {
       if (v === "") return;
       const idx = Number(v);
       if (!Number.isFinite(idx) || idx < 0 || idx >= state.latent.length) return;
-      state.cursorPoint = state.latent[idx].slice();   // [0,1]
-      updateCursor(state.cursorPoint);
-      sendCursor(state.cursorPoint);
+      const lp = state.latent[idx].slice();  // data-space
+      state.cursorPoint = lp;
+      // sync uCurrent/uTarget with this point
+      for (let j = 0; j < state.dim; j++) {
+        const lo = state.boundsMin[j], hi = state.boundsMax[j];
+        const u = (lo === hi) ? 0 : ((lp[j] - lo) / (hi - lo)) * 2 - 1;
+        state.uCurrent[j] = state.uTarget[j] = clamp(u, -1, 1);
+      }
+      updateCursor(lp);
+      sendCursor(lp);
     });
-}
-
-  // 5) Mostra/nascondi controlli in base alla dimensionalità
-  const singleAxisControls = document.getElementById("single-axis-controls"); // X/Y[/Z] legacy
-  const dualAxisControls   = document.getElementById("dual-axis-controls");   // A/B (nuovi)
-
-  if (state.dim <= 3) {
-    // 2D/3D → UI invariata
-    if (singleAxisControls) singleAxisControls.style.display = "";
-    if (dualAxisControls)   dualAxisControls.style.display   = "none";
-  } else {
-    // 4D → dual 2D, via A/B
-    if (singleAxisControls) singleAxisControls.style.display = "none";
-    if (dualAxisControls)   dualAxisControls.style.display   = "flex";
   }
 
-  // 6) Disegno iniziale
-  drawPlots();                   // gestisce single vs dual internamente
+  // Initial draw
+  drawPlots();
   updateCursor(state.cursorPoint);
 
-  // 7) Wiring specifico per 4D dual
-  if (state.dim === 4) {
+  // 4D convenience (optional)
+  if (state.dim === 4 && typeof setupDual2DControls === "function") {
     setupDual2DControls();
-
-    // Memorizza la vista attiva sul click dei contenitori (per tastiera)
     const leftEl  = document.getElementById("plot-left");
     const rightEl = document.getElementById("plot-right");
-    if (leftEl)  leftEl.addEventListener("click", () => { activeView = "A"; });
-    if (rightEl) rightEl.addEventListener("click", () => { activeView = "B"; });
+    if (leftEl)  leftEl.addEventListener("click", () => { window.activeView = "A"; });
+    if (rightEl) rightEl.addEventListener("click", () => { window.activeView = "B"; });
   }
 
-  // 8) Loop di smoothing
+  // Start loop
   requestAnimationFrame(tickSmooth);
 
-  // 9) Attiva listeners tastiera se serve
-  if (state.inputSource === "keyboard") {
-    window.addEventListener("keydown", handleKeyDown, { passive: false });
-    window.addEventListener("keyup",   handleKeyUp,   { passive: true  });
-  }
-
-  // 10) Socket → aggiorna cursor e viste
+  // Socket wiring
   setupSocket((lp) => {
     state.cursorPoint = lp;
+    // also update u-space to follow external updates
+    for (let j = 0; j < state.dim; j++) {
+      const lo = state.boundsMin[j], hi = state.boundsMax[j];
+      const u = (lo === hi) ? 0 : ((lp[j] - lo) / (hi - lo)) * 2 - 1;
+      state.uCurrent[j] = state.uTarget[j] = clamp(u, -1, 1);
+    }
     updateCursor(lp);
   });
 })();

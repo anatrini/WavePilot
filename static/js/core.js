@@ -152,7 +152,6 @@ export const CONST = {
   STEP_FINE: 0.01,
   STEP_COARSE: 0.1,
   LERP_ALPHA: 0.35,
-  //SEND_INTERVAL_MS: 60,
   MOVE_EPS: 1e-3,
 };
 
@@ -199,10 +198,9 @@ export function populateSelect(sel, options, selected = null, clear = true){
  * Shows single-axis controls for 2D/3D; dual-axis controls for 4D.
  * Also toggles .z-only (Z selector) only when dim===3.
  */
-export function updateControlsVisibility(dim){
+export function updateControlVisibility(dim){
   const single = document.getElementById("single-axis-controls");
   const dual   = document.getElementById("dual-axis-controls");
-  // legacy W slice removed entirely elsewhere
 
   if (dim <= 3) {
     if (single) single.style.display = "";

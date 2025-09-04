@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -58,11 +58,10 @@
           </fieldset>
         </div>
 
-        <fieldset>
+        <!-- Shortcuts dinamici: visibili solo se Source=Keyboard -->
+        <fieldset id="shortcuts" style="display:none">
           <legend>Shortcuts</legend>
-          <div><kbd class="kbd">A/D</kbd> <kbd class="kbd">W/S</kbd> → View A</div>
-          <div><kbd class="kbd">F/H</kbd> <kbd class="kbd">T/G</kbd> → View B</div>
-          <div><kbd class="kbd">Shift</kbd> coarse, <kbd class="kbd">Alt</kbd> fine</div>
+          <div id="shortcuts-body"></div>
         </fieldset>
       </section>
     </aside>

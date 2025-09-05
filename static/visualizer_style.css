@@ -52,7 +52,16 @@
   /* Layout */
   --sidebar-w:           260px;
   --radius-10:           12px;
+
+  --sc-title-col: 84px;   /* larghezza colonna "Move XY / Move Z" 84 8 6 32 26 10*/ 
+  --sc-gap: 8px;
+  --sc-row-gap: 6px;
+
+  --kbd-minw: 32px;       /* keycaps più leggibili (evita "Alt" troppo stretto) */
+  --kbd-h: 26px;
+  --kbd-padx: 10px;
 }
+
 
 /* =========================================
    BASE / TYPOGRAFIA
@@ -119,6 +128,8 @@ header h1 {
   border: 1px solid var(--ui-border);
   background: color-mix(in srgb, var(--ui-panel-bg) 80%, var(--ui-bg) 20%);
   border-radius: var(--radius-10);
+  width: 100%;
+  box-sizing: border-box;
   padding: 12px;
   margin: 0;
 }
@@ -150,11 +161,15 @@ header h1 {
 .z-only { display: inline-block; }
 
 /* =========================================
-   SHORTCUTS (visibilità + stile) — NO #fff / rgba
+   SHORTCUTS (visibilità + stile) — coerente con data-mode / data-dim
+   ========================================= */
+/* =========================================
+   SHORTCUTS — layout compatto e allineato
    ========================================= */
 #shortcuts { display: none; }
 #shortcuts[data-mode="keyboard"] { display: block; }
 
+/* di base non mostrare nulla finché non sappiamo la dimensionalità */
 #shortcuts .shortcut-set,
 #shortcuts .shortcut-note { display: none !important; }
 
@@ -162,53 +177,121 @@ header h1 {
 #shortcuts[data-dim="2"] .shortcut-set[data-dim="2"] { display: grid !important; }
 #shortcuts[data-dim="3"] .shortcut-set[data-dim="3"] { display: grid !important; }
 #shortcuts[data-dim="4"] .shortcut-set[data-dim="4"] { display: grid !important; }
-#shortcuts [data-dim="any"] { display: block !important; }
 
+/* nota (Shift/Alt) visibile quando input=keyboard */
+#shortcuts[data-mode="keyboard"] .shortcut-note { display: block !important; }
+
+/* contenitore di ciascun gruppo (es. "Move XY") */
+/* gruppi (Move XY / Move Z): stessa aria ai lati del fieldset */
 #shortcuts .shortcut-set{
-  grid-template-columns: 110px 1fr;
   display: grid;
+  grid-template-columns: var(--sc-title-col) 1fr;
   align-items: center;
-  gap: 8px 12px;
-  padding: 12px 12px;
-  border: 1px solid var(--ui-border);
+  column-gap: var(--sc-gap);
+  row-gap: var(--sc-row-gap);
+
+  /* QUI: margini laterali + box sizing per non “tagliare” il bordo */
+  margin: 10px 8px;
+  width: auto;
+  box-sizing: border-box;
+
+  padding: 10px 12px;
   border-radius: calc(var(--radius-10) + 2px);
-  margin: 10px 0;
-  /* tinta chiara derivata dal pannello */
-  background: color-mix(in srgb, var(--ui-panel-bg) 70%, var(--ui-bg) 30%);
+  border: 1px solid color-mix(in srgb, var(--ui-border) 85%, var(--ui-accent) 15%);
+  background: color-mix(in srgb, var(--ui-panel-bg) 65%, var(--ui-bg) 35%);
 }
+
+
+/* NON andare a capo: "Move XY" resta su una riga */
 #shortcuts .shortcut-title{
-  color: var(--clr-outline);
+  color: var(--ui-text);
   font-size: .95rem;
   font-weight: 700;
+  white-space: nowrap;      /* ← evita "Move↵XY" */
 }
 
-/* keycaps leggibili e moderni (solo variabili) */
+/* colonna tasti: coppie [kbd / kbd] su righe, vicine al titolo */
+#shortcuts .shortcut-keys{
+  display: grid;
+  grid-template-columns: max-content max-content max-content; /* [kbd] [/] [kbd] */
+  grid-auto-rows: var(--kbd-h);
+  justify-content: start;               /* attaccati al titolo */
+  align-items: center;
+  column-gap: var(--sc-gap);            /* A  /  D più vicini */
+  row-gap: var(--sc-row-gap);
+  color: var(--ui-text);
+  font-size: .95rem;
+}
+
+/* separatore "/" */
+#shortcuts .sep{
+  color: var(--ui-text);
+  font-weight: 700;
+  opacity: 1;
+}
+
+/* keycaps compatti ma leggibili */
 #shortcuts .kbd{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--kbd-minw);
+  height: var(--kbd-h);
+  padding: 0 var(--kbd-padx);
+  border-radius: 999px;
   font-family: inherit;
   font-weight: 700;
   font-size: .9rem;
-  padding: 2px 12px;
-  border-radius: 999px;
-  color: color-mix(in srgb, var(--ui-text) 70%, var(--ui-accent) 30%);
-  background: color-mix(in srgb, var(--ui-bg) 85%, var(--ui-accent) 15%);
+  letter-spacing: .2px;
+  line-height: 1;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-bg) 88%, var(--ui-accent) 12%);
   border: 1px solid color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border) 45%);
-  box-shadow: none; /* niente rgba */
 }
-#shortcuts .kbd:hover{
-  background: color-mix(in srgb, var(--ui-bg) 80%, var(--ui-accent) 20%);
-  border-color: color-mix(in srgb, var(--ui-accent) 65%, var(--ui-border) 35%);
-}
-#shortcuts .sep{ opacity:.45; margin: 0 4px; }
+
+/* riga "Shift coarse  Alt fine" su UNA sola riga,
+   allineata alla colonna tasti e senza andare a capo */
+/* nota finale: occupa la stessa griglia dei gruppi e posizionati in colonna 2 */
 #shortcuts .shortcut-note{
-  margin-top: 6px;
-  color: var(--ui-muted);
+  display: grid;
+  grid-template-columns: var(--sc-title-col) 1fr; /* colonna titolo | colonna tasti */
+  align-items: center;
+  column-gap: var(--sc-gap);
+
+  /* stessi margini dei gruppi → allineamento perfetto */
+  margin: 10px 8px 0 8px;
+
+  /* niente overflow → nessun bordo “mozzato” */
+  width: auto;
+  box-sizing: border-box;
+
+  color: var(--ui-text);
+  opacity: .95;
   font-size: .9rem;
+  white-space: nowrap;   /* resta su UNA riga */
 }
+
+/* spingi ogni span (Shift, coarse, Alt, fine) nella colonna dei tasti */
+#shortcuts .shortcut-note > * {
+  grid-column: 2;        /* colonna 2 = stessa della coppia A / D */
+}
+
+/* keycaps coerenti anche qui */
+#shortcuts .shortcut-note .kbd{
+  min-width: var(--kbd-minw);
+  height: var(--kbd-h);
+  padding: 0 var(--kbd-padx);
+  line-height: 1;
+}
+
+
+
 
 /* =========================================
    PLOTLY — colori coerenti + testo leggibile
    ========================================= */
-/* sfondi */
+
+/* Sfondi */
 .js-plotly-plot, .plotly, .plot-container{
   background: var(--plot-paper) !important;
 }
@@ -216,21 +299,9 @@ header h1 {
   background: var(--plot-bg) !important;
 }
 
-/* testo (assi, legende, etichette ID) ad alto contrasto */
+/* Testo (assi, legende, etichette ID) ad alto contrasto */
 .plotly text {
   fill: var(--plot-text) !important;
-}
-
-/* griglie/assi (se Plotly non li imposta via JS, questo aiuta) */
-.plotly .gridlayer line,
-.plotly .gridlayer path {
-  stroke: var(--plot-grid) !important;
-}
-.plotly .axislayer-above path,
-.plotly .yaxislayer-above path,
-.plotly .xaxislayer-above path,
-.plotly .zaxislayer-above path {
-  stroke: var(--plot-axis) !important;
 }
 
 /* =========================================

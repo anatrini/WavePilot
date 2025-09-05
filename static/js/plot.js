@@ -53,6 +53,55 @@ function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
   right.style.margin = "0";
 }
 
+// --- Applica i colori del tema CSS ai layout Plotly ---
+function applyPlotTheme2D(layout){
+  const r    = getComputedStyle(document.documentElement);
+  const GRID = r.getPropertyValue('--plot-grid').trim();
+  const AXIS = r.getPropertyValue('--plot-axis').trim();
+  const TEXT = r.getPropertyValue('--plot-text').trim();
+
+  layout.font = { ...(layout.font||{}), color: TEXT || layout.font?.color };
+
+  layout.xaxis = {
+    ...(layout.xaxis||{}),
+    gridcolor: GRID || layout.xaxis?.gridcolor,
+    linecolor: AXIS || layout.xaxis?.linecolor,
+    tickfont: { color: TEXT },
+    titlefont: { color: TEXT }
+  };
+  layout.yaxis = {
+    ...(layout.yaxis||{}),
+    gridcolor: GRID || layout.yaxis?.gridcolor,
+    linecolor: AXIS || layout.yaxis?.linecolor,
+    tickfont: { color: TEXT },
+    titlefont: { color: TEXT }
+  };
+}
+
+function applyPlotTheme3D(layout){
+  const r    = getComputedStyle(document.documentElement);
+  const GRID = r.getPropertyValue('--plot-grid').trim();
+  const AXIS = r.getPropertyValue('--plot-axis').trim();
+  const TEXT = r.getPropertyValue('--plot-text').trim();
+  const BG   = r.getPropertyValue('--plot-bg').trim();
+
+  layout.scene = layout.scene || {};
+  layout.scene.bgcolor = BG || layout.scene.bgcolor;
+
+  const patch = (ax) => ({
+    ...(ax||{}),
+    gridcolor: GRID || ax?.gridcolor,
+    color:     AXIS || ax?.color,
+    tickfont:  { color: TEXT },
+    titlefont: { color: TEXT }
+  });
+
+  layout.scene.xaxis = patch(layout.scene.xaxis);
+  layout.scene.yaxis = patch(layout.scene.yaxis);
+  layout.scene.zaxis = patch(layout.scene.zaxis);
+}
+
+
 /* ---------- 2D ---------- */
 function scatter2D(axX, axY, cursorPoint) {
   // Serie principali in u-space [-1,1]
@@ -126,6 +175,8 @@ function scatter2D(axX, axY, cursorPoint) {
     paper_bgcolor: CONST.BG_COLOR, plot_bgcolor: CONST.BG_COLOR,
     uirevision: "static",
   };
+
+  applyPlotTheme2D(layout);
 
   return { traces: [pts, txt, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
 }
@@ -204,6 +255,8 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
     margin: { t: 10, r: 10, b: 10, l: 10 },
     paper_bgcolor: CONST.BG_COLOR,
   };
+
+  applyPlotTheme3D(layout);
 
   return { traces: [pts, txt3d, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
 }
@@ -311,3 +364,4 @@ export function updateCursor(latentPoint) {
     Plotly.restyle(right, { x: [[bx_u]], y: [[by_u]] }, [state.cursorRight.dotIdx]);
   }
 }
+

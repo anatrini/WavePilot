@@ -1,39 +1,57 @@
-/* =========================================
-   THEME TOKENS — cambia qui colori e dimensioni
-   ========================================= */
+/* =======================================================
+   THEME TOKENS — edit these to re-skin the app
+   (palette from your scheme)
+   ======================================================= */
 :root{
-  /* Layout */
-  --sidebar-w:         260px;
+  /* Base palette */
+  --clr-lapis:     #4670B8;
+  --clr-petrolio:  #2A545E;
+  --clr-ocra:      #823D16;
+  --clr-lacca:     #9E3323;
+  --clr-bg:        #AACCCB;   /* background (teal chiaro) */
+  --clr-surface:   #AACCCB;   /* surface */
+  --clr-outline:   #333726;   /* outline */
+  --clr-text:      #000000;   /* testo */
 
-  /* Colori base UI */
-  --ui-bg:             #0f1216;  /* sfondo pagina */
-  --ui-text:           #e5e7eb;  /* testo primario */
-  --ui-muted:          #9ca3af;  /* testo secondario */
+  /* Theme mapping (near “bianco perla”) */
+  --white:         #ffffff;   /* solo per mix fuori dagli shortcuts */
+  --ui-bg:         color-mix(in srgb, var(--white) 90%, var(--clr-bg) 10%);
+  --ui-text:       var(--clr-text);
+  --ui-muted:      color-mix(in srgb, var(--clr-text) 60%, var(--ui-bg) 40%);
 
-  /* Pannelli/contorni */
-  --ui-panel-bg:       #171b21;  /* bg sidebar/pannelli */
-  --ui-border:         #2b3037;  /* bordi/outline */
-  --ui-accent:         #8b5cf6;  /* focus ring/elementi attivi */
+  --ui-panel-bg:   color-mix(in srgb, var(--white) 88%, var(--clr-surface) 12%);
+  --ui-border:     color-mix(in srgb, var(--clr-outline) 45%, var(--ui-bg) 55%);
+  --ui-accent:     var(--clr-lapis);     /* focus, attivi */
+  --ui-accent-2:   var(--clr-petrolio);  /* variante */
 
-  /* Input */
-  --ui-control-bg:     #111418;
-  --ui-control-text:   #e5e7eb;
-  --ui-control-border: #2b3037;
+  /* Inputs */
+  --ui-control-bg: color-mix(in srgb, var(--ui-panel-bg) 85%, var(--ui-bg) 15%);
+  --ui-control-text: var(--ui-text);
+  --ui-control-border: var(--ui-border);
 
   /* Plotly */
-  --plot-paper:        #0f1216;  /* fondo "paper" */
-  --plot-bg:           #0f1216;  /* fondo area grafico */
+  --plot-paper:    var(--ui-bg);
+  --plot-bg:       var(--ui-bg);
+  --plot-text:     #0f1a1a;   /* alto contrasto per etichette/ID/assi */
+  --plot-grid:     color-mix(in srgb, var(--clr-outline) 25%, var(--ui-bg) 75%);
+  --plot-axis:     color-mix(in srgb, var(--clr-outline) 55%, var(--ui-bg) 45%);
 
-  /* Marker & cursore (le usa il JS) */
-  --marker-color:        #6ea8fe;
+  /* Dataset markers & cursor (usati dal JS) */
+  --marker-color:        var(--clr-petrolio);
+  --cursor-glow-size:    18;
+  --cursor-glow-color:   var(--clr-ocra);
+  --cursor-glow-opacity: 0.28;
+  --cursor-dot-size:     8;
+  --cursor-dot-color:    color-mix(in srgb, var(--clr-ocra) 80%, var(--ui-bg) 20%);
+  --cursor-dot-line:     var(--clr-outline);
 
-  --cursor-glow-size:    18;                       /* numeri nudi: letti dal JS come Number */
-  --cursor-glow-color:   rgb(255,200,120);
-  --cursor-glow-opacity: 0.25;
+  /* Spikes — letti dal JS/plot.js */
+  --spike-color:         var(--clr-ocra);
+  --spike-active-color:  var(--clr-lacca);
 
-  --cursor-dot-size:     7;
-  --cursor-dot-color:    rgb(255,210,150);
-  --cursor-dot-line:     #ffffff;
+  /* Layout */
+  --sidebar-w:           260px;
+  --radius-10:           12px;
 }
 
 /* =========================================
@@ -46,7 +64,6 @@ html, body {
   color: var(--ui-text);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
 }
-
 *,
 *::before,
 *::after { box-sizing: border-box; }
@@ -60,6 +77,7 @@ header h1 {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: .2px;
+  color: var(--clr-outline);
 }
 
 /* =========================================
@@ -81,32 +99,33 @@ header h1 {
 }
 
 #controls{
-  position: static;                 /* niente fixed */
+  position: static;
   display: flex;
-  flex-direction: column;           /* fieldset impilati */
+  flex-direction: column;
   gap: 12px;
   background: var(--ui-panel-bg);
   border: 1px solid var(--ui-border);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: var(--radius-10);
+  padding: 12px;
 }
 
 #plots { width: 100%; }
-.plot  { min-height: 520px; }       /* puoi aumentare se vuoi */
+.plot  { min-height: 520px; }
 
 /* =========================================
    CONTROLLI (fieldset + label + select)
    ========================================= */
 #controls fieldset{
   border: 1px solid var(--ui-border);
-  background: transparent;
-  border-radius: 10px;
-  padding: 10px;
-  margin: 0;                        /* gestito dal gap del contenitore */
+  background: color-mix(in srgb, var(--ui-panel-bg) 80%, var(--ui-bg) 20%);
+  border-radius: var(--radius-10);
+  padding: 12px;
+  margin: 0;
 }
 #controls legend{
-  font-size: .9rem;
+  font-size: .92rem;
   color: var(--ui-muted);
+  letter-spacing: .2px;
 }
 #controls label{
   display: block;
@@ -118,66 +137,68 @@ header h1 {
   background: var(--ui-control-bg);
   color: var(--ui-control-text);
   border: 1px solid var(--ui-control-border);
-  border-radius: 8px;
-  padding: 6px 8px;
+  border-radius: 10px;
+  padding: 8px 10px;
   outline: none;
 }
 #controls select:focus{
   border-color: var(--ui-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-accent) 40%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent);
 }
 
-/* mostra di default gli elementi con classe .z-only (sarà il JS a nasconderli se non servono) */
+/* usato in 3D per mostrare Z */
 .z-only { display: inline-block; }
 
 /* =========================================
-   SHORTCUTS (visibilità + stile)
+   SHORTCUTS (visibilità + stile) — NO #fff / rgba
    ========================================= */
-/* visibili solo quando Source = Keyboard: il JS mette data-mode="keyboard" */
 #shortcuts { display: none; }
 #shortcuts[data-mode="keyboard"] { display: block; }
 
-/* nascondi tutto di default */
 #shortcuts .shortcut-set,
 #shortcuts .shortcut-note { display: none !important; }
 
-/* mostra i blocchi che matchano la dimensione corrente */
+/* mostra solo i blocchi pertinenti */
 #shortcuts[data-dim="2"] .shortcut-set[data-dim="2"] { display: grid !important; }
 #shortcuts[data-dim="3"] .shortcut-set[data-dim="3"] { display: grid !important; }
 #shortcuts[data-dim="4"] .shortcut-set[data-dim="4"] { display: grid !important; }
 #shortcuts [data-dim="any"] { display: block !important; }
 
-/* look pulito, coerente col tema */
 #shortcuts .shortcut-set{
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: 110px 1fr;
   display: grid;
   align-items: center;
   gap: 8px 12px;
-  padding: 8px 10px;
+  padding: 12px 12px;
   border: 1px solid var(--ui-border);
-  border-radius: 10px;
-  margin: 8px 0;
-  background: color-mix(in srgb, var(--ui-control-bg) 75%, transparent);
+  border-radius: calc(var(--radius-10) + 2px);
+  margin: 10px 0;
+  /* tinta chiara derivata dal pannello */
+  background: color-mix(in srgb, var(--ui-panel-bg) 70%, var(--ui-bg) 30%);
 }
 #shortcuts .shortcut-title{
-  color: var(--ui-muted);
-  font-size: .9rem;
-  font-weight: 600;
+  color: var(--clr-outline);
+  font-size: .95rem;
+  font-weight: 700;
 }
-#shortcuts .shortcut-keys{
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-}
+
+/* keycaps leggibili e moderni (solo variabili) */
 #shortcuts .kbd{
-  font-family: inherit;            /* non monospace */
-  font-weight: 600;
+  font-family: inherit;
+  font-weight: 700;
   font-size: .9rem;
-  padding: 2px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--ui-control-bg) 85%, #000 0%);
-  border: 1px solid var(--ui-border);
-  box-shadow: 0 1px 0 rgba(0,0,0,.5) inset, 0 1px 0 rgba(255,255,255,.03);
+  padding: 2px 12px;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--ui-text) 70%, var(--ui-accent) 30%);
+  background: color-mix(in srgb, var(--ui-bg) 85%, var(--ui-accent) 15%);
+  border: 1px solid color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border) 45%);
+  box-shadow: none; /* niente rgba */
 }
-#shortcuts .sep{ opacity:.6; margin: 0 2px; }
+#shortcuts .kbd:hover{
+  background: color-mix(in srgb, var(--ui-bg) 80%, var(--ui-accent) 20%);
+  border-color: color-mix(in srgb, var(--ui-accent) 65%, var(--ui-border) 35%);
+}
+#shortcuts .sep{ opacity:.45; margin: 0 4px; }
 #shortcuts .shortcut-note{
   margin-top: 6px;
   color: var(--ui-muted);
@@ -185,8 +206,9 @@ header h1 {
 }
 
 /* =========================================
-   PLOTLY (uniforma lo sfondo al tema)
+   PLOTLY — colori coerenti + testo leggibile
    ========================================= */
+/* sfondi */
 .js-plotly-plot, .plotly, .plot-container{
   background: var(--plot-paper) !important;
 }
@@ -194,12 +216,29 @@ header h1 {
   background: var(--plot-bg) !important;
 }
 
+/* testo (assi, legende, etichette ID) ad alto contrasto */
+.plotly text {
+  fill: var(--plot-text) !important;
+}
+
+/* griglie/assi (se Plotly non li imposta via JS, questo aiuta) */
+.plotly .gridlayer line,
+.plotly .gridlayer path {
+  stroke: var(--plot-grid) !important;
+}
+.plotly .axislayer-above path,
+.plotly .yaxislayer-above path,
+.plotly .xaxislayer-above path,
+.plotly .zaxislayer-above path {
+  stroke: var(--plot-axis) !important;
+}
+
 /* =========================================
    RESPONSIVE
    ========================================= */
 @media (max-width: 980px){
   .layout{
-    grid-template-columns: 1fr;  /* sidebar sopra ai plot */
+    grid-template-columns: 1fr;
   }
   #sidebar{
     position: static;

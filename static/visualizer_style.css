@@ -1,249 +1,251 @@
 /* =======================================================
-   THEME TOKENS — edit these to re-skin the app
-   (palette from your scheme)
+   THEME TOKENS — colori puri (no color-mix)
    ======================================================= */
 :root{
-  /* Base palette */
-  --clr-lapis:     #4670B8;
-  --clr-petrolio:  #2A545E;
-  --clr-ocra:      #823D16;
-  --clr-lacca:     #9E3323;
-  --clr-bg:        #f5f5f5;   /* background (teal chiaro) */
-  --clr-surface:   #f5f5f5;   /* surface */
-  --clr-outline:   #333726;   /* outline */
-  --clr-text:      #333726;   /* testo */
+  /* Palette base (dalla tua scala) */
+  --clr-lapis:   #4670B8;     /* primario */
+  --clr-lacca:   #9E3323;     /* accent/border */
+  --clr-outline: #333726;
+  --clr-text:    #1A1A1A;
 
-  /* Theme mapping (near “bianco perla”) */
-  --white:         #ffffff;   /* solo per mix fuori dagli shortcuts */
-  --ui-bg:         #f5f5f5;
-  --ui-text:       var(--clr-text);
-  --ui-muted:      color-mix(in srgb, var(--clr-text) 60%, var(--ui-bg) 40%);
+  /* Sfondo attuale (lo lasciamo invariato) */
+  --ui-bg:       #F5F5F5;     /* “bianco perla” */
+  --ui-surface:  #FFFFFF;     /* pannelli interni */
 
-  --ui-panel-bg:   var(--clr-surface);
-  --ui-border:     color-mix(in srgb, var(--clr-outline) 45%, var(--ui-bg) 55%);
-  --ui-accent:     var(--clr-lapis);     /* focus, attivi */
-  --ui-accent-2:   var(--clr-petrolio);  /* variante */
+  /* Tipografia */
+  --font-ui:     "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+  --font-display: var(--font-ui);
 
-  /* Inputs */
-  --ui-control-bg: color-mix(in srgb, var(--ui-panel-bg) 85%, var(--ui-bg) 15%);
-  --ui-control-text: var(--ui-text);
-  --ui-control-border: var(--ui-border);
+  /* Bordi / accent */
+  --ui-border:   var(--clr-lacca);
+  --ui-accent:   var(--clr-lapis);
 
-  /* Plotly */
-  --plot-paper:    var(--ui-bg);
-  --plot-bg:       var(--ui-bg);
-  --plot-text:     #0f1a1a;   /* alto contrasto per etichette/ID/assi */
-  --plot-grid:     var(--clr-lapis);
-  --plot-axis:     var(--clr-lapis);
+  /* Plotly (usati dal JS in applyPlotTheme2D/3D) */
+  --plot-paper:  var(--ui-bg);
+  --plot-bg:     var(--ui-bg);
+  --plot-text:   #111111;
+  --plot-grid:   #7C92C6;     /* griglia ben visibile (lapis chiaro) */
+  --plot-axis:   #5A77AF;
 
-  /* Dataset markers & cursor (usati dal JS) */
-  --marker-color:        var(--clr-petrolio);
+  /* Spike/grid thickness (letto dal JS) */
+  --spike-color:     var(--clr-lacca);
+  --spike-thickness: 3;        /* px */
+  --grid-width:      4;        /* px */
+
+  /* Cursor (letti dal JS) */
   --cursor-glow-size:    18;
-  --cursor-glow-color:   var(--clr-lapis);
-  --cursor-glow-opacity: 0.8;
+  --cursor-glow-color:   #E4A59B;  /* lacca chiarissimo per alone */
+  --cursor-glow-opacity: .35;
   --cursor-dot-size:     8;
   --cursor-dot-color:    var(--clr-lacca);
   --cursor-dot-line:     var(--clr-outline);
 
-  /* Spikes — letti dal JS/plot.js */
-  --spike-color:         var(--clr-lacca);
-  --spike-thickness:     4;
-  --grid-width:          5;
-  --spike-active-color:  var(--clr-lacca);
+  /* Shortcuts */
+  --kbd-bg:      #E9F0FB;     /* lapis molto chiaro */
+  --kbd-text:    var(--clr-outline);
+  --kbd-border:  #9BB3E2;
 
   /* Layout */
-  --sidebar-w:           260px;
-  --radius-10:           12px;
+  --sidebar-w:   260px;
+  --radius-10:   12px;
 
-  --sc-title-col: 84px;   /* larghezza colonna "Move XY / Move Z" 84 8 6 32 26 10*/ 
-  --sc-gap: 8px;
-  --sc-row-gap: 6px;
+  /* Shortcuts layout */
+  --sc-title-col: 84px;
+  --sc-gap:       8px;
+  --sc-row-gap:   6px;
 
-  --kbd-minw: 32px;       /* keycaps più leggibili (evita "Alt" troppo stretto) */
-  --kbd-h: 26px;
+  --kbd-minw: 32px;
+  --kbd-h:    26px;
   --kbd-padx: 10px;
-
-  --font-ui:      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
-  --font-display: var(--font-ui);
-
 }
 
-
-/* =========================================
-   BASE / TYPOGRAFIA
-   ========================================= */
-
-html, body {
+/* =======================================================
+   BASE / TYPO
+   ======================================================= */
+html, body{
   height: 100%;
   margin: 0;
   background: var(--ui-bg);
-  color: var(--ui-text);
+  color: var(--clr-text);
   font-family: var(--font-ui);
 }
 *,
 *::before,
-*::after { box-sizing: border-box; }
+*::after{ box-sizing: border-box; }
 
-header {
+header{
   padding: 8px 16px 0;
-  border-bottom: none;
+  border-bottom: none;             /* niente riga */
 }
-header h1 {
+header h1{
   margin: 0;
-  text-align: right;
+  text-align: right;               /* allinea a destra */
   font-family: var(--font-display);
-  font-size: 36px;
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--clr-outline);
+  font-size: 36px;
 }
 
-/* =========================================
-   LAYOUT: sidebar sinistra (sticky) + plots
-   ========================================= */
+/* =======================================================
+   LAYOUT
+   ======================================================= */
 .layout{
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   gap: 12px;
-  padding: 12px;
+  padding: 8px 12px 12px;
 }
-
 #sidebar{
   position: sticky;
-  top: 12px;
+  top: 8px;
   align-self: start;
-  max-height: calc(100vh - 24px);
+  max-height: calc(100vh - 16px);
   overflow: auto;
 }
-
 #controls{
-  position: static;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--ui-panel-bg);
-  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);      /* bordi lacca */
   border-radius: var(--radius-10);
   padding: 12px;
 }
+#plots{ width: 100%; }
+.plot{
+  min-height: 520px;
+  border-radius: 14px;              /* angoli stondati sul contenitore */
+  overflow: hidden;                 /* clip di svg/canvas/modebar */
+  background: var(--plot-paper);
+}
 
-#plots { width: 100%; }
-.plot  { min-height: 520px; }
+/* Propaga il raggio negli strati interni di Plotly */
+.plot .js-plotly-plot,
+.plot .plot-container,
+.plot .svg-container,
+.plot .gl-container,
+.plot canvas{ border-radius: inherit; }
 
-/* =========================================
-   CONTROLLI (fieldset + label + select)
-   ========================================= */
+/* =======================================================
+   CONTROLLI: fieldset / select
+   ======================================================= */
 #controls fieldset{
-  border: 1px solid var(--ui-border);
-  overflow: hidden;
+  border: 1px solid var(--ui-border);      /* lacca */
   background: var(--ui-bg);
   background-clip: padding-box;
   border-radius: var(--radius-10);
-  width: 100%;
-  box-sizing: border-box;
   padding: 12px;
   margin: 0;
+  overflow: hidden;
 }
 #controls legend{
-  font-size: .92rem;
-  color: var(--ui-muted);
+  font-size: .95rem;
+  font-weight: 700;                         /* titoli più evidenti */
+  color: var(--clr-outline);
   letter-spacing: .2px;
 }
+
+/* Etichette generiche (manteniamo per x/y/z ma le “svuotiamo” più sotto) */
 #controls label{
   display: block;
   margin: 6px 0;
   font-size: .95rem;
+  font-weight: 600;
+  color: var(--clr-outline);
 }
+
+/* 1) Nascondi SOLO “Source” e “Preset” (non i menu) */
+#controls label[for="input-source"],
+#controls label[for="preset-select"]{ display: none; }
+
+/* 2) Rimuovi SOLO le lettere x/y/z senza nascondere i select
+      (usa :has, supportato sui browser moderni) */
+#controls label:has(> #axis-x),
+#controls label:has(> #axis-y),
+#controls label:has(> #axis-z){
+  display: contents;                /* mostra direttamente il select */
+}
+
+/* Select */
 #controls select{
   width: 100%;
-  background: var(--ui-control-bg);
-  color: var(--ui-control-text);
-  border: 1px solid var(--ui-control-border);
+  background: var(--ui-surface);
+  color: var(--clr-outline);
+  border: 1px solid var(--ui-border);      /* lacca */
   border-radius: 10px;
   padding: 8px 10px;
   outline: none;
+  font-size: .95rem;
 }
 #controls select:focus{
-  border-color: var(--ui-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 25%, transparent);
+  border-color: var(--ui-accent);           /* lapis */
+  box-shadow: 0 0 0 3px rgba(70,112,184, .18);
 }
 
-/* usato in 3D per mostrare Z */
-.z-only { display: inline-block; }
+/* usato in 3D per mostrare Z (il contenitore esiste già) */
+.z-only{ display: inline-block; }
 
-/* =========================================
-   SHORTCUTS (visibilità + stile) — coerente con data-mode / data-dim
-   ========================================= */
-/* =========================================
-   SHORTCUTS — layout compatto e allineato
-   ========================================= */
-#shortcuts { display: none; }
-#shortcuts[data-mode="keyboard"] { display: block; }
+/* =======================================================
+   SHORTCUTS — chiari e compatti
+   ======================================================= */
+#shortcuts{ display: none; }
+#shortcuts[data-mode="keyboard"]{ display: block; }
 
-/* di base non mostrare nulla finché non sappiamo la dimensionalità */
+/* non mostrare nulla finché non sappiamo la dim */
 #shortcuts .shortcut-set,
-#shortcuts .shortcut-note { display: none !important; }
+#shortcuts .shortcut-note{ display: none !important; }
 
-/* mostra solo i blocchi pertinenti */
-#shortcuts[data-dim="2"] .shortcut-set[data-dim="2"] { display: grid !important; }
-#shortcuts[data-dim="3"] .shortcut-set[data-dim="3"] { display: grid !important; }
-#shortcuts[data-dim="4"] .shortcut-set[data-dim="4"] { display: grid !important; }
+/* mostra i blocchi pertinenti */
+#shortcuts[data-dim="2"] .shortcut-set[data-dim="2"],
+#shortcuts[data-dim="3"] .shortcut-set[data-dim="3"],
+#shortcuts[data-dim="4"] .shortcut-set[data-dim="4"]{
+  display: grid !important;
+}
 
-/* nota (Shift/Alt) visibile quando input=keyboard */
-#shortcuts[data-mode="keyboard"] .shortcut-note { display: block !important; }
+/* nota (Shift/Alt) visibile con input=keyboard */
+#shortcuts[data-mode="keyboard"] .shortcut-note{ display: block !important; }
 
-/* contenitore di ciascun gruppo (es. "Move XY") */
-/* gruppi (Move XY / Move Z): stessa aria ai lati del fieldset */
+/* Gruppo (Move XY / Move Z) */
 #shortcuts .shortcut-set{
   display: grid;
   grid-template-columns: var(--sc-title-col) 1fr;
   align-items: center;
   column-gap: var(--sc-gap);
   row-gap: var(--sc-row-gap);
-
-  /* QUI: margini laterali + box sizing per non “tagliare” il bordo */
   margin: 10px 0;
   width: 100%;
-  box-sizing: border-box;
-
   padding: 10px 12px;
   border-radius: calc(var(--radius-10) + 2px);
-  border: 1px solid color-mix(in srgb, var(--ui-border) 85%, var(--ui-accent) 15%);
-  background: color-mix(in srgb, var(--ui-panel-bg) 65%, var(--ui-bg) 35%);
+  border: 1px solid var(--ui-border);         /* lacca */
+  background: #FAFAFA;                        /* pannello chiaro, puro */
 }
-
-
-/* NON andare a capo: "Move XY" resta su una riga */
 #shortcuts .shortcut-title{
-  color: var(--ui-text);
+  color: var(--clr-outline);
   font-size: .95rem;
   font-weight: 700;
-  white-space: nowrap;      /* ← evita "Move↵XY" */
+  white-space: nowrap;
 }
-
-/* colonna tasti: coppie [kbd / kbd] su righe, vicine al titolo */
 #shortcuts .shortcut-keys{
   display: grid;
-  grid-template-columns: max-content max-content max-content; /* [kbd] [/] [kbd] */
+  grid-template-columns: max-content max-content max-content;
   grid-auto-rows: var(--kbd-h);
-  justify-content: start;               /* attaccati al titolo */
+  justify-content: start;
   align-items: center;
-  column-gap: var(--sc-gap);            /* A  /  D più vicini */
+  column-gap: var(--sc-gap);
   row-gap: var(--sc-row-gap);
-  color: var(--ui-text);
+  color: var(--clr-outline);
   font-size: .95rem;
 }
-
-/* separatore "/" */
 #shortcuts .sep{
-  color: var(--ui-text);
+  color: var(--clr-outline);
   font-weight: 700;
   opacity: 1;
 }
-
-/* keycaps compatti ma leggibili */
-#shortcuts .kbd{
+/* keycaps */
+#shortcuts .kbd,
+#shortcuts .shortcut-note .kbd{
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -256,75 +258,35 @@ header h1 {
   font-size: .9rem;
   letter-spacing: .2px;
   line-height: 1;
-  color: var(--ui-text);
-  background: color-mix(in srgb, var(--ui-bg) 88%, var(--ui-accent) 12%);
-  border: 1px solid color-mix(in srgb, var(--ui-accent) 55%, var(--ui-border) 45%);
+  color: var(--kbd-text);
+  background: var(--kbd-bg);                 /* colore puro */
+  border: 1px solid var(--kbd-border);
 }
 
-/* riga "Shift coarse  Alt fine" su UNA sola riga,
-   allineata alla colonna tasti e senza andare a capo */
-/* nota finale: occupa la stessa griglia dei gruppi e posizionati in colonna 2 */
 #shortcuts .shortcut-note{
   display: grid;
-  grid-template-columns: var(--sc-title-col) 1fr; /* colonna titolo | colonna tasti */
+  grid-template-columns: var(--sc-title-col) 1fr;
   align-items: center;
   column-gap: var(--sc-gap);
-
-  /* stessi margini dei gruppi → allineamento perfetto */
   margin: 10px 0 0 0;
-
-  /* niente overflow → nessun bordo “mozzato” */
   width: 100%;
-  box-sizing: border-box;
-
-  color: var(--ui-text);
-  opacity: .95;
+  color: var(--clr-outline);
   font-size: .9rem;
-  white-space: nowrap;   /* resta su UNA riga */
+  white-space: nowrap;
 }
+#shortcuts .shortcut-note > *{ grid-column: 2; }
 
-/* spingi ogni span (Shift, coarse, Alt, fine) nella colonna dei tasti */
-#shortcuts .shortcut-note > * {
-  grid-column: 2;        /* colonna 2 = stessa della coppia A / D */
-}
+/* =======================================================
+   PLOTLY — sfondi + testo leggibile (il resto lo imposti in JS)
+   ======================================================= */
+.js-plotly-plot, .plotly, .plot-container{ background: var(--plot-paper) !important; }
+.cartesianlayer, .gl-container{ background: var(--plot-bg) !important; }
+.plotly text{ fill: var(--plot-text) !important; }
 
-/* keycaps coerenti anche qui */
-#shortcuts .shortcut-note .kbd{
-  min-width: var(--kbd-minw);
-  height: var(--kbd-h);
-  padding: 0 var(--kbd-padx);
-  line-height: 1;
-}
-
-
-
-
-/* =========================================
-   PLOTLY — colori coerenti + testo leggibile
-   ========================================= */
-
-/* Sfondi */
-.js-plotly-plot, .plotly, .plot-container{
-  background: var(--plot-paper) !important;
-}
-.cartesianlayer, .gl-container{
-  background: var(--plot-bg) !important;
-}
-
-/* Testo (assi, legende, etichette ID) ad alto contrasto */
-.plotly text {
-  fill: var(--plot-text) !important;
-}
-
-/* =========================================
+/* =======================================================
    RESPONSIVE
-   ========================================= */
+   ======================================================= */
 @media (max-width: 980px){
-  .layout{
-    grid-template-columns: 1fr;
-  }
-  #sidebar{
-    position: static;
-    max-height: none;
-  }
+  .layout{ grid-template-columns: 1fr; }
+  #sidebar{ position: static; max-height: none; }
 }

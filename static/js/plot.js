@@ -1,403 +1,415 @@
-// /static/js/plot.js
-/* global Plotly */
-import { state, CONST, getColumn, latentToU } from "./core.js";
+// plot.js — presentational only (costruisce traces e layout, niente logica “core”)
 
-/* ---------- CSS helpers (single source of truth from CSS) ---------- */
-function cssVar(name) {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return v
-}
-function getSpikeColor() {
-  return cssVar('--spike-color') || null;
-}
-function getPlotTextColor() {
-  return cssVar('--plot-text') || null;
-}
+/* ===== import dal core (non modifichiamo core.js ora) =====
+   - state:      stato condiviso (latent, dim, bounds, axes correnti, ecc.)
+   - els:        {left,right} -> contenitori dei plot
+   - cssVar:     legge token CSS (no fallback/hardcode)
+   - latentToU:  v∈[0,1] → u∈[-1,1] in base ai bounds (j-esima dimensione)
+*/
+import { state, els, cssVar, latentToU, clamp } from "./core.js";
 
-/* ---------- util DOM per i contenitori ---------- */
-function els() {
-  const grid  = document.getElementById("plots");
-  const left  = document.getElementById("plot-left");
-  const right = document.getElementById("plot-right");
-  if (!grid)  throw new Error("#plots non trovato");
-  if (!left)  throw new Error("#plot-left non trovato");
-  if (!right) throw new Error("#plot-right non trovato");
-  return { grid, left, right };
-}
+/* =========================================================
+   THEME HELPERS (tutto lo stile arriva dai CSS)
+   ========================================================= */
+// HSL → HEX (#rrggbb)
 
-/* ---------- layout modes ---------- */
-function setLayoutSingle({ bigMinHeightPx = 640 } = {}) {
-  const { grid, left, right } = els();
-  // 1 colonna: usiamo solo il sinistro e lo centriamo
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = "1fr";
-  grid.style.gap = "12px";
-
-  left.style.display = "block";
-  right.style.display = "none";
-  left.style.minHeight = bigMinHeightPx + "px";
-  left.style.margin = "0 auto"; // centra
+function hslToHex(h, s, l){
+  h = (h % 360 + 360) % 360; s = clamp(s,0,1); l = clamp(l,0,1);
+  const c = (1 - Math.abs(2*l - 1)) * s;
+  const hp = h / 60;
+  const x = c * (1 - Math.abs((hp % 2) - 1));
+  let [r,g,b] = [0,0,0];
+  if (0<=hp && hp<1) [r,g,b] = [c,x,0];
+  else if (1<=hp && hp<2) [r,g,b] = [x,c,0];
+  else if (2<=hp && hp<3) [r,g,b] = [0,c,x];
+  else if (3<=hp && hp<4) [r,g,b] = [0,x,c];
+  else if (4<=hp && hp<5) [r,g,b] = [x,0,c];
+  else if (5<=hp && hp<6) [r,g,b] = [c,0,x];
+  const m = l - c/2;
+  const to255 = (v)=>Math.round((v+m)*255);
+  return `#${[to255(r),to255(g),to255(b)].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
 }
 
-function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
-  const { grid, left, right } = els();
-  // 2 colonne affiancate
-  grid.style.display = "grid";
-  grid.style.gridTemplateColumns = "1fr 1fr";
-  grid.style.gap = "12px";
-
-  left.style.display = "block";
-  right.style.display = "block";
-  left.style.minHeight  = smallMinHeightPx + "px";
-  right.style.minHeight = smallMinHeightPx + "px";
-  left.style.margin  = "0";
-  right.style.margin = "0";
+// Colori 2D: Hue=atan2, Sat=radius, Lightness=fisso
+function colorsFrom2D(X, Y){
+  const L   = parseFloat(cssVar('--cc-2d-lightness'));
+  const S0  = parseFloat(cssVar('--cc-2d-sat-min'));
+  const S1  = parseFloat(cssVar('--cc-2d-sat-max'));
+  const maxR = Math.SQRT2; // r massimo in [-1,1]^2
+  const N = X.length;
+  const out = new Array(N);
+  for (let i=0;i<N;i++){
+    const x = X[i], y = Y[i];
+    const h = (Math.atan2(y, x) + Math.PI) / (2*Math.PI) * 360; // 0..360
+    const r = Math.hypot(x, y) / maxR;                          // 0..1
+    const s = S0 + (S1 - S0) * clamp(r, 0, 1);
+    out[i] = hslToHex(h, s, L);
+  }
+  return out;
 }
 
-// --- Applica i colori del tema CSS ai layout Plotly ---
-function applyPlotTheme2D(layout){
-  const r    = getComputedStyle(document.documentElement);
-  const PAPER = cssVar('--plot-paper').trim();
-  const PLOT  = cssVar('--plot-bg').trim();
-  const GRID = r.getPropertyValue('--plot-grid').trim();
-  const AXIS = r.getPropertyValue('--plot-axis').trim();
-  const TEXT = r.getPropertyValue('--plot-text').trim();
-  const UIFONT = getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim();
-  const SPIKE = cssVar('--spike-color');
-  const ST    = Number(cssVar('--spike-thickness')) || undefined;
-  const GW    = Number(cssVar('--grid-width')) || undefined;
-  
+// Colori 3D: RGB(x,y,z) con gamma
+function colorsFrom3D(X, Y, Z){
+  const g = parseFloat(cssVar('--cc-3d-gamma'));
+  const N = X.length;
+  const out = new Array(N);
+  for (let i=0;i<N;i++){
+    let r = (X[i]+1)/2, g1 = (Y[i]+1)/2, b = (Z[i]+1)/2;   // 0..1
+    if (Number.isFinite(g) && g>0) { r = r**g; g1 = g1**g; b = b**g; }
+    out[i] = `rgb(${Math.round(r*255)},${Math.round(g1*255)},${Math.round(b*255)})`;
+  }
+  return out;
+}
 
-  layout.paper_bgcolor = PAPER;
-  layout.plot_bgcolor = PLOT;
 
-  layout.font = { ...(layout.font||{}), color: TEXT, family: UIFONT};
+
+export function applyPlotTheme2D(layout) {
+  // sfondi
+  layout.paper_bgcolor = cssVar('--plot-paper');
+  layout.plot_bgcolor  = cssVar('--plot-bg');
+
+  // tipografia
+  const UIFONT = cssVar('--font-ui');
+  const TXT    = cssVar('--plot-text');
+  layout.font  = { ...(layout.font||{}), family: UIFONT, color: TXT };
+
+  // assi, griglia, spike
+  const GRID   = cssVar('--plot-grid');
+  const AXIS   = cssVar('--plot-axis');
+  const SPIKE  = cssVar('--spike-color');
+  const ST     = Number(cssVar('--spike-thickness')) || undefined;
+  const GW     = Number(cssVar('--grid-width'))      || undefined;
+
+  const ATC = cssVar('--axis-title-color') || AXIS;
+  const ATS = Number(cssVar('--axis-title-size')) || undefined;
+  const TKS = Number(cssVar('--axis-tick-size'))  || undefined;
 
   layout.xaxis = {
-    ...(layout.xaxis||{}),
-    gridcolor: GRID || layout.xaxis?.gridcolor,
-    linecolor: AXIS || layout.xaxis?.linecolor,
-    spikecolor: SPIKE,
-    spikethickness: ST,
-    gridwidth: GW,
-    tickfont: { color: TEXT },
-    titlefont: { color: TEXT }
+    ...(layout.xaxis || {}),
+    gridcolor: GRID, gridwidth: GW, linecolor: AXIS,
+    spikecolor: SPIKE, spikethickness: ST, showspikes: true,
+    titlefont: { family: UIFONT, color: ATC, size: ATS },
+    tickfont:  { family: UIFONT, color: ATC, size: TKS },
   };
   layout.yaxis = {
-    ...(layout.yaxis||{}),
-    gridcolor: GRID || layout.yaxis?.gridcolor,
-    linecolor: AXIS || layout.yaxis?.linecolor,
-    spikecolor: SPIKE,
-    spikethickness: ST,
-    gridwidth: GW,
-    tickfont: { color: TEXT },
-    titlefont: { color: TEXT }
+    ...(layout.yaxis || {}),
+    gridcolor: GRID, gridwidth: GW, linecolor: AXIS,
+    spikecolor: SPIKE, spikethickness: ST, showspikes: true,
+    titlefont: { family: UIFONT, color: ATC, size: ATS },
+    tickfont:  { family: UIFONT, color: ATC, size: TKS },
   };
-  layout.showlegend = false;   // spegne SEMPRE la legenda
-  if (layout.legend) layout.legend.uirevision = null; // opzionale; evita riapparizioni da uirevision
+
+  // hoverlabel coerente
+  layout.hoverlabel = {
+    ...(layout.hoverlabel || {}),
+    bgcolor: cssVar('--hover-bg'),
+    bordercolor: cssVar('--hover-border'),
+    font: { family: UIFONT, color: cssVar('--hover-text'),
+            size: Number(cssVar('--hover-size')) || undefined }
+  };
+
+  // mai legenda
+  layout.showlegend = false;
 }
 
-function applyPlotTheme3D(layout){
-  const r    = getComputedStyle(document.documentElement);
-  const PAPER = cssVar('--plot-paper').trim();
-  const GRID = r.getPropertyValue('--plot-grid').trim();
-  const AXIS = r.getPropertyValue('--plot-axis').trim();
-  const TEXT = r.getPropertyValue('--plot-text').trim();
-  const BG   = r.getPropertyValue('--plot-bg').trim();
-  const UIFONT = getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim();
+export function applyPlotTheme3D(layout) {
+  // sfondi
+  layout.paper_bgcolor = cssVar('--plot-paper');
+  const UIFONT = cssVar('--font-ui');
+  const TXT    = cssVar('--plot-text');
+  layout.font  = { ...(layout.font||{}), family: UIFONT, color: TXT };
+
+  // assi/griglia/spike
+  const GRID  = cssVar('--plot-grid');
+  const AXIS  = cssVar('--plot-axis');
   const SPIKE = cssVar('--spike-color');
   const ST    = Number(cssVar('--spike-thickness')) || undefined;
-  const GW    = Number(cssVar('--grid-width')) || undefined;
+  const GW    = Number(cssVar('--grid-width'))      || undefined;
 
-  layout.paper_bgcolor = PAPER;
+  const ATC = cssVar('--axis-title-color') || AXIS;
+  const ATS = Number(cssVar('--axis-title-size')) || undefined;
+  const TKS = Number(cssVar('--axis-tick-size'))  || undefined;
 
-  layout.scene = layout.scene || {};
-  layout.scene.bgcolor = BG || layout.scene.bgcolor;
-
-  layout.font = { ...(layout.font||{}), color: TEXT, family: UIFONT};
-
-
-  const patch = (ax) => ({
-    ...(ax||{}),
-    gridcolor: GRID || ax?.gridcolor,
-    color:     AXIS || ax?.color,
-    tickfont:  { color: TEXT },
-    titlefont: { color: TEXT },
-    spikecolor: SPIKE,
-    spikethickness: ST,
-    gridwidth: GW
+  const patchAxis = (ax) => ({
+    ...(ax || {}),
+    gridcolor: GRID, gridwidth: GW, color: AXIS,
+    spikecolor: SPIKE, spikethickness: ST, showspikes: true,
+    titlefont: { family: UIFONT, color: ATC, size: ATS },
+    tickfont:  { family: UIFONT, color: ATC, size: TKS },
   });
 
-  layout.scene.xaxis = patch(layout.scene.xaxis);
-  layout.scene.yaxis = patch(layout.scene.yaxis);
-  layout.scene.zaxis = patch(layout.scene.zaxis);
+  layout.margin = { l: 0, r: 0, t: 0, b: 0, pad: 0 };
 
-  layout.showlegend = false;   // spegne SEMPRE la legenda
-  if (layout.legend) layout.legend.uirevision = null; // opzionale; evita riapparizioni da uirevision
-}
-
-
-/* ---------- 2D ---------- */
-function scatter2D(axX, axY, cursorPoint) {
-  // Serie principali in u-space [-1,1]
-  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
-  const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
-
-  // Colore (scalar) da una dimensione extra se disponibile, altrimenti X
-  const extras = Array.from({ length: state.dim }, (_, i) => i).filter(i => i !== axX && i !== axY);
-  const colorDim = extras.length ? extras[0] : axX;
-  const c = getColumn(state.latent, colorDim).map(v => latentToU(v, colorDim));
-
-  // Etichette preset
-  const labels = (state.presetNames && state.presetNames.length === x.length)
-    ? state.presetNames
-    : x.map((_, i) => `ID${i+1}`);
-
-  // Posizione cursore (u-space)
-  const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
-  const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
-
-  // Traccia punti (color coded)
-  const pts = {
-    type: "scattergl",
-    mode: "markers",
-    x, y,
-    marker: { size: 7, color: c, colorscale: "Viridis", cmin: -1, cmax: 1, showscale: false },
-  };
-
-  // Testo etichette (SVG)
-  const txt = {
-    type: "scatter",
-    mode: "text",
-    x, y,
-    text: labels,
-    textposition: "top center",
-    textfont: { size: 11, color: getPlotTextColor() || undefined },
-    hoverinfo: "skip",
-    showlegend: false,
-  };
-
-  // Cursore: glow + dot (usa i CONST del core.js per compatibilità)
-  const glow = {
-    type: "scattergl",
-    mode: "markers",
-    x: [cx_u], y: [cy_u],
-    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
-    hoverinfo: "skip", showlegend: false,
-  };
-  const dot = {
-    type: "scattergl",
-    mode: "markers",
-    x: [cx_u], y: [cy_u],
-    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { color: CONST.CURSOR_DOT_LINE, width: 1 } },
-    hoverinfo: "skip", showlegend: false,
-  };
-
-  const SPIKE = getSpikeColor();
-  const layout = {
-    xaxis: {
-      title: state.axisNames[axX],
-      range: [-1, 1],
-      ...(SPIKE ? { spikecolor: SPIKE } : {}),
-    },
-    yaxis: {
-      title: state.axisNames[axY],
-      range: [-1, 1],
-      ...(SPIKE ? { spikecolor: SPIKE } : {}),
-    },
-    margin: { t: 10, r: 10, b: 40, l: 40 },
-    paper_bgcolor: CONST.BG_COLOR, plot_bgcolor: CONST.BG_COLOR,
-    uirevision: "static",
-  };
-
-  applyPlotTheme2D(layout);
-
-  return { traces: [pts, txt, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
-}
-
-/* ---------- 3D ---------- */
-function scatter3D(axX, axY, axZ, cursorPoint) {
-  // Dati in u-space
-  const x = getColumn(state.latent, axX).map(v => latentToU(v, axX));
-  const y = getColumn(state.latent, axY).map(v => latentToU(v, axY));
-  const z = getColumn(state.latent, axZ).map(v => latentToU(v, axZ));
-
-  // Etichette preset
-  const N = x.length;
-  const labels = (state.presetNames && state.presetNames.length === N)
-    ? state.presetNames
-    : Array.from({ length: N }, (_, i) => `ID${i + 1}`);
-
-  // Cursore (u-space)
-  const cx_u = cursorPoint ? latentToU(cursorPoint[axX], axX) : 0;
-  const cy_u = cursorPoint ? latentToU(cursorPoint[axY], axY) : 0;
-  const cz_u = cursorPoint ? latentToU(cursorPoint[axZ], axZ) : 0;
-
-  // Punti 3D (color coded su z)
-  const pts = {
-    type: "scatter3d",
-    mode: "markers",
-    x, y, z,
-    marker: {
-      size: 4.5,
-      color: z,
-      colorscale: "Viridis",
-      cmin: -1, cmax: 1,
-      showscale: false,
-      showlegend: false
+  layout.scene = {
+    ...(layout.scene || {}),
+    bgcolor: cssVar('--plot-bg'),
+    xaxis: patchAxis(layout.scene?.xaxis),
+    yaxis: patchAxis(layout.scene?.yaxis),
+    zaxis: patchAxis(layout.scene?.zaxis),
+    camera: {
+        center: {x: 0, y: 0, z: 0},
+        up:     {x: 0, y: 0, z: 1},
+        eye:    {x: 1.6, y: -1.6, z: 1.}
     }
   };
 
-  // Etichette 3D
-  const txt3d = {
-    type: "scatter3d",
-    mode: "text",
-    x, y, z,
-    text: labels,
-    textposition: "top center",
-    textfont: { size: 11, color: getPlotTextColor() || undefined },
-    hoverinfo: "skip",
-    showlegend: false,
+  layout.uirevision = 'keep-cam';
+  layout.scene.aspectmode = 'cube';
+  layout.scene.domain = { x: [0, 1], y: [0, 1] };
+
+  // hoverlabel coerente
+  layout.hoverlabel = {
+    ...(layout.hoverlabel || {}),
+    bgcolor: cssVar('--hover-bg'),
+    bordercolor: cssVar('--hover-border'),
+    font: { family: UIFONT, color: cssVar('--hover-text'),
+            size: Number(cssVar('--hover-size')) || undefined }
   };
 
-  // Cursore 3D
-  const glow = {
-    type: "scatter3d",
+  layout.showlegend = false;
+}
+
+/* =========================================================
+   DATA HELPERS
+   ========================================================= */
+// Estrae coordinate u∈[-1,1] per un paio/terzetto di assi da state.latent
+function project2D(axX, axY) {
+  const X = [], Y = [];
+  const N = state.latent.length;
+  for (let i = 0; i < N; i++) {
+    const row = state.latent[i];
+    X.push(latentToU(row[axX], axX, state.boundsMin, state.boundsMax));
+    Y.push(latentToU(row[axY], axY, state.boundsMin, state.boundsMax));
+  }
+  return { X, Y };
+}
+function project3D(axX, axY, axZ) {
+  const X = [], Y = [], Z = [];
+  const N = state.latent.length;
+  for (let i = 0; i < N; i++) {
+    const row = state.latent[i];
+    X.push(latentToU(row[axX], axX, state.boundsMin, state.boundsMax));
+    Y.push(latentToU(row[axY], axY, state.boundsMin, state.boundsMax));
+    Z.push(latentToU(row[axZ], axZ, state.boundsMin, state.boundsMax));
+  }
+  return { X, Y, Z };
+}
+
+/* =========================================================
+   TRACES FACTORY (2D/3D) — no stile hard-coded
+   ========================================================= */
+function traces2D(axX, axY) {
+  const { X, Y } = project2D(axX, axY);
+  const colors = colorsFrom2D(X, Y);
+
+  const pts = {
+    type: "scattergl",
     mode: "markers",
-    x: [cx_u], y: [cy_u], z: [cz_u],
-    marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
+    x: X, y: Y,
+    marker: { 
+        size: Number(cssVar('--point-size-2d')),
+        color: colors,
+        line: { color: cssVar('--point-stroke'), width: Number(cssVar('--point-stroke-width')) }
+    },
+    showlegend: false,
+    hovertemplate: "x: %{x}<br>y: %{y}<extra></extra>",
+  };
+
+  const labels = {
+    type: "scattergl",
+    mode: "text",
+    x: X, y: Y,
+    text: state.presetNames || [],
+    textposition: "top center",
+    textfont: { family: cssVar('--font-ui'), color: cssVar('--plot-text'), size: 12 },
+    showlegend: false,
+    hoverinfo: "skip",
+  };
+
+  // cursore (glow + dot) — indici usati da updateCursor
+  const glow = {
+    type: "scattergl", mode: "markers",
+    x: [0], y: [0],
+    marker: {
+      size: Number(cssVar('--cursor-glow-size')),
+      color: cssVar('--cursor-glow-color'),
+      opacity: Number(cssVar('--cursor-glow-opacity')),
+    },
     hoverinfo: "skip", showlegend: false,
-    showlegend: false
   };
   const dot = {
-    type: "scatter3d",
-    mode: "markers",
-    x: [cx_u], y: [cy_u], z: [cz_u],
-    marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { color: CONST.CURSOR_DOT_LINE, width: 1 } },
+    type: "scattergl", mode: "markers",
+    x: [0], y: [0],
+    marker: {
+      size: Number(cssVar('--cursor-dot-size')),
+      color: cssVar('--cursor-dot-color'),
+      line: { color: cssVar('--cursor-dot-line'), width: 1 },
+    },
     hoverinfo: "skip", showlegend: false,
-    showlegend: false
   };
 
-  const SPIKE = getSpikeColor();
+  const traces = [pts, labels, glow, dot];
+  const layout = {
+    xaxis: { title: "x", range: [-1, 1] },
+    yaxis: { title: "y", range: [-1, 1] },
+    margin: { l: 30, r: 10, t: 10, b: 30 },
+  };
+  applyPlotTheme2D(layout);
+  return { traces, layout, glowIdx: 2, dotIdx: 3 };
+}
+
+function traces3D(axX, axY, axZ) {
+  const { X, Y, Z } = project3D(axX, axY, axZ);
+  const colors = colorsFrom3D(X, Y, Z);
+
+  const pts = {
+    type: "scatter3d",
+    mode: "markers",
+    x: X, y: Y, z: Z,
+    marker: { 
+        size: Number(cssVar('--point-size-3d')),   
+        color: colors,
+        line: { color: cssVar('--point-stroke'), width: Number(cssVar('--point-stroke-width')) }
+    },
+    showlegend: false,
+    hovertemplate: "x: %{x}<br>y: %{y}<br>z: %{z}<extra></extra>",
+  };
+
+  const labels = {
+    type: "scatter3d",
+    mode: "text",
+    x: X, y: Y, z: Z,
+    text: state.presetNames || [],
+    textposition: "top center",
+    textfont: { family: cssVar('--font-ui'), color: cssVar('--plot-text'), size: 11 },
+    showlegend: false,
+    hoverinfo: "skip",
+  };
+
+  const glow = {
+    type: "scatter3d", mode: "markers",
+    x: [0], y: [0], z: [0],
+    marker: {
+      size: Number(cssVar('--cursor-glow-size')),
+      color: cssVar('--cursor-glow-color'),
+      opacity: Number(cssVar('--cursor-glow-opacity')),
+    },
+    hoverinfo: "skip", showlegend: false,
+  };
+  const dot = {
+    type: "scatter3d", mode: "markers",
+    x: [0], y: [0], z: [0],
+    marker: {
+      size: Number(cssVar('--cursor-dot-size')),
+      color: cssVar('--cursor-dot-color'),
+      line: { color: cssVar('--cursor-dot-line'), width: 1 },
+    },
+    hoverinfo: "skip", showlegend: false,
+  };
+
+  const traces = [pts, labels, glow, dot];
   const layout = {
     scene: {
-      xaxis: { title: state.axisNames[axX], range: [-1, 1], ...(SPIKE ? { spikecolor: SPIKE } : {}) },
-      yaxis: { title: state.axisNames[axY], range: [-1, 1], ...(SPIKE ? { spikecolor: SPIKE } : {}) },
-      zaxis: { title: state.axisNames[axZ], range: [-1, 1], ...(SPIKE ? { spikecolor: SPIKE } : {}) },
-      bgcolor: CONST.BG_COLOR,
-      uirevision: "static",
-      ...(state.lastCamera ? { camera: state.lastCamera } : {}),
+      xaxis: { title: "x", range: [-1, 1] },
+      yaxis: { title: "y", range: [-1, 1] },
+      zaxis: { title: "z", range: [-1, 1] },
     },
-    margin: { t: 10, r: 10, b: 10, l: 10 },
-    paper_bgcolor: CONST.BG_COLOR,
+    margin: { l: 0, r: 0, t: 0, b: 0 },
   };
-
   applyPlotTheme3D(layout);
-
-  return { traces: [pts, txt3d, glow, dot], layout, glowIdx: 2, dotIdx: 3 };
+  return { traces, layout, glowIdx: 2, dotIdx: 3 };
 }
 
-/* ---------- API esportate ---------- */
+/* =========================================================
+   RENDERERS
+   ========================================================= */
+const CONFIG = { responsive: true, displaylogo: false };
+
+function render2D(container, axX, axY) {
+  const { traces, layout, glowIdx, dotIdx } = traces2D(axX, axY);
+  Plotly.purge(container);
+  Plotly.newPlot(container, traces, layout, CONFIG);
+  return { glowIdx, dotIdx };
+}
+function render3D(container, axX, axY, axZ) {
+  const { traces, layout, glowIdx, dotIdx } = traces3D(axX, axY, axZ);
+  Plotly.purge(container);
+  Plotly.newPlot(container, traces, layout, CONFIG);
+  return { glowIdx, dotIdx };
+}
+
+/* =========================================================
+   API PUBBLICA
+   ========================================================= */
 export function drawPlots() {
   const { left, right } = els();
+  if (!left || !right) return;
 
+  // 1) Modalità griglia: 2D/3D = singola colonna, 4D = due colonne
+  const plotsEl = document.getElementById("plots");
+  if (plotsEl) plotsEl.classList.toggle("dual", state.dim === 4);
+
+  // 2) reset indici cursori
+  state.cursorLeft  = null;
+  state.cursorRight = null;
+
+  // 3) render in base alla dimensionalità (nessun show/hide via JS: pensa il CSS)
   if (state.dim === 2) {
-    // singolo grafico grande
-    setLayoutSingle({ bigMinHeightPx: 640 });
-    const { traces, layout, glowIdx, dotIdx } =
-      scatter2D(state.currentAxes.x, state.currentAxes.y, state.cursorPoint);
-    Plotly.react(left, traces, layout, { responsive: true });
-    state.is3D = false;
-    state.cursorLeft = { glowIdx, dotIdx };
-    state.cursorRight = null;
-    return;
+    const ax = state.currentAxes || { x: 0, y: 1 };
+    state.cursorLeft = render2D(left, ax.x, ax.y);
+  } else if (state.dim === 3) {
+    const ax = state.currentAxes || { x: 0, y: 1, z: 2 };
+    state.cursorLeft = render3D(left, ax.x, ax.y, ax.z);
+  } else if (state.dim === 4) {
+    const a = state.currentAxesA || { x: 0, y: 1 };
+    const b = state.currentAxesB || { x: 2, y: 3 };
+    state.cursorLeft  = render2D(left,  a.x, a.y);
+    state.cursorRight = render2D(right, b.x, b.y);
   }
 
-  if (state.dim === 3) {
-    // singolo grafico 3D grande
-    setLayoutSingle({ bigMinHeightPx: 640 });
-    const { traces, layout, glowIdx, dotIdx } =
-      scatter3D(state.currentAxes.x, state.currentAxes.y, state.currentAxes.z, state.cursorPoint);
-    Plotly.react(left, traces, layout, { responsive: true });
-    state.is3D = true;
-    state.cursorLeft = { glowIdx, dotIdx };
-    state.cursorRight = null;
-
-    // salva camera per persistenza tra redraw
-    left.on('plotly_relayout', (ev) => {
-      if (ev && (ev['scene.camera'] || ev['scene.camera.eye'] || ev['scene.camera.center'] || ev['scene.camera.up'])) {
-        const gd = left;
-        const sc = gd._fullLayout && gd._fullLayout.scene && gd._fullLayout.scene._scene && gd._fullLayout.scene._scene.getCamera && gd._fullLayout.scene._scene.getCamera();
-        if (sc && sc.eye) {
-          state.lastCamera = sc;
-        }
-      }
-    });
-    return;
-  }
-
-  // 4D: due viste 2D affiancate
-  setLayoutDual({ smallMinHeightPx: 520 });
-
-  const a = state.currentAxesA || { x: 0, y: 1 };
-  const b = state.currentAxesB || { x: 2, y: 3 };
-
-  const A = scatter2D(a.x, a.y, state.cursorPoint);
-  Plotly.react(left, A.traces, A.layout, { responsive: true });
-  state.cursorLeft = { glowIdx: A.glowIdx, dotIdx: A.dotIdx };
-
-  const B = scatter2D(b.x, b.y, state.cursorPoint);
-  Plotly.react(right, B.traces, B.layout, { responsive: true });
-  state.cursorRight = { glowIdx: B.glowIdx, dotIdx: B.dotIdx };
-
-  state.is3D = false; // entrambe viste 2D
+  // 4) assicura che Plotly ricalcoli le dimensioni dopo il cambio griglia
+  queueMicrotask(() => {
+    if (left)  Plotly.Plots.resize(left);
+    if (state.dim === 4 && right) Plotly.Plots.resize(right);
+  });
 }
 
+
+/* Aggiorna la posizione del cursore (in [0,1] → proiettato in u[-1,1]) */
 export function updateCursor(latentPoint) {
-  const { left, right } = els();
   if (!latentPoint || latentPoint.length !== state.dim) return;
+  const { left, right } = els();
+
+  // helper per set 2D
+  const restyle2D = (container, info, axX, axY) => {
+    const x = latentToU(latentPoint[axX], axX, state.boundsMin, state.boundsMax);
+    const y = latentToU(latentPoint[axY], axY, state.boundsMin, state.boundsMax);
+    if (info && Number.isInteger(info.glowIdx)) {
+      Plotly.restyle(container, { x: [[x]], y: [[y]] }, [info.glowIdx]);
+      Plotly.restyle(container, { x: [[x]], y: [[y]] }, [info.dotIdx]);
+    }
+  };
+  // helper per set 3D
+  const restyle3D = (container, info, axX, axY, axZ) => {
+    const x = latentToU(latentPoint[axX], axX, state.boundsMin, state.boundsMax);
+    const y = latentToU(latentPoint[axY], axY, state.boundsMin, state.boundsMax);
+    const z = latentToU(latentPoint[axZ], axZ, state.boundsMin, state.boundsMax);
+    if (info && Number.isInteger(info.glowIdx)) {
+      Plotly.restyle(container, { x: [[x]], y: [[y]], z: [[z]] }, [info.glowIdx]);
+      Plotly.restyle(container, { x: [[x]], y: [[y]], z: [[z]] }, [info.dotIdx]);
+    }
+  };
 
   if (state.dim === 2) {
-    const axX = Number(state.currentAxes.x);
-    const axY = Number(state.currentAxes.y);
-    const cx_u = latentToU(latentPoint[axX], axX);
-    const cy_u = latentToU(latentPoint[axY], axY);
-    if (state.cursorLeft) {
-      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]] }, [state.cursorLeft.glowIdx]);
-      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]] }, [state.cursorLeft.dotIdx]);
-    }
-    return;
-  }
-
-  if (state.dim === 3) {
-    const axX = Number(state.currentAxes.x);
-    const axY = Number(state.currentAxes.y);
-    const axZ = Number(state.currentAxes.z);
-    const cx_u = latentToU(latentPoint[axX], axX);
-    const cy_u = latentToU(latentPoint[axY], axY);
-    const cz_u = latentToU(latentPoint[axZ], axZ);
-    if (state.cursorLeft) {
-      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]], z: [[cz_u]] }, [state.cursorLeft.glowIdx]);
-      Plotly.restyle(left, { x: [[cx_u]], y: [[cy_u]], z: [[cz_u]] }, [state.cursorLeft.dotIdx]);
-    }
-    return;
-  }
-
-  // 4D: due viste 2D
-  const a = state.currentAxesA || { x: 0, y: 1 };
-  const b = state.currentAxesB || { x: 2, y: 3 };
-  const ax_u = latentToU(latentPoint[a.x], a.x);
-  const ay_u = latentToU(latentPoint[a.y], a.y);
-  const bx_u = latentToU(latentPoint[b.x], b.x);
-  const by_u = latentToU(latentPoint[b.y], b.y);
-
-  if (state.cursorLeft) {
-    Plotly.restyle(left,  { x: [[ax_u]], y: [[ay_u]] }, [state.cursorLeft.glowIdx]);
-    Plotly.restyle(left,  { x: [[ax_u]], y: [[ay_u]] }, [state.cursorLeft.dotIdx]);
-  }
-  if (state.cursorRight) {
-    Plotly.restyle(right, { x: [[bx_u]], y: [[by_u]] }, [state.cursorRight.glowIdx]);
-    Plotly.restyle(right, { x: [[bx_u]], y: [[by_u]] }, [state.cursorRight.dotIdx]);
+    const ax = state.currentAxes || { x: 0, y: 1 };
+    restyle2D(left, state.cursorLeft, ax.x, ax.y);
+  } else if (state.dim === 3) {
+    const ax = state.currentAxes || { x: 0, y: 1, z: 2 };
+    restyle3D(left, state.cursorLeft, ax.x, ax.y, ax.z);
+  } else if (state.dim === 4) {
+    const a = state.currentAxesA || { x: 0, y: 1 };
+    const b = state.currentAxesB || { x: 2, y: 3 };
+    restyle2D(left,  state.cursorLeft,  a.x, a.y);
+    restyle2D(right, state.cursorRight, b.x, b.y);
   }
 }
-

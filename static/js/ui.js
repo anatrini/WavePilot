@@ -1,143 +1,153 @@
-// ui.js — controlli sidebar, shortcuts e selettori assi
-
+// -------------------------------------------------------
+// UI wiring & helpers
+// -------------------------------------------------------
 import { state } from "./core.js";
 import { drawPlots, updateCursor } from "./plot.js";
 
-/* ----------
-   DOM cache
-   ---------- */
-export const dom = {
-  selInput: document.getElementById("input-source"),
-  selPoint: document.getElementById("preset-select"),
+// Espongo tutti i riferimenti che usiamo altrove
+export const UI = {
+  // fieldset "Input"
+  selInput:      document.getElementById("input-source"),
 
-  // 2D/3D
-  selX: document.getElementById("axis-x"),
-  selY: document.getElementById("axis-y"),
-  selZ: document.getElementById("axis-z"),
+  // fieldset "Presets"
+  selPreset:     document.getElementById("preset-select"),
 
-  // 4D (dual 2D views)
-  selAX: document.getElementById("axis-a-x"),
-  selAY: document.getElementById("axis-a-y"),
-  selBX: document.getElementById("axis-b-x"),
-  selBY: document.getElementById("axis-b-y"),
+  // fieldset "Axes (2D/3D)"
+  selX:          document.getElementById("axis-x"),
+  selY:          document.getElementById("axis-y"),
+  selZ:          document.getElementById("axis-z"),
 
-  // groups
-  singleAxisControls: document.getElementById("single-axis-controls"),
-  dualAxisControls:   document.getElementById("dual-axis-controls"),
+  // fieldset "View A / View B" (4D)
+  selAX:         document.getElementById("axis-a-x"),
+  selAY:         document.getElementById("axis-a-y"),
+  selBX:         document.getElementById("axis-b-x"),
+  selBY:         document.getElementById("axis-b-y"),
 
-  // shortcuts panel
-  shortcutsFS: document.getElementById("shortcuts"),
+  // pannello shortcuts
+  shortcuts:     document.getElementById("shortcuts"),
+
+  // gruppi per mostra/nascondi
+  singleGroup:   document.getElementById("single-axis-controls"),
+  dualGroup:     document.getElementById("dual-axis-controls"),
 };
 
-/* ----------------------
-   Helpers (UI utilities)
-   ---------------------- */
-const AX_LABELS = ["x", "y", "z", "w"];
-const axLabel = (i) => AX_LABELS[i] ?? `z${i}`;
-
-function optionList(dim){
-  const n = Number(dim) || 0;
-  return Array.from({ length: n }, (_, i) => ({
-    value: String(i),
-    label: axLabel(i),
-  }));
+// -------------------------------------------------------
+// Axis labels & select population
+// -------------------------------------------------------
+export function buildAxisNames(dim) {
+  // x, y, z, w (tag coerenti con il resto degli strumenti)
+  state.axisNames = ["x", "y", "z", "w"].slice(0, Math.max(2, Math.min(4, dim)));
 }
 
-function fillSelect(sel, opts, selected){
+function populateSelect(sel, labels, defaultIdx = 0) {
   if (!sel) return;
-  // remove any previous listeners by rebuilding the element
   sel.innerHTML = "";
-  for (const {value, label} of opts){
-    const o = document.createElement("option");
-    o.value = value;
-    o.textContent = label;
-    sel.appendChild(o);
-  }
-  if (selected != null) sel.value = String(selected);
-}
-
-function onChangeNumber(el, set){
-  if (!el) return;
-  el.onchange = null; // clear previous
-  el.addEventListener("change", () => {
-    const v = Number(el.value);
-    if (Number.isFinite(v)) set(v);
-    drawPlots();
-    updateCursor(state.cursorPoint);
+  labels.forEach((lab, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = lab;
+    sel.appendChild(opt);
   });
+  sel.value = String(defaultIdx);
 }
 
-function show(el, v=true){ if (el) el.style.display = v ? "" : "none"; }
+/**
+ * 2D/3D: prepara i menu a tendina per X/Y[/Z] e collega i listener.
+ * Ridisegna i plot quando cambia una selezione.
+ */
+export function setupAxisSelectors() {
+  if (!state.axisNames || state.axisNames.length < 2) return;
 
-/* -----------------------------------------
-   Shortcuts: only set data-* (CSS does rest)
-   ----------------------------------------- */
-export function refreshShortcuts(){
-  const fs = dom.shortcutsFS;
-  if (!fs) return;
-  fs.dataset.mode = (state.inputSource === "keyboard") ? "keyboard" : "other";
-  fs.dataset.dim  = String(state.dim);
+  // default axes
+  if (!state.currentAxes) state.currentAxes = { x: 0, y: 1, z: Math.min(2, state.dim - 1) };
+
+  // Popola i select
+  populateSelect(UI.selX, state.axisNames, state.currentAxes.x);
+  populateSelect(UI.selY, state.axisNames, state.currentAxes.y);
+
+  // Z solo in 3D
+  if (state.dim === 3 && UI.selZ) {
+    UI.selZ.parentElement?.classList?.remove("z-only"); // assicurati visibile
+    populateSelect(UI.selZ, state.axisNames, state.currentAxes.z);
+  } else if (UI.selZ) {
+    UI.selZ.parentElement?.classList?.add("z-only"); // resta nascosto in 2D/4D
+  }
+
+  // Listener
+  if (UI.selX) UI.selX.onchange = () => {
+    state.currentAxes.x = Number(UI.selX.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+  if (UI.selY) UI.selY.onchange = () => {
+    state.currentAxes.y = Number(UI.selY.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+  if (state.dim === 3 && UI.selZ) UI.selZ.onchange = () => {
+    state.currentAxes.z = Number(UI.selZ.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
 }
 
-/* ----------------------------------------------------
-   Axis selectors setup (populate + visibility toggles)
-   ---------------------------------------------------- */
-export function setupAxisSelectors(){
-  const dim = Number(state.dim) || 0;
+/**
+ * 4D: due viste 2D indipendenti, con X/Y per View A e X/Y per View B.
+ */
+export function setupDual2DControls() {
+  if (state.dim !== 4) return;
 
-  // groups visibility
-  show(dom.singleAxisControls, dim <= 3);
-  show(dom.dualAxisControls,   dim >  3);
+  // default axes per viste A e B
+  if (!state.currentAxesA) state.currentAxesA = { x: 0, y: 1 };
+  if (!state.currentAxesB) state.currentAxesB = { x: 2, y: 3 };
 
-  // Z label visibility within the 2D/3D group
-  const zLabel = dom.selZ ? dom.selZ.closest("label") : null;
-  show(zLabel, dim === 3); // show only in 3D
+  // Popola i select per entrambe le viste
+  populateSelect(UI.selAX, state.axisNames, state.currentAxesA.x);
+  populateSelect(UI.selAY, state.axisNames, state.currentAxesA.y);
+  populateSelect(UI.selBX, state.axisNames, state.currentAxesB.x);
+  populateSelect(UI.selBY, state.axisNames, state.currentAxesB.y);
 
-  // ensure axis state objects exist
-  if (!state.currentAxes)  state.currentAxes  = { x:0, y:1, z:2 };
-  if (!state.currentAxesA) state.currentAxesA = { x:0, y:1 };
-  if (!state.currentAxesB) state.currentAxesB = { x:2, y:3 };
+  // Listener → aggiorna lo stato e ridisegna
+  if (UI.selAX) UI.selAX.onchange = () => {
+    state.currentAxesA.x = Number(UI.selAX.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+  if (UI.selAY) UI.selAY.onchange = () => {
+    state.currentAxesA.y = Number(UI.selAY.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+  if (UI.selBX) UI.selBX.onchange = () => {
+    state.currentAxesB.x = Number(UI.selBX.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+  if (UI.selBY) UI.selBY.onchange = () => {
+    state.currentAxesB.y = Number(UI.selBY.value);
+    drawPlots(); updateCursor(state.cursorPoint);
+  };
+}
 
-  const opts = optionList(dim);
+// -------------------------------------------------------
+// Shortcuts: show/hide per input mode e dimensionalità
+// -------------------------------------------------------
+export function refreshShortcuts() {
+  if (!UI.shortcuts) return;
+  UI.shortcuts.dataset.mode = state.inputSource || "keyboard"; // keyboard | mouse | osc
+  UI.shortcuts.dataset.dim  = String(state.dim || 2);          // "2" | "3" | "4"
+}
 
-  // --- populate selects
-  // 2D/3D
-  fillSelect(dom.selX, opts, state.currentAxes.x);
-  fillSelect(dom.selY, opts, state.currentAxes.y);
-  if (dim === 3) fillSelect(dom.selZ, opts, state.currentAxes.z);
-
-  // 4D
-  fillSelect(dom.selAX, opts, state.currentAxesA.x);
-  fillSelect(dom.selAY, opts, state.currentAxesA.y);
-  fillSelect(dom.selBX, opts, state.currentAxesB.x);
-  fillSelect(dom.selBY, opts, state.currentAxesB.y);
-
-  // --- listeners
-  if (dim <= 3){
-    onChangeNumber(dom.selX, v => state.currentAxes.x = v);
-    onChangeNumber(dom.selY, v => state.currentAxes.y = v);
-    if (dim === 3) onChangeNumber(dom.selZ, v => state.currentAxes.z = v);
-  } else {
-    onChangeNumber(dom.selAX, v => state.currentAxesA.x = v);
-    onChangeNumber(dom.selAY, v => state.currentAxesA.y = v);
-    onChangeNumber(dom.selBX, v => state.currentAxesB.x = v);
-    onChangeNumber(dom.selBY, v => state.currentAxesB.y = v);
+// -------------------------------------------------------
+// Keyboard helpers (richiesti da main.js anche se opzionali)
+// -------------------------------------------------------
+export function attachKeyListeners(onDown, onUp) {
+  if (typeof onDown === "function") {
+    window.addEventListener("keydown", onDown, { passive: false });
+  }
+  if (typeof onUp === "function") {
+    window.addEventListener("keyup", onUp, { passive: true });
   }
 }
-
-/* -------------------------------------------------
-   4D-specific UI wiring (safe no-op elsewhere)
-   ------------------------------------------------- */
-export function setupDual2DControls(){
-  if (Number(state.dim) !== 4) return;
-
-  // ensure defaults sane
-  if (!state.currentAxesA) state.currentAxesA = { x:0, y:1 };
-  if (!state.currentAxesB) state.currentAxesB = { x:2, y:3 };
-
-  // ensure selectors reflect current state (e.g., if state set before UI)
-  if (dom.selAX) dom.selAX.value = String(state.currentAxesA.x);
-  if (dom.selAY) dom.selAY.value = String(state.currentAxesA.y);
-  if (dom.selBX) dom.selBX.value = String(state.currentAxesB.x);
-  if (dom.selBY) dom.selBY.value = String(state.currentAxesB.y);
+export function detachKeyListeners(onDown, onUp) {
+  if (typeof onDown === "function") {
+    window.removeEventListener("keydown", onDown);
+  }
+  if (typeof onUp === "function") {
+    window.removeEventListener("keyup", onUp);
+  }
 }

@@ -1,62 +1,82 @@
 /* =======================================================
-   THEME TOKENS — colori puri (no color-mix)
+   THEME TOKENS — DARK, moderni
    ======================================================= */
 :root{
-  /* Palette base (dalla tua scala) */
-  --clr-lapis:   #4670B8;     /* primario */
-  --clr-lacca:   #9E3323;     /* accent/border */
-  --clr-outline: #333726;
-  --clr-text:    #1A1A1A;
+  /* Accenti */
+  --clr-lapis:   #6EA8FE;   /* blu moderno */
+  --clr-lacca:   #FF6B6B;   /* rosso/coral */
 
-  /* Sfondo attuale (lo lasciamo invariato) */
-  --ui-bg:       #F5F5F5;     /* “bianco perla” */
-  --ui-surface:  #FFFFFF;     /* pannelli interni */
-
-  /* Tipografia */
-  --font-ui:     "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
-  --font-display: var(--font-ui);
-
-  /* Bordi / accent */
-  --ui-border:   var(--clr-lacca);
+  /* Base UI */
+  --ui-bg:       #0F141A;   /* page bg */
+  --ui-surface:  #161C24;   /* pannelli */
+  --ui-text:     #E8EDF2;   /* testo principale */
+  --ui-muted:    #A7B1BC;   /* testo attenuato */
+  --ui-border:   #253041;   /* bordo */
   --ui-accent:   var(--clr-lapis);
 
-  /* Plotly (usati dal JS in applyPlotTheme2D/3D) */
+  /* Tipografia */
+  --font-ui:      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+  --font-display: var(--font-ui);
+
+  /* Plotly (lette dal JS) */
   --plot-paper:  var(--ui-bg);
   --plot-bg:     var(--ui-bg);
-  --plot-text:   #111111;
-  --plot-grid:   #7C92C6;     /* griglia ben visibile (lapis chiaro) */
-  --plot-axis:   #5A77AF;
+  --plot-text:   var(--ui-text);
+  --plot-grid:   #2E4F88;
+  --plot-axis:   #4871B8;
 
-  /* Spike/grid thickness (letto dal JS) */
+  /* Spike / grid thickness */
   --spike-color:     var(--clr-lacca);
-  --spike-thickness: 3;        /* px */
-  --grid-width:      4;        /* px */
+  --spike-thickness: 3;   /* px */
+  --grid-width:      4;   /* px */
 
-  /* Cursor (letti dal JS) */
+  /* Cursor (usate dal JS) */
   --cursor-glow-size:    18;
-  --cursor-glow-color:   #E4A59B;  /* lacca chiarissimo per alone */
+  --cursor-glow-color:   #FF8A7A;
   --cursor-glow-opacity: .35;
   --cursor-dot-size:     8;
   --cursor-dot-color:    var(--clr-lacca);
-  --cursor-dot-line:     var(--clr-outline);
+  --cursor-dot-line:     #0D1117;
 
-  /* Shortcuts */
-  --kbd-bg:      #E9F0FB;     /* lapis molto chiaro */
-  --kbd-text:    var(--clr-outline);
-  --kbd-border:  #9BB3E2;
+  /* Hover label Plotly */
+  --hover-bg:     #1E3A5F;
+  --hover-border: #0D2747;
+  --hover-text:   #FFFFFF;
+  --hover-size:   13;
+
+  /* Axis fonts (lette dal JS) */
+  --axis-title-color: var(--ui-text);
+  --axis-title-size:  16;
+  --axis-tick-size:   12;
+
+  /* Shortcuts (keycaps) */
+  --kbd-bg:      #223049;
+  --kbd-text:    #E8EDF2;
+  --kbd-border:  #395986;
 
   /* Layout */
-  --sidebar-w:   260px;
+  --sidebar-w:   276px;
   --radius-10:   12px;
 
   /* Shortcuts layout */
-  --sc-title-col: 84px;
-  --sc-gap:       8px;
-  --sc-row-gap:   6px;
+  --sc-title-col: 96px;
+  --sc-gap:       10px;
+  --sc-row-gap:    6px;
 
-  --kbd-minw: 32px;
+  --kbd-minw: 34px;
   --kbd-h:    26px;
-  --kbd-padx: 10px;
+  --kbd-padx: 12px;
+
+  /* Colour-coding (restano invariati) */
+  --cc-2d-lightness: 0.62;
+  --cc-2d-sat-min:   0.35;
+  --cc-2d-sat-max:   0.98;
+  --cc-3d-gamma:     0.9;
+
+  --point-size-2d:      10;
+  --point-size-3d:      6;
+  --point-stroke:       #0D1117;
+  --point-stroke-width: 0.6;
 }
 
 /* =======================================================
@@ -66,75 +86,99 @@ html, body{
   height: 100%;
   margin: 0;
   background: var(--ui-bg);
-  color: var(--clr-text);
+  color: var(--ui-text);
   font-family: var(--font-ui);
 }
-*,
-*::before,
-*::after{ box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 header{
-  padding: 8px 16px 0;
-  border-bottom: none;             /* niente riga */
+  padding: 10px 16px 0;
+  border-bottom: none;
 }
 header h1{
   margin: 0;
-  text-align: right;               /* allinea a destra */
+  text-align: right;
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--clr-outline);
-  font-size: 36px;
+  color: var(--ui-text);
+  font-size: 38px;
 }
 
 /* =======================================================
-   LAYOUT
+   LAYOUT (sidebar + area grafici)
    ======================================================= */
+/* NUOVO layout: flex, niente altezze fisse né posizionamenti assoluti */
 .layout{
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  gap: 12px;
-  padding: 8px 12px 12px;
+  display: flex;
+  height: 100vh;
+  min-height: 0;
+  gap: 14px;
+  padding: 8px 14px 8px 14px;
 }
+
+/* Colonna sinistra (sticky grazie allo scroll interno) */
 #sidebar{
-  position: sticky;
-  top: 8px;
-  align-self: start;
-  max-height: calc(100vh - 16px);
+  flex: 0 0 var(--sidebar-w);
+  height: 100%;
   overflow: auto;
 }
+
+/* Area grafici: griglia 1 colonna (2D/3D); 2 colonne in 4D */
+#plots{
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;   /* default 2D/3D */
+  grid-auto-rows: 1fr;
+  gap: 16px;
+  padding: 0;
+}
+
+/* 4D → due plot affiancati */
+#plots.dual{
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Ogni plot riempie la sua cella grid */
+.plot{
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--plot-paper);
+}
+
+/* Plotly deve rispettare il 100% della cella */
+.plot .plot-container,
+.plot .svg-container{
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Il plot destro è nascosto di default (mostrato solo in 4D via classe .dual) */
+#plot-right{ display: none; }
+#plots.dual #plot-right{ display: block; }
+
+/* =======================================================
+   CONTROLLI: fieldset / select
+   ======================================================= */
 #controls{
   display: flex;
   flex-direction: column;
   gap: 12px;
   background: var(--ui-surface);
-  border: 1px solid var(--ui-border);      /* bordi lacca */
+  border: 1px solid var(--ui-border);
   border-radius: var(--radius-10);
   padding: 12px;
 }
-#plots{ width: 100%; }
-.plot{
-  min-height: 520px;
-  border-radius: 14px;              /* angoli stondati sul contenitore */
-  overflow: hidden;                 /* clip di svg/canvas/modebar */
-  background: var(--plot-paper);
-}
 
-/* Propaga il raggio negli strati interni di Plotly */
-.plot .js-plotly-plot,
-.plot .plot-container,
-.plot .svg-container,
-.plot .gl-container,
-.plot canvas{ border-radius: inherit; }
-
-/* =======================================================
-   CONTROLLI: fieldset / select
-   ======================================================= */
 #controls fieldset{
-  border: 1px solid var(--ui-border);      /* lacca */
-  background: var(--ui-bg);
-  background-clip: padding-box;
+  border: 1px solid var(--ui-border);
+  background: #121820;
   border-radius: var(--radius-10);
   padding: 12px;
   margin: 0;
@@ -142,72 +186,67 @@ header h1{
 }
 #controls legend{
   font-size: .95rem;
-  font-weight: 700;                         /* titoli più evidenti */
-  color: var(--clr-outline);
+  font-weight: 800;
+  color: var(--ui-text);
   letter-spacing: .2px;
 }
 
-/* Etichette generiche (manteniamo per x/y/z ma le “svuotiamo” più sotto) */
+/* label generici */
 #controls label{
   display: block;
   margin: 6px 0;
   font-size: .95rem;
   font-weight: 600;
-  color: var(--clr-outline);
+  color: var(--ui-muted);
 }
 
-/* 1) Nascondi SOLO “Source” e “Preset” (non i menu) */
+/* 1) Nascondi SOLO i label “Source” e “Preset” */
 #controls label[for="input-source"],
 #controls label[for="preset-select"]{ display: none; }
 
-/* 2) Rimuovi SOLO le lettere x/y/z senza nascondere i select
-      (usa :has, supportato sui browser moderni) */
+/* 2) Rimuovi SOLO la scritta x/y/z sopra i select (i menu restano) */
 #controls label:has(> #axis-x),
 #controls label:has(> #axis-y),
-#controls label:has(> #axis-z){
-  display: contents;                /* mostra direttamente il select */
-}
+#controls label:has(> #axis-z){ font-size: 0; }
+#controls label:has(> #axis-x) select,
+#controls label:has(> #axis-y) select,
+#controls label:has(> #axis-z) select{ font-size: .95rem; }
 
 /* Select */
 #controls select{
   width: 100%;
-  background: var(--ui-surface);
-  color: var(--clr-outline);
-  border: 1px solid var(--ui-border);      /* lacca */
+  background: #0F141A;
+  color: var(--ui-text);
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
   padding: 8px 10px;
   outline: none;
   font-size: .95rem;
 }
 #controls select:focus{
-  border-color: var(--ui-accent);           /* lapis */
-  box-shadow: 0 0 0 3px rgba(70,112,184, .18);
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px rgba(110,168,254,.25);
 }
 
-/* usato in 3D per mostrare Z (il contenitore esiste già) */
+/* In 3D mostri la riga z */
 .z-only{ display: inline-block; }
 
 /* =======================================================
-   SHORTCUTS — chiari e compatti
+   SHORTCUTS
    ======================================================= */
 #shortcuts{ display: none; }
 #shortcuts[data-mode="keyboard"]{ display: block; }
 
-/* non mostrare nulla finché non sappiamo la dim */
 #shortcuts .shortcut-set,
 #shortcuts .shortcut-note{ display: none !important; }
 
-/* mostra i blocchi pertinenti */
 #shortcuts[data-dim="2"] .shortcut-set[data-dim="2"],
 #shortcuts[data-dim="3"] .shortcut-set[data-dim="3"],
 #shortcuts[data-dim="4"] .shortcut-set[data-dim="4"]{
   display: grid !important;
 }
+#shortcuts[data-mode="keyboard"] .shortcut-note{ display: grid !important; }
 
-/* nota (Shift/Alt) visibile con input=keyboard */
-#shortcuts[data-mode="keyboard"] .shortcut-note{ display: block !important; }
-
-/* Gruppo (Move XY / Move Z) */
 #shortcuts .shortcut-set{
   display: grid;
   grid-template-columns: var(--sc-title-col) 1fr;
@@ -218,13 +257,13 @@ header h1{
   width: 100%;
   padding: 10px 12px;
   border-radius: calc(var(--radius-10) + 2px);
-  border: 1px solid var(--ui-border);         /* lacca */
-  background: #FAFAFA;                        /* pannello chiaro, puro */
+  border: 1px solid var(--ui-border);
+  background: #101722;
 }
 #shortcuts .shortcut-title{
-  color: var(--clr-outline);
-  font-size: .95rem;
-  font-weight: 700;
+  color: var(--ui-text);
+  font-size: .96rem;
+  font-weight: 800;
   white-space: nowrap;
 }
 #shortcuts .shortcut-keys{
@@ -235,15 +274,14 @@ header h1{
   align-items: center;
   column-gap: var(--sc-gap);
   row-gap: var(--sc-row-gap);
-  color: var(--clr-outline);
+  color: var(--ui-text);
   font-size: .95rem;
 }
 #shortcuts .sep{
-  color: var(--clr-outline);
-  font-weight: 700;
-  opacity: 1;
+  color: var(--ui-text);
+  font-weight: 800;
+  opacity: .9;
 }
-/* keycaps */
 #shortcuts .kbd,
 #shortcuts .shortcut-note .kbd{
   display: inline-flex;
@@ -254,30 +292,28 @@ header h1{
   padding: 0 var(--kbd-padx);
   border-radius: 999px;
   font-family: inherit;
-  font-weight: 700;
+  font-weight: 800;
   font-size: .9rem;
   letter-spacing: .2px;
   line-height: 1;
   color: var(--kbd-text);
-  background: var(--kbd-bg);                 /* colore puro */
+  background: var(--kbd-bg);
   border: 1px solid var(--kbd-border);
 }
-
 #shortcuts .shortcut-note{
-  display: grid;
   grid-template-columns: var(--sc-title-col) 1fr;
   align-items: center;
   column-gap: var(--sc-gap);
   margin: 10px 0 0 0;
   width: 100%;
-  color: var(--clr-outline);
-  font-size: .9rem;
+  color: var(--ui-muted);
+  font-size: .92rem;
   white-space: nowrap;
 }
 #shortcuts .shortcut-note > *{ grid-column: 2; }
 
 /* =======================================================
-   PLOTLY — sfondi + testo leggibile (il resto lo imposti in JS)
+   PLOTLY — sfondi e testi coerenti
    ======================================================= */
 .js-plotly-plot, .plotly, .plot-container{ background: var(--plot-paper) !important; }
 .cartesianlayer, .gl-container{ background: var(--plot-bg) !important; }
@@ -287,6 +323,7 @@ header h1{
    RESPONSIVE
    ======================================================= */
 @media (max-width: 980px){
-  .layout{ grid-template-columns: 1fr; }
-  #sidebar{ position: static; max-height: none; }
+  .layout{ flex-direction: column; height: auto; }
+  #sidebar{ flex: 0 0 auto; height: auto; max-height: none; }
+  #plots{ grid-template-columns: 1fr !important; }
 }

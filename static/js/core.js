@@ -1,253 +1,203 @@
-// /static/js/core.js
-// ============================================================
-// Central state, constants, DOM helpers and utilities
-// ============================================================
+// core.js — app core (state + pure utilities). No visual styling here.
 
-// -----------------------------
-// Global state shared across modules
-// -----------------------------
+/* =========================================================
+   Global state (shared across modules)
+   ========================================================= */
 export const state = {
-  // Data & meta (latent in [0,1])
-  latent: [],            // NxD
-  dim: 0,                // D
-  boundsMin: [],
-  boundsMax: [],
-  axisNames: [],         // ["x","y","z","w"]
-  presetNames: [],
+  // data / meta
+  latent: [],            // NxD array in [0,1]
+  dim: 0,                // 2 | 3 | 4
+  boundsMin: [],         // per-dimension lower bounds (usually 0)
+  boundsMax: [],         // per-dimension upper bounds (usually 1)
+  presetNames: [],       // labels for points (ID1..N if absent)
+  axisNames: [],         // ['x','y','z','w'] (subset by dim)
 
-  // Views / axes
-  currentAxes:  { x: 0, y: 1, z: 2 },   // 2D/3D
-  currentAxesA: { x: 0, y: 1 },         // 4D view A
-  currentAxesB: { x: 2, y: 3 },         // 4D view B
-  is3D: false,
+  // current views (indices into latent dims)
+  currentAxes:  { x: 0, y: 1, z: 2 },   // used in 2D/3D
+  currentAxesA: { x: 0, y: 1 },         // used in 4D (left view)
+  currentAxesB: { x: 2, y: 3 },         // used in 4D (right view)
 
-  // Cursor & camera
-  cursorPoint: null,     // [0,1]^D (real/data-space)
-  lastCamera: null,
+  // cursor traces indices (set by plot.js after rendering)
+  cursorLeft:  null,     // {glowIdx, dotIdx}
+  cursorRight: null,
 
-  // Input
-  inputSource: "keyboard",
-  uCurrent: [],          // [-1,1]^D  (navigation-space)
-  uTarget:  [],
+  // navigation
+  inputSource: "keyboard", // 'keyboard' | 'mouse' | 'osc'
+  uCurrent: [],           // smoothed cursor in u-space [-1,1]
+  uTarget:  [],           // target cursor in u-space [-1,1]
+  cursorPoint: [],        // current latent point in [0,1]
 
-  // Timers / gates
-  _lastSendMs: 0,
+  // keyboard focus for 4D (which 2D view to steer first)
+  activeView: "A",        // 'A' | 'B'
 };
 
-// -----------------------------
-// Axis naming
-// -----------------------------
-export function buildAxisNames(n) {
-  const std = ["x", "y", "z", "w"];
-  state.axisNames = std.slice(0, n);
+/* Exposed containers for plots */
+export function els() {
+  return {
+    left:  document.getElementById("plot-left"),
+    right: document.getElementById("plot-right"),
+  };
 }
 
-// -----------------------------
-// Generic utils
-// -----------------------------
-export function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
-//export function clamp01(v){ return clamp(v, 0, 1); } // legacy
-export function getColumn(mat, j){ return (mat || []).map(row => row[j]); }
+/* =========================================================
+   Constants (logic only — no styling here)
+   ========================================================= */
+export const CONST = {
+  STEP_BASE:       0.03,    // default step in u-space
+  STEP_FINE:       0.01,    // with Alt
+  STEP_COARSE:     0.10,    // with Shift
+  LERP_ALPHA:      0.35,    // smoothing factor for uCurrent←uTarget
+  SEND_INTERVAL_MS: 60,     // throttle for socket emits
+  MOVE_EPS:        1e-3,    // deadzone for movement
+};
 
-export function lerp(a, b, t){ return a + (b - a) * t; }
-export const mix = lerp;
-export function vecLerp(a, b, t){
-  const n = Math.min(a.length, b.length);
-  const out = new Array(n);
-  for (let i = 0; i < n; i++) out[i] = lerp(a[i], b[i], t);
-  return out;
-}
-export function assignVecLerp(out, a, b, t){
-  const n = Math.min(out.length, a.length, b.length);
-  for (let i = 0; i < n; i++) out[i] = lerp(a[i], b[i], t);
-  return out;
-}
-export function almostEqual(a, b, eps = 1e-9){ return Math.abs(a - b) <= eps; }
+/* Keyboard state shared across modules */
+export const keysDown = new Set();
 
-export function timeNowMs(){ return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now(); }
-export function shouldSend(ms){
-  const now = timeNowMs();
-  if (now - state._lastSendMs >= ms){
-    state._lastSendMs = now;
-    return true;
-  }
-  return false;
-}
-
-// Step size from modifiers (used by keyboard handler)
-export function currentStep(e){
-  if (e && e.shiftKey) return CONST.STEP_COARSE;
-  if (e && e.altKey)   return CONST.STEP_FINE;
+/* Derive current step based on held modifiers (Shift/Alt) */
+export function stepFromModifiers() {
+  if (keysDown.has("shift")) return CONST.STEP_COARSE;
+  if (keysDown.has("alt"))   return CONST.STEP_FINE;
   return CONST.STEP_BASE;
 }
 
-// -----------------------------
-// Space conversions
-//   u ∈ [-1,1]^D   (navigation / visualization)
-//   l ∈ [lo,hi]^D  (data-space; tipicamente [0,1])
-// -----------------------------
-export function uToLatent(u, dimIdx){
-  const uu = clamp(Number.isFinite(u) ? u : 0, -1, 1);
-  const lo = state.boundsMin[dimIdx], hi = state.boundsMax[dimIdx];
-  const span = Math.max(1e-12, (hi - lo));
-  return (uu + 1) * 0.5 * span + lo;
-}
-export function latentToU(v, dimIdx){
-  const lo = state.boundsMin[dimIdx], hi = state.boundsMax[dimIdx];
-  const span = Math.max(1e-12, (hi - lo));
-  const u = 2 * ((v - lo) / span) - 1;
-  return clamp(u, -1, 1);
+/* Switch active view (used in 4D) */
+export function setActiveView(v) {
+  state.activeView = (v === "B") ? "B" : "A";
 }
 
-// ============================================================
-// THEME bridge (CSS variables)
-// ============================================================
-function _cssVar(name){
-  const s = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  if (!s) {
-    console.error(`[theme] Missing CSS variable ${name}. Define it in visualizer_style.css :root{ ${name}: ... }`);
-    throw new Error(`Missing CSS variable ${name}`);
+/* =========================================================
+   Axis helpers
+   ========================================================= */
+export function buildAxisNames(dim) {
+  const names = ["x", "y", "z", "w"];
+  state.axisNames = names.slice(0, Math.max(0, Math.min(4, dim|0)));
+  return state.axisNames;
+}
+
+/* =========================================================
+   Normalisation helpers (0..1) ↔︎ (-1..1)
+   These are the ONLY source of truth for mapping.
+   ========================================================= */
+
+/** u∈[-1,1] → value in [boundsMin[j], boundsMax[j]] (usually [0,1]) */
+export function uToLatent(u, j, boundsMin = state.boundsMin, boundsMax = state.boundsMax) {
+  const lo = boundsMin?.[j]; const hi = boundsMax?.[j];
+  if (!isFinite(lo) || !isFinite(hi) || hi === lo) return 0.0;
+  const t = (clamp(u, -1, 1) + 1) * 0.5;          // [-1,1] → [0,1]
+  return lo + t * (hi - lo);
+}
+
+/** value in [boundsMin[j], boundsMax[j]] → u∈[-1,1] */
+export function latentToU(v, j, boundsMin = state.boundsMin, boundsMax = state.boundsMax) {
+  const lo = boundsMin?.[j]; const hi = boundsMax?.[j];
+  if (!isFinite(lo) || !isFinite(hi) || hi === lo) return 0.0;
+  const t = (v - lo) / (hi - lo);                 // → [0,1]
+  return clamp(t * 2 - 1, -1, 1);                 // → [-1,1]
+}
+
+/* =========================================================
+   Generic utilities
+   ========================================================= */
+export function clamp(x, lo, hi) {
+  return Math.min(hi, Math.max(lo, x));
+}
+export function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+/** Read a CSS custom property as string (no fallback here) */
+export function cssVar(name) {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(name).trim();
+}
+/** Convenience for numeric CSS vars */
+export function cssNumber(name) {
+  const v = parseFloat(cssVar(name));
+  return Number.isFinite(v) ? v : undefined;
+}
+
+/* =========================================================
+   Small helpers for arrays/vectors
+   ========================================================= */
+export function vecFill(n, value = 0) {
+  return Array.from({ length: n }, () => value);
+}
+export function vecLerp(dst, src, alpha) {
+  const n = Math.min(dst.length, src.length);
+  for (let i = 0; i < n; i++) dst[i] = lerp(dst[i], src[i], alpha);
+  return dst;
+}
+
+/* =========================================================
+   DOM helpers for selects (optional, used in ui.js)
+   ========================================================= */
+
+/** Populate a <select> with [{value,label}] options. Keeps current selection if possible. */
+export function populateSelect(selectEl, options, placeholder) {
+  if (!selectEl) return;
+  const prev = selectEl.value;
+  selectEl.innerHTML = "";
+  if (placeholder) {
+    const ph = document.createElement("option");
+    ph.value = ""; ph.textContent = placeholder;
+    selectEl.appendChild(ph);
   }
-  return s;
-}
-function _cssNumber(name){
-  const s = _cssVar(name);
-  const n = parseFloat(s);
-  if (!Number.isFinite(n)) {
-    console.error(`[theme] CSS variable ${name} must be a number, got: "${s}"`);
-    throw new Error(`CSS variable ${name} is not numeric`);
+  for (const { value, label } of options) {
+    const opt = document.createElement("option");
+    opt.value = String(value);
+    opt.textContent = String(label);
+    selectEl.appendChild(opt);
   }
-  return n;
-}
-export function ensureCssTheme(){
-  // Touch getters to validate presence/types at startup
-  void CONST.CURSOR_GLOW_SIZE;
-  void CONST.CURSOR_GLOW_COLOR;
-  void CONST.CURSOR_GLOW_OPACITY;
-  void CONST.CURSOR_DOT_SIZE;
-  void CONST.CURSOR_DOT_COLOR;
-  void CONST.CURSOR_DOT_LINE;
-  void CONST.MARKER_COLOR;
-  void CONST.BG_COLOR;
+  if (prev && [...selectEl.options].some(o => o.value === prev)) {
+    selectEl.value = prev;
+  }
 }
 
-// -----------------------------
-// Constants
-// - Theme values: from CSS (getters).
-// - Behavior values: JS numbers (single source of truth).
-// -----------------------------
-export const CONST = {
-  // THEME (from CSS)
-  get CURSOR_GLOW_SIZE()    { return _cssNumber("--cursor-glow-size"); },
-  get CURSOR_GLOW_COLOR()   { return _cssVar("--cursor-glow-color"); },
-  get CURSOR_GLOW_OPACITY() { return _cssNumber("--cursor-glow-opacity"); },
-  get CURSOR_DOT_SIZE()     { return _cssNumber("--cursor-dot-size"); },
-  get CURSOR_DOT_COLOR()    { return _cssVar("--cursor-dot-color"); },
-  get CURSOR_DOT_LINE()     { return _cssVar("--cursor-dot-line"); },
-  get MARKER_COLOR()        { return _cssVar("--marker-color"); },
-  get BG_COLOR()            { return _cssVar("--plot-bg"); },
-
-  // BEHAVIOR (logic/timing) — keep in JS
-  STEP_BASE: 0.03,
-  STEP_FINE: 0.01,
-  STEP_COARSE: 0.1,
-  LERP_ALPHA: 0.35,
-  MOVE_EPS: 1e-3,
-};
-
-// ============================================================
-// DOM helpers (kept here to avoid duplication in ui.js/main.js)
-// ============================================================
-
-/**
- * Populate a <select> with options.
- * @param {HTMLSelectElement} sel - the select element
- * @param {Array<{value:string,label:string}>|string[]} options - items
- * @param {string|number|null} selected - optional value to select (or index number)
- * @param {boolean} clear - clear current options (default true)
- */
-export function populateSelect(sel, options, selected = null, clear = true){
-  if (!sel) return;
-  if (clear) sel.innerHTML = "";
-
-  const norm = (Array.isArray(options) ? options : []);
-  norm.forEach((opt, i) => {
-    const o = document.createElement("option");
-    if (typeof opt === "object" && opt && "value" in opt) {
-      o.value = String(opt.value);
-      o.textContent = String(opt.label ?? opt.value);
-    } else {
-      o.value = String(opt);
-      o.textContent = String(opt);
-    }
-    sel.appendChild(o);
-  });
-
-  if (selected != null) {
-    // allow index or value
-    if (typeof selected === "number" && selected >= 0 && selected < sel.options.length) {
-      sel.selectedIndex = selected;
-    } else {
-      sel.value = String(selected);
+/* =========================================================
+   Convenience: compute bounds from latent (safety)
+   ========================================================= */
+export function recomputeBoundsFromLatent() {
+  if (!Array.isArray(state.latent) || state.latent.length === 0) return;
+  const d = state.dim;
+  const bmin = new Array(d).fill(+Infinity);
+  const bmax = new Array(d).fill(-Infinity);
+  for (const row of state.latent) {
+    for (let j = 0; j < d; j++) {
+      const v = row[j];
+      if (v < bmin[j]) bmin[j] = v;
+      if (v > bmax[j]) bmax[j] = v;
     }
   }
+  state.boundsMin = bmin;
+  state.boundsMax = bmax;
 }
 
-/**
- * Update controls visibility based on dimensionality.
- * Shows single-axis controls for 2D/3D; dual-axis controls for 4D.
- * Also toggles .z-only (Z selector) only when dim===3.
- */
-export function updateControlVisibility(dim){
-  const single = document.getElementById("single-axis-controls");
-  const dual   = document.getElementById("dual-axis-controls");
-
-  if (dim <= 3) {
-    if (single) single.style.display = "";
-    if (dual)   dual.style.display   = "none";
-  } else {
-    if (single) single.style.display = "none";
-    if (dual)   dual.style.display   = "block";
+/* =========================================================
+   Keyboard helpers (attach/detach once, used in main.js)
+   ========================================================= */
+export function attachKeyListeners() {
+  window.addEventListener("keydown", handleKeyDown, { passive: false });
+  window.addEventListener("keyup",   handleKeyUp,   { passive: true  });
+}
+export function detachKeyListeners() {
+  window.removeEventListener("keydown", handleKeyDown);
+  window.removeEventListener("keyup",   handleKeyUp);
+}
+function handleKeyDown(e) {
+  const k = normaliseKey(e.key);
+  keysDown.add(k);
+  // prevent arrow-like behaviour only for our keys
+  if (["a","d","w","s","f","h","t","g","q","e"].includes(k)) {
+    e.preventDefault();
   }
-
-  // Show Z selector only in 3D
-  const zEls = document.querySelectorAll(".z-only");
-  zEls.forEach(el => {
-    el.style.display = (dim === 3) ? "" : "none";
-  });
 }
-
-/**
- * Build axis options array like ["x","y","z","w"] for a given dimension.
- * @param {number} n
- * @returns {string[]}
- */
-export function axisOptions(n){
-  return ["x","y","z","w"].slice(0, n);
+function handleKeyUp(e) {
+  keysDown.delete(normaliseKey(e.key));
 }
-
-/**
- * Sync axis <select> elements with current axis names.
- * @param {HTMLSelectElement} selX
- * @param {HTMLSelectElement} selY
- * @param {HTMLSelectElement|null} selZ
- */
-export function syncAxisSelectors(selX, selY, selZ = null){
-  const opts = axisOptions(state.dim);
-  populateSelect(selX, opts, state.axisNames[0] ?? "x");
-  populateSelect(selY, opts, state.axisNames[1] ?? "y");
-  if (selZ) populateSelect(selZ, opts, state.axisNames[2] ?? "z");
-}
-
-/**
- * Utility: read CSS theme variables at runtime and return an object.
- * (Handy if you need to pass theme into Plotly templates, etc.)
- */
-export function readTheme(){
-  return {
-    markerColor:   CONST.MARKER_COLOR,
-    cursorGlow:    { size: CONST.CURSOR_GLOW_SIZE, color: CONST.CURSOR_GLOW_COLOR, opacity: CONST.CURSOR_GLOW_OPACITY },
-    cursorDot:     { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: CONST.CURSOR_DOT_LINE },
-    bg:            CONST.BG_COLOR,
-  };
+function normaliseKey(k) {
+  k = (k || "").toLowerCase();
+  if (k === "shift") return "shift";
+  if (k === "alt" || k === "altgraph") return "alt";
+  return k.length === 1 ? k : k;
 }

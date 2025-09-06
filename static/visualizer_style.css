@@ -8,18 +8,18 @@
   --clr-petrolio:  #2A545E;
   --clr-ocra:      #823D16;
   --clr-lacca:     #9E3323;
-  --clr-bg:        #AACCCB;   /* background (teal chiaro) */
-  --clr-surface:   #AACCCB;   /* surface */
+  --clr-bg:        #f5f5f5;   /* background (teal chiaro) */
+  --clr-surface:   #f5f5f5;   /* surface */
   --clr-outline:   #333726;   /* outline */
-  --clr-text:      #000000;   /* testo */
+  --clr-text:      #333726;   /* testo */
 
   /* Theme mapping (near “bianco perla”) */
   --white:         #ffffff;   /* solo per mix fuori dagli shortcuts */
-  --ui-bg:         color-mix(in srgb, var(--white) 90%, var(--clr-bg) 10%);
+  --ui-bg:         #f5f5f5;
   --ui-text:       var(--clr-text);
   --ui-muted:      color-mix(in srgb, var(--clr-text) 60%, var(--ui-bg) 40%);
 
-  --ui-panel-bg:   color-mix(in srgb, var(--white) 88%, var(--clr-surface) 12%);
+  --ui-panel-bg:   var(--clr-surface);
   --ui-border:     color-mix(in srgb, var(--clr-outline) 45%, var(--ui-bg) 55%);
   --ui-accent:     var(--clr-lapis);     /* focus, attivi */
   --ui-accent-2:   var(--clr-petrolio);  /* variante */
@@ -33,20 +33,22 @@
   --plot-paper:    var(--ui-bg);
   --plot-bg:       var(--ui-bg);
   --plot-text:     #0f1a1a;   /* alto contrasto per etichette/ID/assi */
-  --plot-grid:     color-mix(in srgb, var(--clr-outline) 25%, var(--ui-bg) 75%);
-  --plot-axis:     color-mix(in srgb, var(--clr-outline) 55%, var(--ui-bg) 45%);
+  --plot-grid:     var(--clr-lapis);
+  --plot-axis:     var(--clr-lapis);
 
   /* Dataset markers & cursor (usati dal JS) */
   --marker-color:        var(--clr-petrolio);
   --cursor-glow-size:    18;
-  --cursor-glow-color:   var(--clr-ocra);
-  --cursor-glow-opacity: 0.28;
+  --cursor-glow-color:   var(--clr-lapis);
+  --cursor-glow-opacity: 0.8;
   --cursor-dot-size:     8;
-  --cursor-dot-color:    color-mix(in srgb, var(--clr-ocra) 80%, var(--ui-bg) 20%);
+  --cursor-dot-color:    var(--clr-lacca);
   --cursor-dot-line:     var(--clr-outline);
 
   /* Spikes — letti dal JS/plot.js */
-  --spike-color:         var(--clr-ocra);
+  --spike-color:         var(--clr-lacca);
+  --spike-thickness:     4;
+  --grid-width:          5;
   --spike-active-color:  var(--clr-lacca);
 
   /* Layout */
@@ -60,32 +62,40 @@
   --kbd-minw: 32px;       /* keycaps più leggibili (evita "Alt" troppo stretto) */
   --kbd-h: 26px;
   --kbd-padx: 10px;
+
+  --font-ui:      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
+  --font-display: var(--font-ui);
+
 }
 
 
 /* =========================================
    BASE / TYPOGRAFIA
    ========================================= */
+
 html, body {
   height: 100%;
   margin: 0;
   background: var(--ui-bg);
   color: var(--ui-text);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: var(--font-ui);
 }
 *,
 *::before,
 *::after { box-sizing: border-box; }
 
 header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--ui-border);
+  padding: 8px 16px 0;
+  border-bottom: none;
 }
 header h1 {
   margin: 0;
-  font-size: 20px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-size: 36px;
   font-weight: 700;
-  letter-spacing: .2px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
   color: var(--clr-outline);
 }
 
@@ -126,7 +136,9 @@ header h1 {
    ========================================= */
 #controls fieldset{
   border: 1px solid var(--ui-border);
-  background: color-mix(in srgb, var(--ui-panel-bg) 80%, var(--ui-bg) 20%);
+  overflow: hidden;
+  background: var(--ui-bg);
+  background-clip: padding-box;
   border-radius: var(--radius-10);
   width: 100%;
   box-sizing: border-box;
@@ -191,8 +203,8 @@ header h1 {
   row-gap: var(--sc-row-gap);
 
   /* QUI: margini laterali + box sizing per non “tagliare” il bordo */
-  margin: 10px 8px;
-  width: auto;
+  margin: 10px 0;
+  width: 100%;
   box-sizing: border-box;
 
   padding: 10px 12px;
@@ -259,10 +271,10 @@ header h1 {
   column-gap: var(--sc-gap);
 
   /* stessi margini dei gruppi → allineamento perfetto */
-  margin: 10px 8px 0 8px;
+  margin: 10px 0 0 0;
 
   /* niente overflow → nessun bordo “mozzato” */
-  width: auto;
+  width: 100%;
   box-sizing: border-box;
 
   color: var(--ui-text);

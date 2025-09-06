@@ -4,7 +4,8 @@ import { state, CONST, getColumn, latentToU } from "./core.js";
 
 /* ---------- CSS helpers (single source of truth from CSS) ---------- */
 function cssVar(name) {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v
 }
 function getSpikeColor() {
   return cssVar('--spike-color') || null;
@@ -56,16 +57,29 @@ function setLayoutDual({ smallMinHeightPx = 520 } = {}) {
 // --- Applica i colori del tema CSS ai layout Plotly ---
 function applyPlotTheme2D(layout){
   const r    = getComputedStyle(document.documentElement);
+  const PAPER = cssVar('--plot-paper').trim();
+  const PLOT  = cssVar('--plot-bg').trim();
   const GRID = r.getPropertyValue('--plot-grid').trim();
   const AXIS = r.getPropertyValue('--plot-axis').trim();
   const TEXT = r.getPropertyValue('--plot-text').trim();
+  const UIFONT = getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim();
+  const SPIKE = cssVar('--spike-color');
+  const ST    = Number(cssVar('--spike-thickness')) || undefined;
+  const GW    = Number(cssVar('--grid-width')) || undefined;
+  
 
-  layout.font = { ...(layout.font||{}), color: TEXT || layout.font?.color };
+  layout.paper_bgcolor = PAPER;
+  layout.plot_bgcolor = PLOT;
+
+  layout.font = { ...(layout.font||{}), color: TEXT, family: UIFONT};
 
   layout.xaxis = {
     ...(layout.xaxis||{}),
     gridcolor: GRID || layout.xaxis?.gridcolor,
     linecolor: AXIS || layout.xaxis?.linecolor,
+    spikecolor: SPIKE,
+    spikethickness: ST,
+    gridwidth: GW,
     tickfont: { color: TEXT },
     titlefont: { color: TEXT }
   };
@@ -73,32 +87,53 @@ function applyPlotTheme2D(layout){
     ...(layout.yaxis||{}),
     gridcolor: GRID || layout.yaxis?.gridcolor,
     linecolor: AXIS || layout.yaxis?.linecolor,
+    spikecolor: SPIKE,
+    spikethickness: ST,
+    gridwidth: GW,
     tickfont: { color: TEXT },
     titlefont: { color: TEXT }
   };
+  layout.showlegend = false;   // spegne SEMPRE la legenda
+  if (layout.legend) layout.legend.uirevision = null; // opzionale; evita riapparizioni da uirevision
 }
 
 function applyPlotTheme3D(layout){
   const r    = getComputedStyle(document.documentElement);
+  const PAPER = cssVar('--plot-paper').trim();
   const GRID = r.getPropertyValue('--plot-grid').trim();
   const AXIS = r.getPropertyValue('--plot-axis').trim();
   const TEXT = r.getPropertyValue('--plot-text').trim();
   const BG   = r.getPropertyValue('--plot-bg').trim();
+  const UIFONT = getComputedStyle(document.documentElement).getPropertyValue('--font-ui').trim();
+  const SPIKE = cssVar('--spike-color');
+  const ST    = Number(cssVar('--spike-thickness')) || undefined;
+  const GW    = Number(cssVar('--grid-width')) || undefined;
+
+  layout.paper_bgcolor = PAPER;
 
   layout.scene = layout.scene || {};
   layout.scene.bgcolor = BG || layout.scene.bgcolor;
+
+  layout.font = { ...(layout.font||{}), color: TEXT, family: UIFONT};
+
 
   const patch = (ax) => ({
     ...(ax||{}),
     gridcolor: GRID || ax?.gridcolor,
     color:     AXIS || ax?.color,
     tickfont:  { color: TEXT },
-    titlefont: { color: TEXT }
+    titlefont: { color: TEXT },
+    spikecolor: SPIKE,
+    spikethickness: ST,
+    gridwidth: GW
   });
 
   layout.scene.xaxis = patch(layout.scene.xaxis);
   layout.scene.yaxis = patch(layout.scene.yaxis);
   layout.scene.zaxis = patch(layout.scene.zaxis);
+
+  layout.showlegend = false;   // spegne SEMPRE la legenda
+  if (layout.legend) layout.legend.uirevision = null; // opzionale; evita riapparizioni da uirevision
 }
 
 
@@ -128,7 +163,6 @@ function scatter2D(axX, axY, cursorPoint) {
     mode: "markers",
     x, y,
     marker: { size: 7, color: c, colorscale: "Viridis", cmin: -1, cmax: 1, showscale: false },
-    name: "presets",
   };
 
   // Testo etichette (SVG)
@@ -209,9 +243,9 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
       color: z,
       colorscale: "Viridis",
       cmin: -1, cmax: 1,
-      showscale: false
-    },
-    name: "presets",
+      showscale: false,
+      showlegend: false
+    }
   };
 
   // Etichette 3D
@@ -233,6 +267,7 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
     x: [cx_u], y: [cy_u], z: [cz_u],
     marker: { size: CONST.CURSOR_GLOW_SIZE, opacity: CONST.CURSOR_GLOW_OPACITY, color: CONST.CURSOR_GLOW_COLOR },
     hoverinfo: "skip", showlegend: false,
+    showlegend: false
   };
   const dot = {
     type: "scatter3d",
@@ -240,6 +275,7 @@ function scatter3D(axX, axY, axZ, cursorPoint) {
     x: [cx_u], y: [cy_u], z: [cz_u],
     marker: { size: CONST.CURSOR_DOT_SIZE, color: CONST.CURSOR_DOT_COLOR, line: { color: CONST.CURSOR_DOT_LINE, width: 1 } },
     hoverinfo: "skip", showlegend: false,
+    showlegend: false
   };
 
   const SPIKE = getSpikeColor();

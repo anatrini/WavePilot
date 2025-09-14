@@ -451,3 +451,4 @@ def main(filepath, num_entries=None, mask_columns=None):
     log.info("VAE Reconstruction MSE: %.6f | Acc: %.2f%%", optimizer.study_vae.best_value, accuracy)
     log.info("Best VAE Parameters: %s", best_vae_params)
     log.info("Best RBF Parameters: %s | Validation distance: %.6f", best_rbf_params, optimizer.study_rbf.best_value)
+

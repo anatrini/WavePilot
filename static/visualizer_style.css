@@ -2,23 +2,23 @@
    THEME TOKENS — DARK, moderni
    ======================================================= */
 :root{
-  /* Accenti */
-  --clr-lapis:   #6EA8FE;   /* blu moderno */
-  --clr-lacca:   #FF6B6B;   /* rosso/coral */
+  /* Accents */
+  --clr-lapis:   #6EA8FE;   /* modern blue */
+  --clr-lacca:   #FF6B6B;   /* red/coral */
 
   /* Base UI */
   --ui-bg:       #0F141A;   /* page bg */
-  --ui-surface:  #161C24;   /* pannelli */
-  --ui-text:     #E8EDF2;   /* testo principale */
-  --ui-muted:    #A7B1BC;   /* testo attenuato */
-  --ui-border:   #253041;   /* bordo */
+  --ui-surface:  #161C24;   /* panels */
+  --ui-text:     #E8EDF2;   /* main text */
+  --ui-muted:    #A7B1BC;   /* muted text */
+  --ui-border:   #253041;   /* border */
   --ui-accent:   var(--clr-lapis);
 
   /* Tipografia */
   --font-ui:      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
   --font-display: var(--font-ui);
 
-  /* Plotly (lette dal JS) */
+  /* Plotly (read from JS) */
   --plot-paper:  var(--ui-bg);
   --plot-bg:     var(--ui-bg);
   --plot-text:   var(--ui-text);
@@ -30,7 +30,7 @@
   --spike-thickness: 3;   /* px */
   --grid-width:      4;   /* px */
 
-  /* Cursor (usate dal JS) */
+  /* Cursor (used by JS) */
   --cursor-glow-size:    18;
   --cursor-glow-color:   #FF8A7A;
   --cursor-glow-opacity: .35;
@@ -44,7 +44,7 @@
   --hover-text:   #FFFFFF;
   --hover-size:   13;
 
-  /* Axis fonts (lette dal JS) */
+  /* Axis fonts (read from JS) */
   --axis-title-color: var(--ui-text);
   --axis-title-size:  16;
   --axis-tick-size:   12;
@@ -67,7 +67,7 @@
   --kbd-h:    26px;
   --kbd-padx: 12px;
 
-  /* Colour-coding (restano invariati) */
+  /* Colour-coding (remain unchanged) */
   --cc-2d-lightness: 0.62;
   --cc-2d-sat-min:   0.35;
   --cc-2d-sat-max:   0.98;
@@ -107,9 +107,9 @@ header h1{
 }
 
 /* =======================================================
-   LAYOUT (sidebar + area grafici)
+   LAYOUT (sidebar + plot area)
    ======================================================= */
-/* NUOVO layout: flex, niente altezze fisse né posizionamenti assoluti */
+/* NEW layout: flex, no fixed heights nor absolute positioning */
 .layout{
   display: flex;
   height: 100vh;
@@ -118,14 +118,14 @@ header h1{
   padding: 8px 14px 8px 14px;
 }
 
-/* Colonna sinistra (sticky grazie allo scroll interno) */
+/* Left column (sticky thanks to internal scroll) */
 #sidebar{
   flex: 0 0 var(--sidebar-w);
   height: 100%;
   overflow: auto;
 }
 
-/* Area grafici: griglia 1 colonna (2D/3D); 2 colonne in 4D */
+/* Plot area: 1 column grid (2D/3D); 2 columns in 4D */
 #plots{
   flex: 1 1 auto;
   min-width: 0;
@@ -137,12 +137,12 @@ header h1{
   padding: 0;
 }
 
-/* 4D → due plot affiancati */
+/* 4D → two plots side by side */
 #plots.dual{
   grid-template-columns: 1fr 1fr;
 }
 
-/* Ogni plot riempie la sua cella grid */
+/* Each plot fills its grid cell */
 .plot{
   min-width: 0;
   min-height: 0;
@@ -152,14 +152,14 @@ header h1{
   background: var(--plot-paper);
 }
 
-/* Plotly deve rispettare il 100% della cella */
+/* Plotly must respect 100% of the cell */
 .plot .plot-container,
 .plot .svg-container{
   width: 100% !important;
   height: 100% !important;
 }
 
-/* Il plot destro è nascosto di default (mostrato solo in 4D via classe .dual) */
+/* Right plot is hidden by default (shown only in 4D via .dual class) */
 #plot-right{ display: none; }
 #plots.dual #plot-right{ display: block; }
 
@@ -191,7 +191,7 @@ header h1{
   letter-spacing: .2px;
 }
 
-/* label generici */
+/* generic labels */
 #controls label{
   display: block;
   margin: 6px 0;
@@ -200,11 +200,11 @@ header h1{
   color: var(--ui-muted);
 }
 
-/* 1) Nascondi SOLO i label “Source” e “Preset” */
+/* 1) Hide ONLY the "Source" and "Preset" labels */
 #controls label[for="input-source"],
 #controls label[for="preset-select"]{ display: none; }
 
-/* 2) Rimuovi SOLO la scritta x/y/z sopra i select (i menu restano) */
+/* 2) Remove ONLY the x/y/z text above the selects (menus remain) */
 #controls label:has(> #axis-x),
 #controls label:has(> #axis-y),
 #controls label:has(> #axis-z){ font-size: 0; }
@@ -228,7 +228,7 @@ header h1{
   box-shadow: 0 0 0 3px rgba(110,168,254,.25);
 }
 
-/* In 3D mostri la riga z */
+/* In 3D show the z row */
 .z-only{ display: inline-block; }
 
 /* =======================================================
@@ -313,7 +313,7 @@ header h1{
 #shortcuts .shortcut-note > *{ grid-column: 2; }
 
 /* =======================================================
-   PLOTLY — sfondi e testi coerenti
+   PLOTLY — consistent backgrounds and text
    ======================================================= */
 .js-plotly-plot, .plotly, .plot-container{ background: var(--plot-paper) !important; }
 .cartesianlayer, .gl-container{ background: var(--plot-bg) !important; }

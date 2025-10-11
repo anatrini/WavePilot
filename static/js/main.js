@@ -12,13 +12,13 @@ const keysDown = new Set();
 
 // --- helpers ---
 function stepFromModifiers(ev) {
-  // usa le costanti di movimento da core.js
+  // use movement constants from core.js
   if (ev?.altKey)   return CONST.STEP_FINE;
   if (ev?.shiftKey) return CONST.STEP_COARSE;
   return CONST.STEP_BASE;
 }
 
-// Ridimensiona i plot quando cambia la finestra
+// Resize plots when window changes
 function resizePlots() {
   const left = document.getElementById('plot-left');
   if (left && left.offsetParent !== null) Plotly.Plots.resize(left);
@@ -26,7 +26,7 @@ function resizePlots() {
   if (state.dim === 4 && right && right.offsetParent !== null) Plotly.Plots.resize(right);
 }
 
-// Applica input tastiera a uTarget (2D / 3D / 4D)
+// Apply keyboard input to uTarget (2D / 3D / 4D)
 function applyKeyboardInput() {
   if (keysDown.size === 0) return;
 
@@ -85,10 +85,10 @@ function handleKeyUp(ev) {
 
 // Smoothing loop
 function tickSmooth() {
-  // Accetta input tastiera
+  // Accept keyboard input
   if (state.inputSource === 'keyboard') applyKeyboardInput();
 
-  // Lerp su uCurrent
+  // Lerp on uCurrent
   const alpha = CONST.LERP_ALPHA;
   let moved = false;
   for (let i = 0; i < state.dim; i++) {
@@ -99,7 +99,7 @@ function tickSmooth() {
   }
 
   if (moved) {
-    // Denormalizza in [0,1] e aggiorna plot
+    // Denormalise to [0,1] and update plot
     const latentPoint = state.uCurrent.map((uu, j) => uToLatent(uu, j));
     state.cursorPoint = latentPoint;
     updateCursor(latentPoint);
@@ -112,7 +112,7 @@ function tickSmooth() {
 // Boot
 // -------------------------------------------------------
 (async function init() {
-  // 1) Carica dati/meta
+  // 1) Load data/meta
   const resp = await fetch('/data');
   const meta = await resp.json();
 
@@ -121,7 +121,7 @@ function tickSmooth() {
   state.boundsMin = meta.bounds_min;
   state.boundsMax = meta.bounds_max;
 
-  // Preset names: da server oppure fallback ID1..N
+  // Preset names: from server or fallback ID1..N
   const N = state.latent.length;
   if (Array.isArray(meta.preset_names) && meta.preset_names.length === N) {
     state.presetNames = meta.preset_names.map(s => (s == null || s === '') ? null : String(s));
@@ -130,7 +130,7 @@ function tickSmooth() {
   }
   for (let i = 0; i < N; i++) if (!state.presetNames[i]) state.presetNames[i] = `ID${i+1}`;
 
-  // Ricalcola bounds (sicuro: 0..1 nel tuo caso)
+  // Recalculate bounds (safe: 0..1 in your case)
   if (Array.isArray(state.latent) && state.latent.length > 0) {
     const d = state.dim;
     const bmin = new Array(d).fill(+Infinity);
@@ -148,14 +148,14 @@ function tickSmooth() {
 
   buildAxisNames(state.dim);
   setupAxisSelectors();
-  refreshShortcuts(); // mostra i blocchi giusti per 2D/3D/4D
+  refreshShortcuts(); // show the correct blocks for 2D/3D/4D
 
-  // 2) Inizializza u/cursor
+  // 2) Initialise u/cursor
   state.uCurrent = new Array(state.dim).fill(0.0);
   state.uTarget  = new Array(state.dim).fill(0.0);
   state.cursorPoint = state.uCurrent.map((uu, j) => uToLatent(uu, j));
 
-  // 3) Sorgente input
+  // 3) Input source
   if (UI.selInput) {
     state.inputSource = UI.selInput.value || 'keyboard';
     if (state.inputSource === 'keyboard') {
@@ -197,7 +197,7 @@ function tickSmooth() {
     });
   }
 
-  // 5) Mostra/nascondi controlli per 2D/3D/4D
+  // 5) Show/hide controls for 2D/3D/4D
   const singleAxisControls = document.getElementById('single-axis-controls');
   const dualAxisControls   = document.getElementById('dual-axis-controls');
   if (state.dim <= 3) {
@@ -208,14 +208,14 @@ function tickSmooth() {
     if (dualAxisControls)   dualAxisControls.style.display   = 'flex';
   }
 
-  // 6) Disegno iniziale
+  // 6) Initial drawing
   drawPlots();
   updateCursor(state.cursorPoint);
-  // Resize iniziale + resize su finestra
+  // Initial resize + resize on window
   resizePlots();
   window.addEventListener('resize', resizePlots, { passive: true });
 
-  // 7) Wiring specifico per 4D dual
+  // 7) Specific wiring for 4D dual
   if (state.dim === 4) {
     setupDual2DControls();
     const leftEl  = document.getElementById('plot-left');
@@ -227,7 +227,7 @@ function tickSmooth() {
   // 8) Loop smoothing
   requestAnimationFrame(tickSmooth);
 
-  // 9) Socket → aggiorna cursor e viste
+  // 9) Socket → update cursor and views
   setupSocket((lp) => {
     state.cursorPoint = lp;
     updateCursor(lp);

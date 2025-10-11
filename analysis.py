@@ -5,7 +5,7 @@
 # import plotly.express as px
 # from glob import glob
 
-# # Path principali ai log diretti (senza transfer learning)
+# # Main paths to direct logs (without transfer learning)
 # logs_path = {
 #     'adaptiverb': "./logs/info_total/adaptiverb",
 #     'obxd': "./logs/info_total/adaptiverb"
@@ -33,7 +33,7 @@
 
 #     return pd.DataFrame(all_configs)
 
-# # Carica e combina dati da entrambi gli strumenti
+# # Load and combine data from both instruments
 # vae_configs, rbf_configs = [], []
 
 # for instrument, path in logs_path.items():
@@ -48,43 +48,44 @@
 # vae_df = pd.concat(vae_configs, ignore_index=True)
 # rbf_df = pd.concat(rbf_configs, ignore_index=True)
 
-# # VISUALIZZAZIONI VAE
+# # VAE VISUALISATIONS
 # fig_vae = px.parallel_coordinates(
 #     vae_df,
 #     dimensions=['num_epochs', 'learning_rate', 'weight_decay', 'n_layers', 'layer_dim', 'kl_beta', 'mse_beta'],
 #     color='validation_error',
-#     title='Distribuzione dei parametri VAE (entrambi gli strumenti)',
+#     title='VAE Parameter Distribution (both instruments)',
 #     color_continuous_scale=px.colors.sequential.Viridis
 # )
 # fig_vae.show()
 
-# # VISUALIZZAZIONI RBF
+# # RBF VISUALISATIONS
 # fig_rbf = px.parallel_coordinates(
 #     rbf_df,
 #     dimensions=['smoothing', 'epsilon', 'degree'],
 #     color='validation_distance',
-#     title='Distribuzione dei parametri RBF (entrambi gli strumenti)',
+#     title='RBF Parameter Distribution (both instruments)',
 #     color_continuous_scale=px.colors.sequential.Viridis
 # )
 # fig_rbf.show()
 
-# # DISTRIBUZIONE DEI KERNEL RBF
+# # RBF KERNEL DISTRIBUTION
 # fig_kernel = px.histogram(rbf_df, x='kernel', color='instrument', barmode='group',
-#                           title='Distribuzione del Kernel RBF')
+#                           title='RBF Kernel Distribution')
 # fig_kernel.show()
 
-# # Ora puoi salvare i risultati aggregati per analisi manuale e scelta finale degli intervalli ristretti:
+# # Save aggregated results for manual analysis and final parameter range selection:
 # vae_df.to_csv("combined_vae_configs.csv", index=False)
 # rbf_df.to_csv("combined_rbf_configs.csv", index=False)
 
-import os
 import json
+import os
 import re
-import pandas as pd
-import plotly.express as px
 from glob import glob
 
-# Paths ai log diretti (senza transfer learning)
+import pandas as pd
+import plotly.express as px
+
+# Paths to direct logs (without transfer learning)
 logs_path = {
     'adaptiverb': "./logs/info_total/adaptiverb",
     'obxd': "./logs/info_total/obxd"
@@ -112,7 +113,7 @@ def extract_configs(log_folder, param_type):
 
     return pd.DataFrame(all_configs)
 
-# Carica e combina dati da entrambi gli strumenti
+# Load and combine data from both instruments
 vae_configs, rbf_configs = [], []
 
 for instrument, path in logs_path.items():
@@ -127,11 +128,11 @@ for instrument, path in logs_path.items():
 vae_df = pd.concat(vae_configs, ignore_index=True)
 rbf_df = pd.concat(rbf_configs, ignore_index=True)
 
-# Converte la funzione di attivazione da categorica a numerica
+# Convert activation function from categorical to numerical
 activation_mapping = {'ReLU': 0, 'LeakyReLU': 1, 'ELU': 2, 'GELU': 3}
 vae_df['activation_numeric'] = vae_df['activation_function'].map(activation_mapping)
 
-# VISUALIZZAZIONI VAE con funzione di attivazione integrata
+# VAE visualisations with integrated activation function
 fig_vae = px.parallel_coordinates(
     vae_df,
     dimensions=[
@@ -140,17 +141,17 @@ fig_vae = px.parallel_coordinates(
         'weight_decay',
         'n_layers',
         'layer_dim',
-        'activation_numeric',  # Ora inclusa!
+        'activation_numeric',  # Now included!
         'kl_beta',
         'mse_beta'
     ],
     color='validation_error',
-    title='Distribuzione dei parametri VAE (inclusa activation function)',
+    title='VAE Parameter Distribution (including activation function)',
     color_continuous_scale=px.colors.sequential.Viridis,
     labels={'activation_numeric': 'Activation Function'}
 )
 
-# Modifica manualmente le etichette numeriche in quelle delle funzioni di attivazione
+# Manually modify numerical labels to activation function names
 fig_vae.update_layout(
     coloraxis_colorbar=dict(title="Validation Error"),
 )
@@ -165,21 +166,21 @@ fig_vae.update_traces(
 
 fig_vae.show()
 
-# VISUALIZZAZIONI RBF (senza modifiche)
+# RBF visualisations
 fig_rbf = px.parallel_coordinates(
     rbf_df,
     dimensions=['smoothing', 'epsilon', 'degree'],
     color='validation_distance',
-    title='Distribuzione dei parametri RBF (entrambi gli strumenti)',
+    title='RBF Parameter Distribution (both instruments)',
     color_continuous_scale=px.colors.sequential.Viridis
 )
 fig_rbf.show()
 
-# DISTRIBUZIONE DEI KERNEL RBF (senza modifiche)
+# RBF kernel distribution
 fig_kernel = px.histogram(rbf_df, x='kernel', color='instrument', barmode='group',
-                          title='Distribuzione del Kernel RBF')
+                          title='RBF Kernel Distribution')
 fig_kernel.show()
 
-# Salva risultati aggregati
+# Save aggregated results
 vae_df.to_csv("combined_vae_configs.csv", index=False)
 rbf_df.to_csv("combined_rbf_configs.csv", index=False)

@@ -165,11 +165,16 @@ class RBFInterpolation:
         y = np.clip(y, DATA_MIN, DATA_MAX)
         return y
 
-    def send_data(self, osc_client, cursor_position: Sequence[float]) -> None:
+    def send_data(self, osc_client, u, addr_list):
         """
-        Interpolate at the given cursor position and send the flat list via OSC under
-        the address '/interpolated_data'.
+        Compute y = f(u) and send ONE OSC message per parameter
+        using the provided per-parameter OSC address list (order matches y).
         """
-        interpolated_data = self.interpolate(cursor_position)
-        # logging.info("Interpolated data length: %s", interpolated_data.size)
-        osc_client.send_message("/interpolated_data", interpolated_data.flatten().tolist())
+        y = self.interpolate(u)
+        y_vec = np.asarray(y, dtype=float).ravel().tolist()
+        n = min(len(addr_list), len(y_vec))
+        if n <= 0:
+            return y_vec
+        for i in range(n):
+            osc_client.send_message(str(addr_list[i]), float(y_vec[i]))
+        return y_vec

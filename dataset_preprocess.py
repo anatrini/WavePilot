@@ -87,10 +87,10 @@ class DatasetPreprocessor:
     
     def find_highly_correlated_features(self, threshold=CORRELATION_THRESHOLD):
         corr_matrix = self.df.corr().abs()
-        # Crea una maschera triangolare superiore (k=1 per escludere la diagonale)
+        # Create upper triangular mask (k=1 to exclude diagonal)
         mask = np.triu(np.ones(corr_matrix.shape), k=1).astype(bool)
-        upper = corr_matrix.where(mask)  # Applica la maschera
-        # Trova colonne con almeno un valore sopra la soglia
+        upper = corr_matrix.where(mask)  # Apply mask
+        # Find columns with at least one value above threshold
         correlated = [col for col in upper.columns if any(upper[col] > threshold)]
         logging.info(f"Highly correlated features (threshold={threshold}): {correlated}")
         return correlated

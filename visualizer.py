@@ -1,182 +1,248 @@
-"""
-Server-side bridge for OSC-controlled latent navigation (2–4D).
-
-Responsibilities:
-  - Keep latent metadata (N × d, with 2 ≤ d ≤ 4).
-  - Listen to OSC cursor updates as k values in [-1, 1]^d.
-  - Forward the normalised cursor to the RBF interpolator (which performs mapping/clipping).
-  - Echo the cursor to the browser via Socket.IO as 'cursor_update' so the Plotly marker stays in sync.
-
-Notes:
-  - The Flask web server and Socket.IO lifecycle live in train.py.
-  - Mouse-driven updates originate in the browser and are handled in train.py
-    via the 'cursor_move' Socket.IO event. This module focuses on OSC → server → UI.
-"""
+# visualizer.py
+# -----------------------------------------------------------------------------
+# Visualiser: Receives OSC '/cursor [x y z]' from controller and updates the
+# browser UI via Socket.IO with 'cursor_update' event {u, y}.
+#
+# Important:
+# - This module does NOT send anything to ReaLearn. Egress to ReaLearn happens
+#   ONLY in the web app's socket handler (socket_handlers.cursor_move),
+#   which applies anti-flood throttling and uses per-parameter address lists.
+#
+# - Maintains both async (run) and background threaded (start) versions for
+#   compatibility. No nested functions.
+# -----------------------------------------------------------------------------
 
 from __future__ import annotations
 
 import asyncio
-from threading import Thread
-from typing import Optional
+import threading
+from typing import List, Tuple, Union, Optional
 
 import numpy as np
-from pythonosc import dispatcher as osc_dispatcher
-from pythonosc import osc_server
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.osc_server import AsyncIOOSCUDPServer
+
+from constants import (
+    IP_ADDRESS,     # tipicamente usato per il bind/host locale del visualiser
+    FORWARD_PORT,   # porta OSC su cui il visualiser riceve il /cursor dal controller
+)
 
 from logger import setup_logger
-from constants import VIZ_MIN, VIZ_MAX, MIN_LATENT_DIM, MAX_LATENT_DIM
-
 
 log = setup_logger("Visualizer")
+
+Number = Union[int, float]
+
+
+def _coerce_cursor(args: Tuple[Union[str, Number], ...]) -> List[float]:
+    """
+    Coerce an arbitrary OSC payload into a 3D cursor [x, y, z].
+
+    Policy (British English):
+      - Accept 2D or 3D vectors; pad z=0.0 if missing.
+      - Coerce each element to float.
+      - Return [] if coercion fails or the arity is not meaningful.
+    """
+    try:
+        vec = [float(a) for a in args]
+    except Exception:
+        return []
+
+    if not vec:
+        return []
+    if len(vec) >= 3:
+        return vec[:3]
+    if len(vec) == 2:
+        return [vec[0], vec[1], 0.0]
+    return []  # single value is not meaningful for a 2D/3D cursor
 
 
 class Visualize:
     """
-    OSC bridge for Plotly-based latent visualisation.
+    Minimal OSC → UI bridge for visualisation:
 
-    Parameters
-    ----------
-    data : np.ndarray of shape (N, d)
-        Latent coordinates used by the client (must match the latent space used by RBF).
-        d must be in {2, 3, 4}.
-    socketio : object
-        An object exposing 'emit(event, payload)' (e.g., Flask-SocketIO instance).
+        controller  ──(OSC '/cursor [x y z]')──>  Visualize
+        Visualize   ──(Socket.IO 'cursor_update')──>  Browser
 
-    Behaviour
-    ---------
-    - Incoming OSC cursor values are expected as k floats in [-1, 1].
-      They are clamped and resized to match d (drop extras, pad missing with 0.0).
-    - The same values are dispatched to:
-        (1) interpolator.send_data(osc_client, u_list)   # u ∈ [-1,1]^d
-        (2) socketio.emit('cursor_update', {'u': u_list})
+    Responsibilities:
+      • Compute y = interpolator.interpolate(u) for UI feedback only.
+      • Emit {'u': u, 'y': y} as 'cursor_update' to the browser.
+
+    Non-responsibilities:
+      • Do NOT send anything to ReaLearn here (handled in socket_handlers.py).
     """
-        
-    def __init__(self, data: np.ndarray, socketio) -> None:
-        
-        Z = np.asarray(data, dtype=float)
-        assert Z.ndim == MIN_LATENT_DIM and MIN_LATENT_DIM <= Z.shape[1] <= MAX_LATENT_DIM # Latent data must be [N, d] with 2 ≤ d ≤ 4.
 
-        self.data = Z
-        self.dim = int(Z.shape[1])
+    # -------------------------------------------------------------------------
+    # Lifecycle
+    # -------------------------------------------------------------------------
 
-        # Per-dimension bounds (kept for reference if needed server-side)
-        self.bounds_min = Z.min(axis=0)
-        self.bounds_max = Z.max(axis=0)
-
-        self.socketio = socketio
-
-        # Runtime dependecies set at run()
-        self._interpolator = None
-        self._osc_client = None
-
-        # OSC server internals
-        self._osc_server: Optional[osc_server.ThreadingOSCUDPServer] = None
-        self._osc_thread: Optional[Thread] = None
-        self._running = False
-
-    # ----------------------------- public API -----------------------------
-    async def run(self, listen_ip: str, listen_port: int, interpolator, osc_client) -> None:
+    def __init__(self, latent_data: np.ndarray, socketio) -> None:
         """
-        Start the OSC listener in a background thread and keep the coroutine alive.
-
         Parameters
         ----------
-        listen_ip : str
-            IP to bind the OSC server (e.g., '127.0.0.1').
-        listen_port : int
-            Port to bind the OSC server (device → this process).
-        interpolator : RBFInterpolation
-            Instance exposing send_data(osc_client, u_list) where u ∈ [-1,1]^d.
-        osc_client : pythonosc.udp_client.SimpleUDPClient
-            Destination for sending interpolated data as OSC messages.
+        latent_data : np.ndarray
+            Optional dataset used for UI context (plots, guides, etc.).
+        socketio : flask_socketio.SocketIO
+            Server instance to notify the browser in real time.
+        """
+        self.latent = latent_data
+        self.socketio = socketio
+
+        # Runtime members set in run()/start()
+        self._interpolator = None            # set in run()
+        self._server_transport = None        # AsyncIOUDP transport
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._stop_ev: Optional[asyncio.Event] = None
+
+        # Thread support (optional background runner)
+        self._thread: Optional[threading.Thread] = None
+
+    # -------------------------------------------------------------------------
+    # Public API (Threaded)
+    # -------------------------------------------------------------------------
+
+    def start(self, host: str = IP_ADDRESS, port: int = FORWARD_PORT, *,
+              interpolator=None, _osc_client_unused=None) -> None:
+        """
+        Start the visualiser in a background thread.
+        Notes (British English):
+          - `interpolator` is required to compute 'y' for the UI.
+          - `_osc_client_unused` is kept for compatibility; it is not used.
+          - The server binds to (host, port) and runs until `stop()` is called.
+        """
+        if self._thread is not None:
+            log.warning("Visualizer already running; ignoring second start()")
+            return
+
+        def _thread_main():
+            try:
+                asyncio.run(self.run(host, port, interpolator, _osc_client_unused))
+            except Exception as e:
+                log.error("Visualizer thread crashed: %s", e)
+
+        self._thread = threading.Thread(target=_thread_main, name="VisualizerThread", daemon=True)
+        self._thread.start()
+        log.info("Visualizer thread started on %s:%d", host, port)
+
+    def stop(self, timeout: float = 1.0) -> None:
+        """
+        Request graceful shutdown if running in threaded mode.
+        It signals the async loop event and joins the background thread.
+        """
+        if self._loop is not None and self._stop_ev is not None:
+            # Signal stop on the loop thread
+            self._loop.call_soon_threadsafe(self._stop_ev.set)
+
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+            self._thread = None
+            log.info("Visualizer thread joined")
+
+    # -------------------------------------------------------------------------
+    # Public API (Async)
+    # -------------------------------------------------------------------------
+
+    async def run(self, host: str, port: int, interpolator, _osc_client_unused=None) -> None:
+        """
+        Start the OSC server and run until asked to stop.
+
+        Notes (British English):
+          - This is the canonical async runner (awaited by the orchestrator).
+          - The 'interpolator' is used ONLY for UI feedback; there is no OSC egress here.
+          - '_osc_client_unused' is intentionally ignored to keep the signature
+            compatible with older call sites.
         """
         self._interpolator = interpolator
-        self._osc_client = osc_client
+        self._loop = asyncio.get_running_loop()
+        self._stop_ev = asyncio.Event()
 
-        self._start_osc_server(listen_ip, listen_port)
+        dispatcher = Dispatcher()
 
-        self._running = True
+        # Register a bound method (sync) as per python-osc expectations; it will
+        # schedule the actual async processing on the event loop.
+        dispatcher.map("/cursor", self.on_osc_sync)
+        dispatcher.set_default_handler(self.on_osc_sync)
+
         try:
-            while self._running:
-                await asyncio.sleep(0.1)
+            server = AsyncIOOSCUDPServer((host, port), dispatcher, self._loop)
+            transport, _ = await server.create_serve_endpoint()
+            self._server_transport = transport
+            log.info("Visualizer OSC server bound on %s:%d (listening)", host, port)
+        except OSError as e:
+            log.error("Visualizer cannot bind UDP %s:%d. %s", host, port, e)
+            return
+
+        try:
+            # Park here until stop() signals the event (threaded) or forever (awaited).
+            await self._stop_ev.wait()
+        except (KeyboardInterrupt, SystemExit):
+            log.info("Visualizer shutting down…")
         finally:
-            self._stop_osc_server()
-
-    def stop(self) -> None:
-        """Request a graceful stop; the awaiting task will close the OSC server."""
-        self._running = False
-
-
-    # --------------------------- OSC plumbing ----------------------------
-    def _start_osc_server(self, ip: str, port: int) -> None:
-        disp = osc_dispatcher.Dispatcher()
-
-        # Generic cursor route: expects k floats in [-1,1]; k will be resized to match d.
-        disp.map("/cursor", self._on_osc_cursor)
-
-        # If your device uses different addresses, add more mappings here:
-        # disp.map("/device/cursor", self._on_osc_cursor)
-
-        srv = osc_server.ThreadingOSCUDPServer((ip, port), disp)
-        self._osc_server = srv
-
-        th = Thread(target=srv.serve_forever, name="OSCServerThread", daemon=True)
-        th.start()
-        self._osc_thread = th
-
-        log.info("OSC server listening on %s:%s", ip, port)
-
-    def _stop_osc_server(self) -> None:
-        if self._osc_server is not None:
             try:
-                self._osc_server.shutdown()
-                log.info("OSC server shutdown requested!")
-            except Exception as exc:
-                log.error("OSC server shutdown error: %s", str(exc))
-        if self._osc_thread is not None:
-            try:
-                self._osc_thread.join(timeout=2.0)
-            except Exception:
-                pass
-        
-        self._osc_server = None
-        self._osc_thread = None
+                if self._server_transport is not None:
+                    self._server_transport.close()
+            finally:
+                self._server_transport = None
+                self._loop = None
+                self._stop_ev = None
 
+    # -------------------------------------------------------------------------
+    # OSC handling (no nested defs)
+    # -------------------------------------------------------------------------
 
-    # --------------------------- event handlers --------------------------
-    def _on_osc_cursor(self, unused_addr: str, *args) -> None:
+    def on_osc_sync(self, address: str, *args) -> None:
         """
-        Handle OSC cursor updates coming from an external device.
-
-        Args are interpreted as k floats in [-1, 1]. The vector is resized to self.dim:
-          - extra values are dropped,
-          - missing values are padded with 0.0 (centre in normalised space).
-
-        The normalised cursor is then:
-          1) forwarded to the RBF interpolator (send_data),
-          2) echoed to the browser as 'cursor_update'.
+        Synchronous entrypoint required by python-osc's Dispatcher.
+        We do minimal work here and schedule the async handler on the event loop.
         """
-        u = np.asarray(args, dtype=float).ravel()
+        if address != "/cursor" and not address.endswith("/cursor"):
+            return  # ignore non-cursor traffic quietly
 
-        # Resize to latent dimensionality
-        if u.size > self.dim:
-            u = u[: self.dim]
-        elif u.size < self.dim:
-            pad = self.dim - u.size
-            u = np.pad(u, (0, pad), mode="constant", constant_values=0.0)
+        # Coerce payload to [x, y, z]
+        u = _coerce_cursor(args)
+        if not u:
+            return
 
-        # Clamp to [-1, 1] for robustness
-        u = np.clip(u, VIZ_MIN, VIZ_MAX)
+        # Schedule the async handler; tolerate both threaded and awaited modes.
+        if self._loop is None:
+            # If no loop is known yet (should not happen after run/start), ignore.
+            return
+        asyncio.run_coroutine_threadsafe(self._handle_cursor(u), self._loop)
 
-        # 1. interpolation -> OSC
+    async def _handle_cursor(self, u: List[float]) -> None:
+        """
+        Async processing of a cursor update:
+          - Interpolate for UI feedback.
+          - Emit 'cursor_update' to the browser.
+        """
         try:
-            if self._interpolator is not None and self._osc_client is not None:
-                self._interpolator.send_data(self._osc_client, u.tolist())
-        except Exception as exc:
-            log.error("Interpolator send_data failed: %s", str(exc))
+            y = self._interpolator.interpolate(u) if self._interpolator is not None else []
+            u_list = np.asarray(u, dtype=float).ravel().tolist()
+            y_list = np.asarray(y, dtype=float).ravel().tolist()
+        except Exception as e:
+            log.error("Visualizer interpolate failed: %s", e)
+            return
 
-        # 2. Echo to UI
-        try:
-            self.socketio.emit("cursor_update", {"u": u.tolist()})
-        except Exception as exc:
-            log.error("SocketIO emit failed: %s", str(exc))
+        # Notify the browser UI; front-end may optionally forward back to the
+        # server's socket handler which deals with ReaLearn (anti-flood etc.).
+        self.socketio.emit("cursor_update", {"u": u_list, "y": y_list})
+
+
+# -----------------------------------------------------------------------------
+# Optional convenience utilities for quick startup using project constants.
+# -----------------------------------------------------------------------------
+
+def start_visualizer_thread(visualizer: Visualize, interpolator) -> None:
+    """
+    Convenience helper to start the visualiser on (IP_ADDRESS, FORWARD_PORT)
+    in a background thread using project constants.
+    """
+    visualizer.start(IP_ADDRESS, FORWARD_PORT, interpolator=interpolator)
+
+
+async def run_visualizer_async(visualizer: Visualize, interpolator) -> None:
+    """
+    Convenience helper to await the visualiser on (IP_ADDRESS, FORWARD_PORT)
+    using project constants.
+    """
+    await visualizer.run(IP_ADDRESS, FORWARD_PORT, interpolator, _osc_client_unused=None)

@@ -1,94 +1,150 @@
+# plugin_main.py
+# Orchestrator: CLI entrypoint for "render" (sync) and "controller" (async)
+
+from __future__ import annotations
+
 import argparse
+import asyncio
+import logging
+import sys
 
-#from constants import IN_GUI_PORT, OUT_GUI_PORT
 from logger import setup_logger
-from plugin_renderer import main as renderer_main
-from plugin_controller import main as controller_main
+
+# Render path (sync)
+# Adjust the import if your renderer lives elsewhere.
+try:
+    from plugin_renderer import main as renderer_main  # type: ignore
+except Exception:  # pragma: no cover
+    renderer_main = None  # will be checked at runtime
+
+# Controller path (async)
+# We import the coroutine and run it with asyncio.run(...)
+from plugin_controller import _run_async as controller_main  # type: ignore
 
 
-log = setup_logger("Plugin Main")
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Unified main entrypoint for plugin communication")
-
-    subparser = parser.add_subparsers(dest="mode", required=True)
-
-    # Renderer parser
-    renderer_parser = subparser.add_parser("render", help="Run remote preset renderization pipeline")
-    renderer_parser.add_argument("-r", "--render_mode",
-                        dest="render_mode",
-                        type=str,
-                        default="preset",
-                        help="Select preset generation mode. If set to 'preset', iterate through available presets; if set to 'random', generate random values for each parameter. Default: 'preset'.")
-
-    renderer_parser.add_argument("-i", "--iterations",
-                        dest="no_iterations",
-                        type=int,
-                        default=1,
-                        help="Specify the number of random batches of parameter values to generate. This option is only available when --render_mode is set to 'random'. Default: 1.")
-
-    renderer_parser.add_argument("-d", "--directory",
-                        dest="directory",
-                        type=str,
-                        default="rendered_recordings",
-                        help="Name of the sub-directory to store rendered presets. Default: 'rendered_recordings'.")
-
-    renderer_parser.add_argument("-n", "--dataset_filename",
-                        dest="dataset_filename",
-                        type=str,
-                        default="dataset",
-                        help="Set the name of .csv, containing the values of rendered presets. Default: 'dataset'.")
-
-    renderer_parser.add_argument("-t", "--silence_thresh",
-                        dest="silence_thresh",
-                        type=float,
-                        default=1e-6,
-                        help="Adjust the silence threshold to prevent the recording of silent audio files. Default: 1e-6.")
-    
-    # Controller parser
-    controller_parser = subparser.add_parser("controller", help="Run remote plugin controller pipeline")
-    controller_parser.add_argument("-f", "--filepath",
-                        dest="filepath",
-                        type=str,
-                        required=True,
-                        help="Path to the JSON file containing the OSC addresses scheme.")
-    
-    args = parser.parse_args()
-
-    if args.mode == "render":
-        try:
-            if args.render_mode == "preset" and args.no_iterations != 1:
-                raise ValueError("Iterations argument is only available if mode is set to 'random'!")
-            if args.render_mode == "random" and args.no_iterations < 1:
-                raise ValueError("The number of parameters batches to be generated must be at least 1!")
-        except ValueError as e:
-            log.error(str(e))
-            parser.print_help()
-            exit(1)
-    
-
-    return args
+log = setup_logger("Plugin Main", level=logging.INFO)
 
 
-def main():
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Plugin orchestrator: render (sync) or controller (async)."
+    )
+    subparsers = parser.add_subparsers(dest="mode", required=True)
+
+    # ---- render subcommand (sync) ----
+    render_parser = subparsers.add_parser(
+        "render", help="Run the rendering pipeline (synchronous)"
+    )
+    render_parser.add_argument(
+        "--render-mode",
+        dest="render_mode",
+        type=str,
+        default="default",
+        help="Rendering mode/preset to use.",
+    )
+    render_parser.add_argument(
+        "-d",
+        "--directory",
+        dest="directory",
+        type=str,
+        required=True,
+        help="Base directory for inputs/outputs.",
+    )
+    render_parser.add_argument(
+        "--dataset-filename",
+        dest="dataset_filename",
+        type=str,
+        required=True,
+        help="Dataset file name.",
+    )
+    render_parser.add_argument(
+        "--silence-thresh",
+        dest="silence_thresh",
+        type=float,
+        default=-40.0,
+        help="Silence threshold (dB).",
+    )
+    render_parser.add_argument(
+        "--no-iterations",
+        dest="no_iterations",
+        type=int,
+        default=1,
+        help="Number of iterations.",
+    )
+
+    # ---- controller subcommand (async) ----
+    controller_parser = subparsers.add_parser(
+        "controller",
+        help="Run the OSC controller (async) that forwards to ReaLearn.",
+    )
+    controller_parser.add_argument(
+        "-f",
+        "--filepath",
+        dest="filepath",
+        type=str,
+        required=True,
+        help="Path to the JSON file containing the OSC addresses scheme.",
+    )
+    controller_parser.add_argument(
+        "-i",
+        "--ingest",
+        dest="ingest",
+        type=str,
+        choices=["none", "touch", "imu", "orientation"],
+        default="none",
+        help="Select the pre-processing function applied to incoming data.",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
     args = parse_arguments()
 
     try:
         if args.mode == "render":
+            if renderer_main is None:
+                log.error("Renderer is unavailable (import failed).")
+                sys.exit(1)
+
+            log.info(
+                "Starting render | mode=%s dir=%s dataset=%s iterations=%s silence=%s",
+                args.render_mode,
+                args.directory,
+                args.dataset_filename,
+                args.no_iterations,
+                args.silence_thresh,
+            )
+
             renderer_main(
                 render_mode=args.render_mode,
                 directory=args.directory,
                 dataset_filename=args.dataset_filename,
                 silence_thresh=args.silence_thresh,
-                no_iterations=args.no_iterations)
+                no_iterations=args.no_iterations,
+            )
+
         elif args.mode == "controller":
-            controller_main(filepath=args.filepath)
+            log.info(
+                "Starting controller | filepath=%s ingest=%s",
+                args.filepath,
+                args.ingest,
+            )
+            # controller_main is an async coroutine imported from plugin_controller_async
+            asyncio.run(controller_main(filepath=args.filepath, proc_mode=args.ingest))
+
         else:
-            log.error("Invalid mode selected")
+            log.error("Invalid mode selected: %s", args.mode)
+            sys.exit(1)
+
+    except KeyboardInterrupt:
+        log.info("Interrupted by user.")
+        sys.exit(130)
 
     except Exception as e:
-        log.error("An error occurred: %s:", str(e))
-        exit(1)
+        log.exception("Fatal error: %s", e)
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

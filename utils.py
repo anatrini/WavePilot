@@ -17,7 +17,7 @@ logging = setup_logger("Utils Logger")
 
 # ----------------------- Tensor utilities ----------------------- #
 def to_tensor(x: Union[np.ndarray, torch.Tensor], device: torch.device) -> torch.Tensor:
-    """Convert to torch.FloatTensor on the used device"""
+    """Convert to torch.FloatTensor on the specified device."""
     if isinstance(x, np.ndarray):
         return torch.from_numpy(x.astype(np.float32)).to(device)
     return x.to(device).float()
@@ -25,7 +25,7 @@ def to_tensor(x: Union[np.ndarray, torch.Tensor], device: torch.device) -> torch
 
 # ----------------------- Architecture helpers ----------------------- #
 def round_to_multiple(n: int, base: int) -> int:
-    """Arrotonda n al multiplo più vicino di 'base' (>= base)."""
+    """Round n to the nearest multiple of 'base' (>= base)."""
     if base <= 1:
         return n
     return max(base, int(round(n / base) * base))
@@ -35,13 +35,16 @@ def compute_hidden_dims(
     latent_dim: int,
     width_scale: float = 1.0,  # >0
     depth: int = 2,            # {1,2,3}
-    round_to: int = 8,         # multiplo per stabilità
+    round_to: int = 8,         # multiple for stability
     min_hidden: int = 32,
     max_hidden: int = 2048
 ) -> list[int]:
     """
-    Calcola hidden layers 'a imbuto' per MLP encoder/decoder in base a D e latente.
-    Depth controlla quante hidden usare, width_scale la capacità globale.
+    Compute funnel-shaped hidden layers for MLP encoder/decoder based on input and latent dimensions.
+
+    Parameters:
+        depth: controls number of hidden layers
+        width_scale: controls global capacity
     """
     depth = int(max(1, min(3, depth)))
 
@@ -63,7 +66,7 @@ def compute_hidden_dims(
     elif depth == 2:
         return [h1, h2]
     else:
-        # monotonia decrescente per evitare "espansioni"
+        # Enforce decreasing monotonicity to avoid expansion
         h2 = min(h2, h1)
         h3 = min(h3, h2)
         return [h1, h2, h3]
@@ -101,8 +104,8 @@ class LatentScaler:
 
 
 # ----------------------- Runtime & Reproducibility ----------------------- #
-    # Set GPU device if available according to OS
 def get_device() -> torch.device:
+    """Select GPU device if available according to OS."""
     if torch.cuda.is_available():
         return torch.device("cuda")
     elif torch.backends.mps.is_available():
@@ -112,8 +115,8 @@ def get_device() -> torch.device:
 
 
 
-    # Set all seeds to ensure reproducibility
 def set_global_seeds(seed):
+    """Set all random seeds to ensure reproducibility across runs."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -204,7 +207,7 @@ def remove_duplicate_lines(file_path):
 
 # ----------------------- Search space versioning ----------------------- #
 def space_fingerprint(space: dict) -> str:
-    # Hash dict of the search space for optimization
+    """Generate a short hash fingerprint of the hyperparameter search space for identification."""
     payload = json.dumps(space, sort_keys=True, separators=(",", ":"))
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:8]
 
@@ -225,17 +228,17 @@ def plot_reconstruction_error(original_data, reduced_data, reconstructed_data):
     average_error = np.mean(reconstruction_error)
     print(average_error)
 
-    # Get x, y, z cohordinates from reduced data
+    # Get x, y, z coordinates from reduced data
     x, y, z = reduced_data.T
 
-    # Crea un grafico a dispersione 3D dell'errore di ricostruzione
+    # Create a 3D scatter plot of reconstruction error
     fig = go.Figure(
         data=[
             go.Scatter3d(
-                x=x, 
-                y=y, 
-                z=z, 
-                mode="markers", 
+                x=x,
+                y=y,
+                z=z,
+                mode="markers",
                 marker=dict(size=5, color=reconstruction_error, colorscale="Viridis"))])
     
     fig.update_layout(

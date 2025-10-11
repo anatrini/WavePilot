@@ -23,17 +23,18 @@ from constants import (
 )
 
 # ============================================================
-# VAE deterministico per massima ricostruzione (overfitting)
+# Deterministic VAE for maximum reconstruction (overfitting)
 # ============================================================
 
 class DeterministicVAE(nn.Module):
     """
-    VAE configured to MAXIMIZE reconstruction on micro datasets.
-    Key choices:
-      - Deterministic by default: uses z = mu in forward (no sampling noise).
-      - Optional KL with a tiny weight (default ~0): does not force latent spread.
-      - Decoder ends with Sigmoid: outputs are kept in [0, 1] to match normalized data.
-      - No dropout, no weight decay: overfitting is desired.
+    VAE configured to maximise reconstruction on micro datasets.
+
+    Key design choices:
+      - Deterministic by default: uses z = mu in forward (no sampling noise)
+      - Optional KL with minimal weight (default ≈0): does not penalise latent spread
+      - Decoder ends with Sigmoid: outputs constrained to [0, 1] to match normalised data
+      - No dropout, no weight decay: overfitting is desired for small datasets
     """
 
     def __init__(
@@ -41,9 +42,9 @@ class DeterministicVAE(nn.Module):
         input_dim: int,
         latent_dim: int = 3,
         hidden_dims: Optional[List[int]] = None,
-        kl_beta: float = DEFAULT_KL_BETA,              # ~0: do not penalize "memorization" capacity
-        deterministic: bool = True,        # z = mu during both training and evaluation
-        input_noise_std: float = DEFAULT_INPUT_NOISE_STD,      # keep 0 by default to avoid hurting reconstruction
+        kl_beta: float = DEFAULT_KL_BETA,              # ≈0: do not penalise memorisation capacity
+        deterministic: bool = True,                            # z = mu during both training and evaluation
+        input_noise_std: float = DEFAULT_INPUT_NOISE_STD,     # keep 0 by default to avoid hurting reconstruction
     ):
         super().__init__()
         assert MIN_LATENT_DIM <= latent_dim <= MAX_LATENT_DIM, "Latent dimensionality must be between 2 and 4."
@@ -57,8 +58,8 @@ class DeterministicVAE(nn.Module):
         self.activation = nn.SiLU()
 
         # Architecture:
-        # To maximize reconstruction with very few samples, keep the MLP fairly capacious
-        # but not excessively deep. Defaults target 30–120 features with two reasonable hidden layers.
+        # To maximise reconstruction with very few samples, keep the MLP fairly capacious
+        # but not excessively deep. Defaults target 30–120 features with two hidden layers.
         if hidden_dims is None:
             hidden_dims = compute_hidden_dims(
                 input_dim=input_dim,
@@ -135,18 +136,19 @@ class DeterministicVAE(nn.Module):
         per_feature_weights: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Reconstruction term: plain MSE (optionally per-feature weighted in a numerically stable way).
-        KL term: optional, weighted by kl_beta (default 0).
+        Compute VAE loss with reconstruction and optional KL divergence terms.
 
-        KL equivalences:
-          Implemented:  -0.5 * E[ 1 + logvar - mu^2 - exp(logvar) ]
-          Common form:   0.5 * E[ mu^2 + exp(logvar) - logvar - 1 ]
-          (Algebraically identical)
+        Reconstruction: MSE (optionally per-feature weighted)
+        KL divergence: optional, weighted by kl_beta (default 0)
+
+        KL equivalences (algebraically identical):
+          Implemented:  -0.5 * E[1 + logvar - mu² - exp(logvar)]
+          Common form:   0.5 * E[mu² + exp(logvar) - logvar - 1]
         """
         if per_feature_weights is None:
             recon = F.mse_loss(x_hat, x, reduction="mean")
         else:
-            # Normalize weights so their sum equals feature_dim (keeps scale similar to plain MSE)
+            # Normalise weights so their sum equals feature_dim (keeps scale similar to plain MSE)
             w = per_feature_weights / (per_feature_weights.sum() / per_feature_weights.numel())
             recon = ((x_hat - x) ** 2 * w).mean()
 
@@ -158,14 +160,14 @@ class DeterministicVAE(nn.Module):
 
 
 # ============================================================
-# Wrapper "VectorReducer": API pronta per il tuo flusso
+# VectorReducer: High-level API for VAE training and inference
 # ============================================================
 
 @dataclass
 class TrainConfig:
-    epochs: int = FINAL_EPOCHS                            
+    epochs: int = FINAL_EPOCHS
     lr: float = DEFAULT_LEARNING_RATE                      # Adam without weight decay
-    batch_size: int = DEFAULT_BATCH_SIZE                   # 0 => "full batch" (full dataset at once)
+    batch_size: int = DEFAULT_BATCH_SIZE                   # 0 => full batch (full dataset at once)
     grad_clip: Optional[float] = GRAD_CLIP_DEFAULT         # clipping to prevent spikes
     patience: Optional[int] = None                         # None => no early stopping (overfitting is desirable)
     kl_beta: float = DEFAULT_KL_BETA                       # disabled by default
@@ -173,15 +175,17 @@ class TrainConfig:
     input_noise_std: float = DEFAULT_INPUT_NOISE_STD       # disabled by default
     activation: str = "silu"
     hidden_dims: Optional[List[int]] = None
-    per_feature_weights: Optional[np.ndarray] = None       # optional: stable wieghting
+    per_feature_weights: Optional[np.ndarray] = None       # optional: stable weighting
 
 
 class VectorReducer:
     """
-    Orchestrates:
-      - construction and training of the (quasi) deterministic VAE
-      - extraction of latent codes μ (to be used later with RBF interpolation)
-      - deterministic reconstruction and reconstruction metrics
+    High-level orchestrator for VAE training and inference.
+
+    Responsibilities:
+      - Construction and training of the deterministic VAE
+      - Extraction of latent codes μ (to be used later with RBF interpolation)
+      - Deterministic reconstruction and reconstruction metrics
     """
 
     def __init__(
@@ -195,7 +199,7 @@ class VectorReducer:
         self.device = device or get_device()
 
         # Expect [N, D] tensor in [0,1]; convert to FloatTensor on the target device
-        self.X = to_tensor(data, self.device)  # shape: [N, D], normalizzata 0..1
+        self.X = to_tensor(data, self.device)  # shape: [N, D], normalised 0..1
         assert self.X.ndim == 2, "Input data must be [num_samples, num_features]."
 
         self.num_samples, self.num_features = self.X.shape
@@ -387,7 +391,7 @@ class VectorReducer:
         Percentage of element-wise matches: |x_hat - x| < threshold.
         threshold=0.03 is reasonable for data in [0,1]; adjust as needed.
         """
-        assert self.model is not None, "Modello non addestrato."
+        assert self.model is not None, "Model is not trained."
         X = self.X if data is None else to_tensor(data, self.device)
         X_hat = to_tensor(self.reconstruct(X), self.device)
         diff = (X_hat - X).abs()

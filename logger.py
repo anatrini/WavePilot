@@ -1,10 +1,10 @@
 import logging
 import os
 import time
+from logging.handlers import QueueHandler
 from multiprocessing import current_process
 
 from constants import LOG_FOLDER
-from logging.handlers import QueueHandler
 
 
 def setup_logger(name, log_queue=None, level=logging.INFO, file=False):

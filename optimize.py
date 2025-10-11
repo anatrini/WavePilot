@@ -3,11 +3,8 @@ from multiprocessing import cpu_count
 
 import numpy as np
 import optuna
-#from optuna.pruners import MedianPruner
 from optuna.samplers import TPESampler
-#from optuna.storages import RDBStorage
-
-import torch  # to decide n_jobs when GPU/MPS is present
+import torch
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial.distance import mahalanobis, pdist
 from tqdm import tqdm
@@ -62,10 +59,11 @@ def load_data(filepath, num_entries=None, mask_columns=None):
 # -----------------------------
 def train_and_validate(params, df, trial_number):
     """
-    Esegue un singolo trial VAE in un worker di ProcessPool in modo deterministico.
-    - Fissa il seed per-trial: GLOBAL_SEED + trial_number
-    - Allena su CPU
-    - Ritorna la metrica di ricostruzione (float)
+    Execute a single VAE trial in a ProcessPool worker in a deterministic manner.
+
+    - Sets per-trial seed: GLOBAL_SEED + trial_number
+    - Trains on CPU
+    - Returns reconstruction metric (float)
     """
     set_global_seeds(GLOBAL_SEED + int(trial_number))
 
@@ -294,13 +292,13 @@ class Optimizer:
                         )
                         future_to_idx[fut] = idx
 
-                    # Progress bar when a worker ends
+                    # Update progress bar when a worker completes
                     for fut in as_completed(future_to_idx.keys()):
                         idx = future_to_idx[fut]
                         results[idx] = fut.result()
                         pbar.update(1)
 
-                # tell in batch order
+                # Report results in batch order
                 for (trial, _), value in zip(batch, results):
                     self.study_vae.tell(trial, value)
 

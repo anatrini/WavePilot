@@ -10,13 +10,20 @@ import numpy as np
 import pandas as pd
 import reapy
 import sounddevice as sd
-
-from constants import NUM_CHANNELS, SAMPLERATE, BLOCKSIZE, AUTOSAVE_INTERVAL, TARGET_dBFS, DATASET_FOLDER, RENDERED_AUDIO_FOLDER, RECORDING_LENGTH
-from logger import setup_logger
 from reapy import reascript_api as RPR
 from scipy.io.wavfile import write
 
-
+from constants import (
+    AUTOSAVE_INTERVAL,
+    BLOCKSIZE,
+    DATASET_FOLDER,
+    NUM_CHANNELS,
+    RECORDING_LENGTH,
+    RENDERED_AUDIO_FOLDER,
+    SAMPLERATE,
+    TARGET_DBFS,
+)
+from logger import setup_logger
 
 log = setup_logger("Plugin renderer")
 
@@ -122,17 +129,17 @@ class AudioRecorder:
     def _normalize_audio(self, audio_data):
         if audio_data.size == 0:
             return audio_data
-        
+
         # Estimate peak value
         peak = np.max(np.abs(audio_data))
         if peak == 0:
-            return audio_data # prevent division by 0
-        
+            return audio_data  # Prevent division by zero
+
         # Estimate scale factor for target dBFS
-        target_linear = 10 ** (TARGET_dBFS / 20)
+        target_linear = 10 ** (TARGET_DBFS / 20)
         scale_factor = target_linear / peak
 
-        # Apply normalization with clipping prevention
+        # Apply normalisation with clipping prevention
         return np.clip(audio_data * scale_factor, -1.0, 1.0)
         
     def _audio_callback(self, indata, frames, time, status):
@@ -140,16 +147,15 @@ class AudioRecorder:
         self.recording = np.concatenate((self.recording, indata))
 
 # ======================
-# MAIN FUNCTION (LAST)
+# Main entry point
 # ======================
 
-def main(render_mode, 
-        directory, 
-        dataset_filename, 
+def main(render_mode,
+        directory,
+        dataset_filename,
         silence_thresh,
         no_iterations):
-    
-    """Primary entry point for rendering operations"""
+    """Primary entry point for rendering operations."""
     # Initialize core components
     data_handler = DataHandler(dataset_filename)
     recorder = AudioRecorder(directory, silence_thresh)
@@ -163,7 +169,7 @@ def main(render_mode,
     signal.signal(signal.SIGINT, lambda s, f: _handle_interrupt(s, f, data_handler))
     
     try:
-        # Preset mode logic
+        # Process preset mode
         if render_mode == "preset":
             num_presets = plugin.n_presets
             for preset_idx in range(num_presets):
@@ -191,7 +197,7 @@ def main(render_mode,
                     param_values["file"] = filename
                     data_handler.add_record(param_values)
         
-        # Random mode logic        
+        # Process random mode
         else:
             for _ in range(no_iterations):
                 param_values = {}

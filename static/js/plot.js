@@ -1,15 +1,15 @@
-// plot.js — presentational only (costruisce traces e layout, niente logica “core”)
+// plot.js — presentational only (builds traces and layout, no "core" logic)
 
-/* ===== import dal core (non modifichiamo core.js ora) =====
-   - state:      stato condiviso (latent, dim, bounds, axes correnti, ecc.)
-   - els:        {left,right} -> contenitori dei plot
-   - cssVar:     legge token CSS (no fallback/hardcode)
-   - latentToU:  v∈[0,1] → u∈[-1,1] in base ai bounds (j-esima dimensione)
+/* ===== import from core (not modifying core.js now) =====
+   - state:      shared state (latent, dim, bounds, current axes, etc.)
+   - els:        {left,right} -> plot containers
+   - cssVar:     reads CSS tokens (no fallback/hardcode)
+   - latentToU:  v∈[0,1] → u∈[-1,1] based on bounds (j-th dimension)
 */
 import { state, els, cssVar, latentToU, clamp } from "./core.js";
 
 /* =========================================================
-   THEME HELPERS (tutto lo stile arriva dai CSS)
+   THEME HELPERS (all styling comes from CSS)
    ========================================================= */
 // HSL → HEX (#rrggbb)
 
@@ -30,12 +30,12 @@ function hslToHex(h, s, l){
   return `#${[to255(r),to255(g),to255(b)].map(v=>v.toString(16).padStart(2,"0")).join("")}`;
 }
 
-// Colori 2D: Hue=atan2, Sat=radius, Lightness=fisso
+// 2D colours: Hue=atan2, Sat=radius, Lightness=fixed
 function colorsFrom2D(X, Y){
   const L   = parseFloat(cssVar('--cc-2d-lightness'));
   const S0  = parseFloat(cssVar('--cc-2d-sat-min'));
   const S1  = parseFloat(cssVar('--cc-2d-sat-max'));
-  const maxR = Math.SQRT2; // r massimo in [-1,1]^2
+  const maxR = Math.SQRT2; // max r in [-1,1]^2
   const N = X.length;
   const out = new Array(N);
   for (let i=0;i<N;i++){
@@ -48,7 +48,7 @@ function colorsFrom2D(X, Y){
   return out;
 }
 
-// Colori 3D: RGB(x,y,z) con gamma
+// 3D colours: RGB(x,y,z) with gamma
 function colorsFrom3D(X, Y, Z){
   const g = parseFloat(cssVar('--cc-3d-gamma'));
   const N = X.length;
@@ -64,16 +64,16 @@ function colorsFrom3D(X, Y, Z){
 
 
 export function applyPlotTheme2D(layout) {
-  // sfondi
+  // backgrounds
   layout.paper_bgcolor = cssVar('--plot-paper');
   layout.plot_bgcolor  = cssVar('--plot-bg');
 
-  // tipografia
+  // typography
   const UIFONT = cssVar('--font-ui');
   const TXT    = cssVar('--plot-text');
   layout.font  = { ...(layout.font||{}), family: UIFONT, color: TXT };
 
-  // assi, griglia, spike
+  // axes, grid, spike
   const GRID   = cssVar('--plot-grid');
   const AXIS   = cssVar('--plot-axis');
   const SPIKE  = cssVar('--spike-color');
@@ -99,7 +99,7 @@ export function applyPlotTheme2D(layout) {
     tickfont:  { family: UIFONT, color: ATC, size: TKS },
   };
 
-  // hoverlabel coerente
+  // consistent hoverlabel
   layout.hoverlabel = {
     ...(layout.hoverlabel || {}),
     bgcolor: cssVar('--hover-bg'),
@@ -108,18 +108,18 @@ export function applyPlotTheme2D(layout) {
             size: Number(cssVar('--hover-size')) || undefined }
   };
 
-  // mai legenda
+  // never show legend
   layout.showlegend = false;
 }
 
 export function applyPlotTheme3D(layout) {
-  // sfondi
+  // backgrounds
   layout.paper_bgcolor = cssVar('--plot-paper');
   const UIFONT = cssVar('--font-ui');
   const TXT    = cssVar('--plot-text');
   layout.font  = { ...(layout.font||{}), family: UIFONT, color: TXT };
 
-  // assi/griglia/spike
+  // axes/grid/spike
   const GRID  = cssVar('--plot-grid');
   const AXIS  = cssVar('--plot-axis');
   const SPIKE = cssVar('--spike-color');
@@ -157,7 +157,7 @@ export function applyPlotTheme3D(layout) {
   layout.scene.aspectmode = 'cube';
   layout.scene.domain = { x: [0, 1], y: [0, 1] };
 
-  // hoverlabel coerente
+  // consistent hoverlabel
   layout.hoverlabel = {
     ...(layout.hoverlabel || {}),
     bgcolor: cssVar('--hover-bg'),
@@ -172,7 +172,7 @@ export function applyPlotTheme3D(layout) {
 /* =========================================================
    DATA HELPERS
    ========================================================= */
-// Estrae coordinate u∈[-1,1] per un paio/terzetto di assi da state.latent
+// Extract u∈[-1,1] coordinates for a pair/triplet of axes from state.latent
 function project2D(axX, axY) {
   const X = [], Y = [];
   const N = state.latent.length;
@@ -196,7 +196,7 @@ function project3D(axX, axY, axZ) {
 }
 
 /* =========================================================
-   TRACES FACTORY (2D/3D) — no stile hard-coded
+   TRACES FACTORY (2D/3D) — no hard-coded styling
    ========================================================= */
 function traces2D(axX, axY) {
   const { X, Y } = project2D(axX, axY);
@@ -226,7 +226,7 @@ function traces2D(axX, axY) {
     hoverinfo: "skip",
   };
 
-  // cursore (glow + dot) — indici usati da updateCursor
+  // cursor (glow + dot) — indices used by updateCursor
   const glow = {
     type: "scattergl", mode: "markers",
     x: [0], y: [0],
@@ -339,21 +339,21 @@ function render3D(container, axX, axY, axZ) {
 }
 
 /* =========================================================
-   API PUBBLICA
+   PUBLIC API
    ========================================================= */
 export function drawPlots() {
   const { left, right } = els();
   if (!left || !right) return;
 
-  // 1) Modalità griglia: 2D/3D = singola colonna, 4D = due colonne
+  // 1) Grid mode: 2D/3D = single column, 4D = two columns
   const plotsEl = document.getElementById("plots");
   if (plotsEl) plotsEl.classList.toggle("dual", state.dim === 4);
 
-  // 2) reset indici cursori
+  // 2) reset cursor indices
   state.cursorLeft  = null;
   state.cursorRight = null;
 
-  // 3) render in base alla dimensionalità (nessun show/hide via JS: pensa il CSS)
+  // 3) render based on dimensionality (no show/hide via JS: CSS handles it)
   if (state.dim === 2) {
     const ax = state.currentAxes || { x: 0, y: 1 };
     state.cursorLeft = render2D(left, ax.x, ax.y);
@@ -367,7 +367,7 @@ export function drawPlots() {
     state.cursorRight = render2D(right, b.x, b.y);
   }
 
-  // 4) assicura che Plotly ricalcoli le dimensioni dopo il cambio griglia
+  // 4) ensure Plotly recalculates dimensions after grid change
   queueMicrotask(() => {
     if (left)  Plotly.Plots.resize(left);
     if (state.dim === 4 && right) Plotly.Plots.resize(right);
@@ -375,7 +375,7 @@ export function drawPlots() {
 }
 
 
-/* Aggiorna la posizione del cursore (in [0,1] → proiettato in u[-1,1]) */
+/* Update cursor position (in [0,1] → projected to u[-1,1]) */
 export function updateCursor(latentPoint) {
   if (!latentPoint || latentPoint.length !== state.dim) return;
   const { left, right } = els();

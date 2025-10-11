@@ -96,7 +96,8 @@ VAE_PARAM_RANGES = {
     },
     "latent_dim": {
         "type": "categorical",
-        "values": [2, 3, 4]
+        #"values": [2, 3, 4]
+        "values": [3]
     },
     "width_scale": {
         "type": "float",
@@ -154,7 +155,7 @@ RBF_MIN_DEGREE = {
     "cubic": 1
 }
 
-# Degree is forced to -1 (no polynomial queue)
+# Degree is forced to -1 (no polynomial term)
 RBF_DEGREE_LOCK = {
     "gaussian": -1,
     "inverse_quadratic": -1
@@ -182,10 +183,26 @@ N_TRIALS_RBF = 300
 # ==============================
 # GUI / OSC
 # ==============================
-IP_ADDRESS = "127.0.0.1"
-SEND_PORT = 9100
-RECEIVE_PORT = 9101
-FORWARD_PORT = 9110
+WEBAPP_HOST = "127.0.0.1"
+WEBAPP_PORT = 5000
+
+IP_ADDRESS = "0.0.0.0"
+RECEIVE_PORT = 9900  # Port for receiving OSC from device
+FORWARD_PORT = 9901  # Port for forwarding cursor position to web
+SEND_PORT = 9902  # Port from browser to ReaLearn
+
+
+# ==============================
+# OSC Controller Settings
+# ==============================
+# Coalescing and rate-limiting parameters for plugin_controller
+CONTROLLER_TICK_HZ = 30  # Coalescing tick rate (30 Hz)
+CONTROLLER_PER_PARAM_MIN_INTERVAL_MS = 8.0  # Minimum interval between sends of same parameter
+CONTROLLER_EPSILON = 1e-4  # Ignore micro-variations below this threshold
+CONTROLLER_USE_BUNDLES = False  # Send OSC bundles when possible
+CONTROLLER_MAX_PER_TICK = 256  # Maximum updates per tick
+CONTROLLER_MAX_PACKETS_PER_SEC = 1000  # Global packet rate limit
+CONTROLLER_RECV_HOST = "0.0.0.0"  # Host for OSC ingress
 
 
 # ==============================
@@ -206,7 +223,7 @@ FORWARD_PORT = 9110
 #   - Increase SCALE or POWER if you observe spikes near the borders.
 #   - Decrease SCALE or POWER if the interpolation feels too "sticky" to the nearest point.
 
-NN_BLEND_ENABLED_DEFAULT = True # Active by default to prevent spikes on latent space's borders
+NN_BLEND_ENABLED_DEFAULT = True  # Active by default to prevent spikes on latent space borders
 NN_BLEND_SCALE = 1.5
 NN_BLEND_POWER = 2.0
 NN_BLEND_ACTIVATION_THRESHOLD = 1e-12

@@ -22,6 +22,8 @@ from constants import (
     RENDERED_AUDIO_FOLDER,
     SAMPLERATE,
     TARGET_DBFS,
+    WEBAPP_HOST,
+    SEND_PORT,
 )
 from logger import setup_logger
 
@@ -155,7 +157,9 @@ def main(render_mode,
         dataset_filename,
         silence_thresh,
         no_iterations,
-        device_id=None):
+        device_id=None,
+        osc_host=WEBAPP_HOST,
+        osc_port=SEND_PORT):
     """
     Primary entry point for rendering operations.
 
@@ -166,7 +170,10 @@ def main(render_mode,
         silence_thresh: Threshold for filtering silent recordings (energy-based)
         no_iterations: Number of random presets to generate (only used in 'random' mode)
         device_id: Audio input device ID (if None, prompts user interactively)
+        osc_host: OSC target host for REAPER communication (default: WEBAPP_HOST from constants)
+        osc_port: OSC target port for REAPER communication (default: SEND_PORT from constants)
     """
+    log.info("OSC target for REAPER: %s:%d", osc_host, osc_port)
     # Initialize core components
     data_handler = DataHandler(dataset_filename)
     recorder = AudioRecorder(directory, silence_thresh, device_id)

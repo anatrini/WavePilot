@@ -9,6 +9,7 @@ import logging
 import sys
 
 from logger import setup_logger
+from constants import FORWARD_PORT, SEND_PORT, WEBAPP_HOST
 
 # Render path (sync)
 # Adjust the import if your renderer lives elsewhere.
@@ -86,6 +87,20 @@ def parse_arguments() -> argparse.Namespace:
         default="default_plugin",
         help="Subfolder name for rendered audio files (default: default_plugin)",
     )
+    render_parser.add_argument(
+        "--osc-host",
+        dest="osc_host",
+        type=str,
+        default=WEBAPP_HOST,
+        help=f"OSC target host for REAPER communication (default: {WEBAPP_HOST})",
+    )
+    render_parser.add_argument(
+        "--osc-port",
+        dest="osc_port",
+        type=int,
+        default=SEND_PORT,
+        help=f"OSC target port for REAPER communication (default: {SEND_PORT})",
+    )
 
     # ---- controller subcommand (async) ----
     controller_parser = subparsers.add_parser(
@@ -109,6 +124,20 @@ def parse_arguments() -> argparse.Namespace:
         default="none",
         help="Select the pre-processing function applied to incoming data.",
     )
+    controller_parser.add_argument(
+        "--osc-host",
+        dest="osc_host",
+        type=str,
+        default=WEBAPP_HOST,
+        help=f"OSC target host for forwarding (default: {WEBAPP_HOST})",
+    )
+    controller_parser.add_argument(
+        "--osc-port",
+        dest="osc_port",
+        type=int,
+        default=FORWARD_PORT,
+        help=f"OSC target port for forwarding (default: {FORWARD_PORT})",
+    )
 
     return parser.parse_args()
 
@@ -123,13 +152,15 @@ def main() -> None:
                 sys.exit(1)
 
             log.info(
-                "Starting render | mode=%s dir=%s dataset=%s device=%s iterations=%s silence=%s",
+                "Starting render | mode=%s dir=%s dataset=%s device=%s iterations=%s silence=%s osc_target=%s:%d",
                 args.render_mode,
                 args.directory,
                 args.dataset_filename,
                 args.device_id,
                 args.no_iterations,
                 args.silence_thresh,
+                args.osc_host,
+                args.osc_port,
             )
 
             renderer_main(
@@ -139,16 +170,25 @@ def main() -> None:
                 silence_thresh=args.silence_thresh,
                 no_iterations=args.no_iterations,
                 device_id=args.device_id,
+                osc_host=args.osc_host,
+                osc_port=args.osc_port,
             )
 
         elif args.mode == "controller":
             log.info(
-                "Starting controller | filepath=%s ingest=%s",
+                "Starting controller | filepath=%s ingest=%s osc_target=%s:%d",
                 args.filepath,
                 args.ingest,
+                args.osc_host,
+                args.osc_port,
             )
             # controller_main is an async coroutine imported from plugin_controller_async
-            asyncio.run(controller_main(filepath=args.filepath, proc_mode=args.ingest))
+            asyncio.run(controller_main(
+                filepath=args.filepath,
+                proc_mode=args.ingest,
+                osc_host=args.osc_host,
+                osc_port=args.osc_port
+            ))
 
         else:
             log.error("Invalid mode selected: %s", args.mode)

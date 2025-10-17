@@ -487,17 +487,19 @@ def publish_addr_list_to_web(paths: list[str]) -> None:
 
 
 
-async def _run_async(filepath: str, proc_mode: str = "none") -> None:
+async def _run_async(filepath: str, proc_mode: str = "none", osc_host: str = WEBAPP_HOST, osc_port: int = FORWARD_PORT) -> None:
     """
     Async entry point for the OSC controller.
 
     Args:
         filepath: Path to JSON file containing OSC address mappings
         proc_mode: Processing mode ('none', 'touch', 'imu', 'orientation')
+        osc_host: OSC target host for forwarding (default: WEBAPP_HOST from constants)
+        osc_port: OSC target port for forwarding (default: FORWARD_PORT from constants)
     """
     log.info(
-        "Receiving OSC on %d and forwarding to web on %d | proc_mode=%s",
-        RECEIVE_PORT, FORWARD_PORT, proc_mode,
+        "Receiving OSC on %d and forwarding to %s:%d | proc_mode=%s",
+        RECEIVE_PORT, osc_host, osc_port, proc_mode,
     )
 
     # 1) Load logical->OSC path map and prepare ordered list for web app
@@ -529,8 +531,8 @@ async def _run_async(filepath: str, proc_mode: str = "none") -> None:
     # 2) Publish address list to web app (one-time, non-blocking)
     publish_addr_list_to_web(addr_list_for_web)
 
-    # 3) Sender: controller → web app (OSC) on FORWARD_PORT
-    client = await _make_udp_client("127.0.0.1", FORWARD_PORT)
+    # 3) Sender: controller → target (OSC) on configurable host:port
+    client = await _make_udp_client(osc_host, osc_port)
     forwarder = CoalescingForwarder(client, osc_addresses, proc_mode=proc_mode)
 
     # 4) Receiver: device/software → controller (OSC) on RECEIVE_PORT

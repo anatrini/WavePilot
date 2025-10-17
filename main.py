@@ -3,6 +3,7 @@ import asyncio
 from optimize import main as optimize_main
 from train import main as train_main
 from logger import setup_logger
+from constants import WEBAPP_HOST, SEND_PORT
 
 
 log = setup_logger("Main")
@@ -63,14 +64,14 @@ def parse_arguments():
     train_parser.add_argument("--osc-host",
                         dest="osc_host",
                         type=str,
-                        default="127.0.0.1",
-                        help="OSC target host (default: 127.0.0.1 for ReaLearn)")
+                        default=WEBAPP_HOST,
+                        help=f"OSC target host (default: {WEBAPP_HOST})")
 
     train_parser.add_argument("--osc-port",
                         dest="osc_port",
                         type=int,
-                        default=9902,
-                        help="OSC target port (default: 9902 for ReaLearn)")
+                        default=SEND_PORT,
+                        help=f"OSC target port (default: {SEND_PORT})")
 
     return parser.parse_args()
 

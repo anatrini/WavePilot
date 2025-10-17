@@ -52,7 +52,7 @@ def run_flask(app, socketio, latent_data):
     socketio.run(app, host=WEBAPP_HOST, port=WEBAPP_PORT, allow_unsafe_werkzeug=True)
 
 
-async def main(filepath, pretrained_model_path, optimizer_session, save_model_path, osc_host="127.0.0.1", osc_port=9902):
+async def main(filepath, pretrained_model_path, optimizer_session, save_model_path, osc_host=WEBAPP_HOST, osc_port=SEND_PORT):
     """
     Asynchronous entry point:
       - trains or loads the VAE, builds the RBF interpolator,
@@ -64,8 +64,8 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
         pretrained_model_path: Path to pretrained model checkpoint
         optimizer_session: Path to optimizer log file
         save_model_path: Path to save trained model
-        osc_host: OSC target host (default: 127.0.0.1 for ReaLearn)
-        osc_port: OSC target port (default: 9902 for ReaLearn)
+        osc_host: OSC target host (default: WEBAPP_HOST from constants)
+        osc_port: OSC target port (default: SEND_PORT from constants)
     """
 
     # Set global seed for reproducibility

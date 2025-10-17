@@ -65,21 +65,21 @@ def _handle_interrupt(signum, frame, data_handler):
 
 class AudioRecorder:
     """Handles audio recording operations"""
-    def __init__(self, folder, silence_thresh):
+    def __init__(self, folder, silence_thresh, device_id=None):
         self.folder = folder
         self.silence_thresh = silence_thresh
         self.stream = None
         self.recording = np.empty((0, 2), dtype=np.float32)
-        self.device_id = self._select_device()
-        
+        self.device_id = device_id if device_id is not None else self._select_device()
+
     def _select_device(self):
-        """Interactive device selection"""
+        """Interactive device selection (fallback if no device_id provided)"""
         devices = sd.query_devices()
-        
+
         print("\n=== Available Audio Devices ===")
         for i, dev in enumerate(devices):
             print("[%d] %s (Inputs: %d)" % (i, dev["name"], dev["max_input_channels"]))
-            
+
         while True:
             try:
                 choice = int(input("\nEnter device ID: "))
@@ -154,11 +154,22 @@ def main(render_mode,
         directory,
         dataset_filename,
         silence_thresh,
-        no_iterations):
-    """Primary entry point for rendering operations."""
+        no_iterations,
+        device_id=None):
+    """
+    Primary entry point for rendering operations.
+
+    Args:
+        render_mode: 'preset' to export all plugin presets, 'random' to generate random parameter sets
+        directory: Subfolder name for rendered audio files (under RENDERED_AUDIO_FOLDER)
+        dataset_filename: Output CSV filename (saved to DATASET_FOLDER)
+        silence_thresh: Threshold for filtering silent recordings (energy-based)
+        no_iterations: Number of random presets to generate (only used in 'random' mode)
+        device_id: Audio input device ID (if None, prompts user interactively)
+    """
     # Initialize core components
     data_handler = DataHandler(dataset_filename)
-    recorder = AudioRecorder(directory, silence_thresh)
+    recorder = AudioRecorder(directory, silence_thresh, device_id)
     
     # REAPER connection
     reapy.connect()

@@ -33,43 +33,57 @@ def parse_arguments() -> argparse.Namespace:
 
     # ---- render subcommand (sync) ----
     render_parser = subparsers.add_parser(
-        "render", help="Run the rendering pipeline (synchronous)"
+        "render",
+        help="Render plugin presets or random parameter sets to audio and CSV dataset"
     )
     render_parser.add_argument(
-        "--render-mode",
+        "-m",
+        "--mode",
         dest="render_mode",
         type=str,
-        default="default",
-        help="Rendering mode/preset to use.",
+        choices=["preset", "random"],
+        default="preset",
+        help="Render mode: 'preset' = export all factory/user presets, 'random' = generate random parameter sets (default: preset)",
     )
     render_parser.add_argument(
         "-d",
-        "--directory",
-        dest="directory",
-        type=str,
+        "--device",
+        dest="device_id",
+        type=int,
         required=True,
-        help="Base directory for inputs/outputs.",
+        help="Audio input device ID (use sounddevice to list available devices)",
     )
     render_parser.add_argument(
-        "--dataset-filename",
+        "-o",
+        "--output",
         dest="dataset_filename",
         type=str,
         required=True,
-        help="Dataset file name.",
+        help="Output dataset filename (saved to data/ folder as CSV)",
     )
     render_parser.add_argument(
-        "--silence-thresh",
+        "-t",
+        "--threshold",
         dest="silence_thresh",
         type=float,
-        default=-40.0,
-        help="Silence threshold (dB).",
+        default=0.001,
+        help="Silence detection threshold for filtering empty recordings (default: 0.001)",
     )
     render_parser.add_argument(
-        "--no-iterations",
+        "-n",
+        "--num-iterations",
         dest="no_iterations",
         type=int,
-        default=1,
-        help="Number of iterations.",
+        default=100,
+        help="Number of random presets to generate (only used in 'random' mode, default: 100)",
+    )
+    render_parser.add_argument(
+        "--plugin-dir",
+        dest="directory",
+        type=str,
+        required=False,
+        default="default_plugin",
+        help="Subfolder name for rendered audio files (default: default_plugin)",
     )
 
     # ---- controller subcommand (async) ----
@@ -108,10 +122,11 @@ def main() -> None:
                 sys.exit(1)
 
             log.info(
-                "Starting render | mode=%s dir=%s dataset=%s iterations=%s silence=%s",
+                "Starting render | mode=%s dir=%s dataset=%s device=%s iterations=%s silence=%s",
                 args.render_mode,
                 args.directory,
                 args.dataset_filename,
+                args.device_id,
                 args.no_iterations,
                 args.silence_thresh,
             )
@@ -122,6 +137,7 @@ def main() -> None:
                 dataset_filename=args.dataset_filename,
                 silence_thresh=args.silence_thresh,
                 no_iterations=args.no_iterations,
+                device_id=args.device_id,
             )
 
         elif args.mode == "controller":

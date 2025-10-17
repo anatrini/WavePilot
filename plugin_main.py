@@ -50,8 +50,9 @@ def parse_arguments() -> argparse.Namespace:
         "--device",
         dest="device_id",
         type=int,
-        required=True,
-        help="Audio input device ID (use sounddevice to list available devices)",
+        required=False,
+        default=None,
+        help="Audio input device ID (if not provided, will prompt interactively)",
     )
     render_parser.add_argument(
         "-o",

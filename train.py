@@ -52,12 +52,20 @@ def run_flask(app, socketio, latent_data):
     socketio.run(app, host=WEBAPP_HOST, port=WEBAPP_PORT, allow_unsafe_werkzeug=True)
 
 
-async def main(filepath, pretrained_model_path, optimizer_session, save_model_path):
+async def main(filepath, pretrained_model_path, optimizer_session, save_model_path, osc_host="127.0.0.1", osc_port=9902):
     """
     Asynchronous entry point:
       - trains or loads the VAE, builds the RBF interpolator,
       - starts Flask/Socket.IO in a background thread,
       - starts the OSC ingress (visualiser) and awaits it.
+
+    Args:
+        filepath: Path to dataset CSV file
+        pretrained_model_path: Path to pretrained model checkpoint
+        optimizer_session: Path to optimizer log file
+        save_model_path: Path to save trained model
+        osc_host: OSC target host (default: 127.0.0.1 for ReaLearn)
+        osc_port: OSC target port (default: 9902 for ReaLearn)
     """
 
     # Set global seed for reproducibility
@@ -74,9 +82,9 @@ async def main(filepath, pretrained_model_path, optimizer_session, save_model_pa
         response.headers["Expires"] = "0"
         return response
 
-    # IMPORTANT: Web → ReaLearn egress must target SEND_PORT.
-    # The controller/device never listens here; ReaLearn does.
-    osc_client = udp_client.SimpleUDPClient("127.0.0.1", SEND_PORT)
+    # OSC egress: configurable target for ReaLearn or direct instrument control
+    log.info("OSC target configured: %s:%d", osc_host, osc_port)
+    osc_client = udp_client.SimpleUDPClient(osc_host, osc_port)
 
     start_time = time.time()
 

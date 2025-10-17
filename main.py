@@ -54,11 +54,23 @@ def parse_arguments():
                         default=None,
                         help="Log file of a previous optimization session.")
 
-    train_parser.add_argument("-s", "--save-model-path", 
+    train_parser.add_argument("-s", "--save-model-path",
                         dest="save_model_path",
                         type=str,
-                        default=None, 
+                        default=None,
                         help="If set save model to this path after training.")
+
+    train_parser.add_argument("--osc-host",
+                        dest="osc_host",
+                        type=str,
+                        default="127.0.0.1",
+                        help="OSC target host (default: 127.0.0.1 for ReaLearn)")
+
+    train_parser.add_argument("--osc-port",
+                        dest="osc_port",
+                        type=int,
+                        default=9902,
+                        help="OSC target port (default: 9902 for ReaLearn)")
 
     return parser.parse_args()
 
@@ -78,7 +90,9 @@ async def main():
             filepath=args.filepath,
             pretrained_model_path=args.pretrained_model,
             optimizer_session=args.optimizer_session,
-            save_model_path=args.save_model_path)
+            save_model_path=args.save_model_path,
+            osc_host=args.osc_host,
+            osc_port=args.osc_port)
 
     else:
         log.error("Invalid mode selected.")
